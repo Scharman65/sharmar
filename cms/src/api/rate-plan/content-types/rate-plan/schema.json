@@ -1,0 +1,57 @@
+{
+  "kind": "collectionType",
+  "collectionName": "rate_plans",
+  "info": {
+    "singularName": "rate-plan",
+    "pluralName": "rate-plans",
+    "displayName": "Rate Plan"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "hour",
+        "half_day",
+        "day",
+        "sunset"
+      ],
+      "required": true
+    },
+    "price": {
+      "type": "decimal",
+      "required": true
+    },
+    "currency": {
+      "type": "enumeration",
+      "enum": [
+        "EUR"
+      ],
+      "default": "EUR"
+    },
+    "min_duration": {
+      "type": "integer",
+      "default": 1
+    },
+    "deposit": {
+      "type": "decimal"
+    },
+    "includes": {
+      "type": "text"
+    },
+    "season_from": {
+      "type": "date"
+    },
+    "season_to": {
+      "type": "date"
+    },
+    "boat": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::boat.boat",
+      "inversedBy": "rate_plans"
+    }
+  }
+}

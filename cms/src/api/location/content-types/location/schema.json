@@ -1,0 +1,50 @@
+{
+  "kind": "collectionType",
+  "collectionName": "locations",
+  "info": {
+    "singularName": "location",
+    "pluralName": "locations",
+    "displayName": "Location"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "region": {
+      "type": "enumeration",
+      "enum": [
+        "Bay of Kotor",
+        "Budva Riviera",
+        "Bar Riviera",
+        "Ulcinj Riviera",
+        "Tivat",
+        "Herceg Novi",
+        "Kotor",
+        "Budva",
+        "Bar",
+        "Ulcinj"
+      ]
+    },
+    "lat": {
+      "type": "decimal"
+    },
+    "lng": {
+      "type": "decimal"
+    },
+    "boats": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::boat.boat",
+      "mappedBy": "home_marina"
+    }
+  }
+}

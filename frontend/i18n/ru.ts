@@ -1,0 +1,45 @@
+const ru = {
+  nav: {
+    boats: "Лодки",
+  },
+  boats: {
+    title: "Лодки",
+    subtitle: "Выберите лодку и отправьте заявку на бронирование.",
+    empty: "Пока нет лодок.",
+    count_one: "1 лодка",
+    count_many: "{n} лодок",
+    no_description: "Описание отсутствует.",
+  },
+  boat: {
+    type: "Тип",
+    capacity: "Вместимость",
+    license: "Права",
+    skipper: "Шкипер",
+    purposes: "Назначение",
+    back_to_list: "Назад к списку",
+    view_details: "Подробнее",
+    license_required: "Нужны",
+    license_not_required: "Не нужны",
+    skipper_available: "Доступен",
+    skipper_not_available: "Недоступен",
+  },
+  booking: {
+    requestThisBoat: "Оставить заявку",
+    title: "Заявка на бронирование",
+    name: "ФИО",
+    phone: "Телефон",
+    email: "Email",
+    dateFrom: "С",
+    dateTo: "По",
+    peopleCount: "Людей",
+    needSkipper: "Нужен шкипер",
+    message: "Комментарий",
+    send: "Отправить",
+    sentTitle: "Заявка отправлена",
+    sentText: "Мы получили вашу заявку. Наша команда свяжется с вами в ближайшее время.",
+    errorTitle: "Не удалось отправить",
+    errorText: "Произошла ошибка. Можно отправить по email:",
+  },
+};
+
+export default ru;

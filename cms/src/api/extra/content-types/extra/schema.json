@@ -1,0 +1,13 @@
+{
+  "kind": "collectionType",
+  "collectionName": "extras",
+  "info": { "singularName": "extra", "pluralName": "extras", "displayName": "Extra" },
+  "options": { "draftAndPublish": true },
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "slug": { "type": "uid", "targetField": "name", "required": true },
+    "price": { "type": "decimal" },
+    "currency": { "type": "enumeration", "enum": ["EUR"], "default": "EUR" },
+    "pricing_unit": { "type": "enumeration", "enum": ["per_booking","per_hour","per_day"], "default": "per_booking" }
+  }
+}

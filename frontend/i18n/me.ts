@@ -1,0 +1,45 @@
+const me = {
+  nav: {
+    boats: "Brodovi",
+  },
+  boats: {
+    title: "Brodovi",
+    subtitle: "Izaberite brod i pošaljite upit za rezervaciju.",
+    empty: "Još nema brodova.",
+    count_one: "1 brod",
+    count_many: "{n} brodova",
+    no_description: "Opis nije dostupan.",
+  },
+  boat: {
+    type: "Tip",
+    capacity: "Kapacitet",
+    license: "Dozvola",
+    skipper: "Skiper",
+    purposes: "Namjena",
+    back_to_list: "Nazad na listu",
+    view_details: "Detalji",
+    license_required: "Potrebna",
+    license_not_required: "Nije potrebna",
+    skipper_available: "Dostupan",
+    skipper_not_available: "Nije dostupan",
+  },
+  booking: {
+    requestThisBoat: "Pošalji upit",
+    title: "Upit za rezervaciju",
+    name: "Puno ime",
+    phone: "Telefon",
+    email: "Email",
+    dateFrom: "Od",
+    dateTo: "Do",
+    peopleCount: "Broj osoba",
+    needSkipper: "Potreban skiper",
+    message: "Poruka",
+    send: "Pošalji",
+    sentTitle: "Upit poslat",
+    sentText: "Primili smo vaš upit. Naš tim će vas uskoro kontaktirati.",
+    errorTitle: "Nije poslato",
+    errorText: "Došlo je do greške. Možete poslati emailom:",
+  },
+};
+
+export default me;

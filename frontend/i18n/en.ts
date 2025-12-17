@@ -1,0 +1,45 @@
+const en = {
+  nav: {
+    boats: "Boats",
+  },
+  boats: {
+    title: "Boats",
+    subtitle: "Choose a boat and send a booking request.",
+    empty: "No boats yet.",
+    count_one: "1 boat",
+    count_many: "{n} boats",
+    no_description: "No description available.",
+  },
+  boat: {
+    type: "Type",
+    capacity: "Capacity",
+    license: "License",
+    skipper: "Skipper",
+    purposes: "Purposes",
+    back_to_list: "Back to list",
+    view_details: "View details",
+    license_required: "Required",
+    license_not_required: "Not required",
+    skipper_available: "Available",
+    skipper_not_available: "Not available",
+  },
+  booking: {
+    requestThisBoat: "Request this boat",
+    title: "Booking request",
+    name: "Full name",
+    phone: "Phone",
+    email: "Email",
+    dateFrom: "From",
+    dateTo: "To",
+    peopleCount: "People",
+    needSkipper: "Need skipper",
+    message: "Message",
+    send: "Send request",
+    sentTitle: "Request sent",
+    sentText: "We’ve received your booking request. Our team will contact you shortly.",
+    errorTitle: "Could not send",
+    errorText: "Something went wrong. You can still send via email:",
+  },
+};
+
+export default en;

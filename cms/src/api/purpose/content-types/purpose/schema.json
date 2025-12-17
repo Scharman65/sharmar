@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "purposes",
+  "info": {
+    "singularName": "purpose",
+    "pluralName": "purposes",
+    "displayName": "Purpose"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "boats": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::boat.boat",
+      "mappedBy": "purposes"
+    }
+  }
+}

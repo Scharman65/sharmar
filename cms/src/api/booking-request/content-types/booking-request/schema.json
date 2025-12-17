@@ -1,0 +1,61 @@
+{
+  "kind": "collectionType",
+  "collectionName": "booking_requests",
+  "info": {
+    "singularName": "booking-request",
+    "pluralName": "booking-requests",
+    "displayName": "Booking Request"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "full_name": {
+      "type": "string",
+      "required": true
+    },
+    "phone": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "email"
+    },
+    "start_datetime": {
+      "type": "datetime",
+      "required": true
+    },
+    "end_datetime": {
+      "type": "datetime",
+      "required": true
+    },
+    "people_count": {
+      "type": "integer",
+      "default": 1,
+      "min": 1
+    },
+    "need_skipper": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "text"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "new",
+        "confirmed",
+        "declined"
+      ],
+      "required": true,
+      "default": "new"
+    },
+    "boat": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::boat.boat",
+      "inversedBy": "booking_requests"
+    }
+  }
+}
