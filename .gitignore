@@ -25,3 +25,19 @@ yarn-error.log*
 *.bak
 *.bak_*
 *.bak.*
+
+# local backups
+backups/
+*.bak
+*.backup
+*.tar.gz
+*.sql
+*.zip
+
+# local secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store

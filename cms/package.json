@@ -39,5 +39,9 @@
   "strapi": {
     "uuid": "e3719bf6-3f6e-4647-8e21-87926c0f3d19",
     "installId": "c868ca72507d4921246437d20c561a07fbd8139de4d0075d8cd80a173fcc7602"
+  },
+  "overrides": {
+    "@strapi/admin": "5.32.0",
+    "esbuild": "0.21.5"
   }
 }

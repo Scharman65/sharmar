@@ -22,7 +22,7 @@ export default async function BoatsPage({ params }: Props) {
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
 
-  const boats = await fetchBoats();
+  const boats = await fetchBoats(lang);
 
   return (
     <main className="main">

@@ -6,7 +6,13 @@ const nextConfig: NextConfig = {
   turbopack: { root: __dirname },
 
   images: {
+    domains: ["api.sharmar.me"],
     remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "api.sharmar.me",
+        pathname: "/**",
+      },
       {
         protocol: "http",
         hostname: "localhost",

@@ -52,6 +52,12 @@
       "relation": "manyToOne",
       "target": "api::boat.boat",
       "inversedBy": "rate_plans"
+    },
+    "purpose": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::purpose.purpose",
+      "inversedBy": "rate_plans"
     }
   }
 }

@@ -1,5 +1,4 @@
-const STRAPI_URL = (process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337").replace(/\/+$/, "");
-
+const STRAPI_URL = (process.env.STRAPI_URL ?? process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://127.0.0.1:1337").replace(/\/+$/, "");
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN ?? "";
 
 type MediaFile = {
@@ -25,105 +24,94 @@ export type Boat = {
 
 async function strapiFetch<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {};
+  if (STRAPI_TOKEN) headers["Authorization"] = `Bearer ${STRAPI_TOKEN}`;
 
-  if (STRAPI_TOKEN) {
-    headers["Authorization"] = `Bearer ${STRAPI_TOKEN}`;
-  }
-
-  const res = await fetch(`${STRAPI_URL}${path}`, {
-    cache: "no-store",
-    headers,
-  });
+  const res = await fetch(`${STRAPI_URL}${path}`, { cache: "no-store", headers });
   if (!res.ok) throw new Error(`Strapi request failed: ${res.status}`);
   return (await res.json()) as T;
 }
 
+function withLocale(path: string, locale?: string | null): string {
+  if (!locale) return path;
+  return path.includes("?")
+    ? `${path}&locale=${encodeURIComponent(locale)}`
+    : `${path}?locale=${encodeURIComponent(locale)}`;
+}
+
+async function strapiFetchWithFallback<T extends { data?: unknown }>(
+  path: string,
+  locale?: string | null
+): Promise<T> {
+  const primary = await strapiFetch<T>(withLocale(path, locale));
+  const data: any = (primary as any)?.data;
+
+  if ((Array.isArray(data) && data.length) || (data && !Array.isArray(data))) {
+    return primary;
+  }
+
+  if (locale && locale !== "en") {
+    return await strapiFetch<T>(withLocale(path, "en"));
+  }
+
+  return primary;
+}
+
 function absolutizeUrl(url: string): string {
   if (!url) return url;
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  if (url.startsWith("/")) return `${STRAPI_URL}${url}`;
-  return `${STRAPI_URL}/${url}`;
+  if (url.startsWith("http")) return url;
+  return `${STRAPI_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
 function pickBestMediaUrl(m?: MediaFile | null): string | null {
-  const raw =
+  return (
     m?.formats?.medium?.url ??
     m?.formats?.small?.url ??
     m?.formats?.large?.url ??
     m?.formats?.thumbnail?.url ??
     m?.url ??
-    null;
-
-  return raw ? absolutizeUrl(raw) : null;
+    null
+  ) ? absolutizeUrl(
+    m?.formats?.medium?.url ??
+    m?.formats?.small?.url ??
+    m?.formats?.large?.url ??
+    m?.formats?.thumbnail?.url ??
+    m?.url ??
+    ""
+  ) : null;
 }
 
-function normalizeBoat(item: Record<string, unknown>): Boat | null {
-  const attrs =
-    item.attributes && typeof item.attributes === "object"
-      ? (item.attributes as Record<string, unknown>)
-      : null;
-
-  const base = attrs ?? item;
-
-  const id = typeof item.id === "number" ? item.id : (typeof base.id === "number" ? (base.id as number) : null);
-  if (id === null) return null;
-
-  const slug = typeof base.slug === "string" && base.slug ? base.slug : String(id);
-
-  const coverRaw = (base.cover as MediaFile | null | undefined) ?? null;
-  const coverUrl = pickBestMediaUrl(coverRaw);
-
-  const purposesRaw = base.purposes as Array<Record<string, unknown>> | null | undefined;
-  const purposes = Array.isArray(purposesRaw)
-    ? purposesRaw
-        .map((p) => ({
-          id: typeof p.id === "number" ? p.id : 0,
-          title: typeof p.title === "string" ? p.title : null,
-        }))
-        .filter((p) => p.id !== 0)
-    : [];
-
-  const imagesRaw = base.images as Array<Record<string, unknown>> | null | undefined;
-  const images = Array.isArray(imagesRaw)
-    ? imagesRaw
-        .map((img) => {
-          const mid = typeof img.id === "number" ? img.id : null;
-          const url = typeof img.url === "string" ? absolutizeUrl(img.url) : null;
-          if (mid === null || url === null) return null;
-          const alt = typeof img.alternativeText === "string" ? img.alternativeText : null;
-          return { id: mid, url, alternativeText: alt };
-        })
-        .filter((x): x is { id: number; url: string; alternativeText: string | null } => Boolean(x))
-    : [];
+function normalizeBoat(item: any): Boat | null {
+  const id = item?.id;
+  if (typeof id !== "number") return null;
 
   return {
     id,
-    slug,
-    title: typeof base.title === "string" ? base.title : null,
-    description: typeof base.description === "string" ? base.description : null,
-    boat_type: typeof base.boat_type === "string" ? base.boat_type : null,
-    capacity: typeof base.capacity === "number" ? base.capacity : null,
-    license_required: typeof base.license_required === "boolean" ? base.license_required : null,
-    skipper_available: typeof base.skipper_available === "boolean" ? base.skipper_available : null,
-    cover: coverUrl ? { url: coverUrl, alternativeText: coverRaw?.alternativeText ?? null } : null,
-    purposes,
-    images,
+    slug: item.slug ?? String(id),
+    title: item.title ?? null,
+    description: item.description ?? null,
+    boat_type: item.boat_type ?? null,
+    capacity: item.capacity ?? null,
+    license_required: item.license_required ?? null,
+    skipper_available: item.skipper_available ?? null,
+    cover: item.cover ? { url: pickBestMediaUrl(item.cover)!, alternativeText: item.cover.alternativeText ?? null } : null,
+    images: Array.isArray(item.images)
+      ? item.images.map((i: any) => ({ id: i.id, url: absolutizeUrl(i.url), alternativeText: i.alternativeText ?? null }))
+      : [],
+    purposes: Array.isArray(item.purposes)
+      ? item.purposes.map((p: any) => ({ id: p.id, title: p.title ?? null }))
+      : [],
   };
 }
 
-export async function fetchBoats(): Promise<Boat[]> {
-  const json = await strapiFetch<{ data: Array<Record<string, unknown>> }>(
-    "/api/boats?populate=*"
-  );
-  const items = Array.isArray(json.data) ? json.data : [];
-  return items.map(normalizeBoat).filter((x): x is Boat => Boolean(x));
+export async function fetchBoats(locale?: string): Promise<Boat[]> {
+  const json = await strapiFetchWithFallback<{ data: any[] }>("/api/boats?populate=*", locale);
+  return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
 }
 
-export async function fetchBoatBySlug(slug: string): Promise<Boat | null> {
-  const json = await strapiFetch<{ data: Array<Record<string, unknown>> }>(
-    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate=*`
+export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
+  const json = await strapiFetchWithFallback<{ data: any[] }>(
+    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate=*`,
+    locale
   );
-  const items = Array.isArray(json.data) ? json.data : [];
-  if (!items.length) return null;
-  return normalizeBoat(items[0]);
+  return json.data?.[0] ? normalizeBoat(json.data[0]) : null;
 }

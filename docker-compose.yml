@@ -12,17 +12,17 @@ services:
       - sharmar_pg_data:/var/lib/postgresql/data
 
   strapi:
-    env_file:
-      - .env
     image: node:20-bookworm-slim
     container_name: sharmar_strapi
     working_dir: /app
     depends_on:
       - db
+    env_file:
+      - .env
     ports:
       - "1337:1337"
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       DATABASE_CLIENT: postgres
       DATABASE_HOST: db
       DATABASE_PORT: 5432
@@ -36,7 +36,9 @@ services:
       TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT}
     volumes:
       - ./cms:/app
-    command: sh -lc "npm run develop"
+      - sharmar_cms_node_modules:/app/node_modules
+    command: sh -lc "npm run build && npm run start"
 
 volumes:
   sharmar_pg_data:
+  sharmar_cms_node_modules: {}

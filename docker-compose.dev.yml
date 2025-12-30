@@ -1,0 +1,5 @@
+services:
+  strapi:
+    environment:
+      NODE_ENV: development
+    command: sh -lc "cd /app && export PATH=/app/node_modules/.bin:$PATH && npm run develop"

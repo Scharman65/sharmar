@@ -1,0 +1,6 @@
+services:
+  strapi:
+    command:
+      - sh
+      - -lc
+      - npm run start
