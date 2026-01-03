@@ -128,3 +128,54 @@ export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Bo
   );
   return json.data?.[0] ? normalizeBoat(json.data[0]) : null;
 }
+
+export type AdvancedBoatFilters = {
+  listingType: "rent" | "sale";
+  boatTypes: string[]; // e.g. ["Sailboat", "Catamaran"]
+  lengthMin?: number;
+  lengthMax?: number;
+  priceType?: "hour" | "half_day" | "day" | "sunset";
+  priceMin?: number;
+  priceMax?: number;
+};
+
+export async function fetchBoatsAdvanced(
+  locale: string | undefined,
+  filters: AdvancedBoatFilters
+): Promise<Boat[]> {
+  const qs: string[] = ["populate[0]=cover", "populate[1]=rate_plans"];
+
+  qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
+
+  if (filters.boatTypes?.length) {
+    filters.boatTypes.forEach((t, i) => {
+      qs.push(`filters[boat_type][$in][${i}]=${encodeURIComponent(t)}`);
+    });
+  }
+
+  if (filters.lengthMin !== undefined) {
+    qs.push(`filters[length_m][$gte]=${filters.lengthMin}`);
+  }
+
+  if (filters.lengthMax !== undefined) {
+    qs.push(`filters[length_m][$lte]=${filters.lengthMax}`);
+  }
+
+  if (filters.priceType) {
+    qs.push(`filters[rate_plans][type][$eq]=${encodeURIComponent(filters.priceType)}`);
+  }
+
+  if (filters.priceMin !== undefined) {
+    qs.push(`filters[rate_plans][price][$gte]=${filters.priceMin}`);
+  }
+
+  if (filters.priceMax !== undefined) {
+    qs.push(`filters[rate_plans][price][$lte]=${filters.priceMax}`);
+  }
+
+  const path = `/api/boats?${qs.join("&")}`;
+  const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
+
+  return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
+}
+
