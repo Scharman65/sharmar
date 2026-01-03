@@ -19,6 +19,10 @@ export type Boat = {
   skipper_available?: boolean | null;
   vesselType?: string | null;
   listing_type?: string | null;
+  price_per_hour?: number | null;
+  price_per_day?: number | null;
+  deposit?: number | null;
+  currency?: string | null;
   cover?: { url: string; alternativeText?: string | null } | null;
   images?: { id: number; url: string; alternativeText?: string | null }[];
   purposes?: { id: number; title?: string | null }[];
@@ -165,11 +169,11 @@ export async function fetchBoatsAdvanced(
     qs.push(`filters[rate_plans][type][$eq]=${encodeURIComponent(filters.priceType)}`);
   }
 
-  if (filters.priceMin !== undefined) {
+  if (typeof filters.priceMin === "number") {
     qs.push(`filters[rate_plans][price][$gte]=${filters.priceMin}`);
   }
 
-  if (filters.priceMax !== undefined) {
+  if (typeof filters.priceMax === "number") {
     qs.push(`filters[rate_plans][price][$lte]=${filters.priceMax}`);
   }
 
