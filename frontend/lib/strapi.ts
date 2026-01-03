@@ -17,6 +17,8 @@ export type Boat = {
   capacity?: number | null;
   license_required?: boolean | null;
   skipper_available?: boolean | null;
+  vesselType?: string | null;
+  listing_type?: string | null;
   cover?: { url: string; alternativeText?: string | null } | null;
   images?: { id: number; url: string; alternativeText?: string | null }[];
   purposes?: { id: number; title?: string | null }[];
@@ -93,6 +95,8 @@ function normalizeBoat(item: any): Boat | null {
     capacity: item.capacity ?? null,
     license_required: item.license_required ?? null,
     skipper_available: item.skipper_available ?? null,
+    vesselType: item.vesselType ?? null,
+    listing_type: item.listing_type ?? null,
     cover: item.cover ? { url: pickBestMediaUrl(item.cover)!, alternativeText: item.cover.alternativeText ?? null } : null,
     images: Array.isArray(item.images)
       ? item.images.map((i: any) => ({ id: i.id, url: absolutizeUrl(i.url), alternativeText: i.alternativeText ?? null }))
@@ -103,8 +107,17 @@ function normalizeBoat(item: any): Boat | null {
   };
 }
 
-export async function fetchBoats(locale?: string): Promise<Boat[]> {
-  const json = await strapiFetchWithFallback<{ data: any[] }>("/api/boats?populate=*", locale);
+export type BoatFilters = {
+  listingType?: "rent" | "sale";
+  vesselType?: "motorboat" | "sailboat";
+};
+
+export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
+  const qs: string[] = ["populate=*"];
+  if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
+  if (filters?.vesselType) qs.push(`filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`);
+  const path = `/api/boats?${qs.join("&")}`;
+  const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
   return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
 }
 

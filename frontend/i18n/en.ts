@@ -1,6 +1,10 @@
 const en = {
   nav: {
     boats: "Boats",
+    sale: "For sale",
+    rent: "For rent",
+    motor: "Motor yachts",
+    sail: "Sailing yachts",
   },
   boats: {
     title: "Boats",

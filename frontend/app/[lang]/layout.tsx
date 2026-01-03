@@ -27,6 +27,20 @@ export default async function LangLayout({ children, params }: Props) {
             <Link href={`/${lang}/boats`} className="nav-button">
               {tr.nav.boats}
             </Link>
+
+            <Link href={`/${lang}/sale/motor`} className="nav-button">
+              {tr.nav.sale} · {tr.nav.motor}
+            </Link>
+            <Link href={`/${lang}/sale/sail`} className="nav-button">
+              {tr.nav.sale} · {tr.nav.sail}
+            </Link>
+            <Link href={`/${lang}/rent/motor`} className="nav-button">
+              {tr.nav.rent} · {tr.nav.motor}
+            </Link>
+            <Link href={`/${lang}/rent/sail`} className="nav-button">
+              {tr.nav.rent} · {tr.nav.sail}
+            </Link>
+
             <LanguageSwitcher lang={lang} />
           </nav>
         </div>

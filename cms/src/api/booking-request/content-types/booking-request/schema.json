@@ -56,6 +56,21 @@
       "relation": "manyToOne",
       "target": "api::boat.boat",
       "inversedBy": "booking_requests"
+    },
+    "contact_method": {
+      "type": "enumeration",
+      "enum": [
+        "phone",
+        "whatsapp",
+        "viber",
+        "email"
+      ],
+      "required": true,
+      "default": "phone"
+    },
+    "admin_note": {
+      "type": "text",
+      "private": true
     }
   }
 }

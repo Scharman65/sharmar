@@ -226,6 +226,19 @@
         }
       }
     },
+    "listing_type": {
+      "type": "enumeration",
+      "enum": [
+        "rent",
+        "sale"
+      ],
+      "default": "rent",
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
     "vesselType": {
       "type": "enumeration",
       "enum": [
@@ -238,6 +251,54 @@
           "localized": false
         }
       }
+    },
+    "owner_phone": {
+      "type": "string",
+      "private": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "owner_whatsapp": {
+      "type": "string",
+      "private": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "owner_viber": {
+      "type": "string",
+      "private": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "contacts_visible": {
+      "type": "boolean",
+      "default": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "price_per_hour": {
+      "type": "decimal"
+    },
+    "price_per_day": {
+      "type": "decimal"
+    },
+    "price_per_week": {
+      "type": "decimal"
+    },
+    "deposit": {
+      "type": "decimal"
     }
   }
 }

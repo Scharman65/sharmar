@@ -1,7 +1,11 @@
 const me = {
   nav: {
     boats: "Brodovi",
-  },
+      sale: "Prodaja",
+    rent: "Najam",
+    motor: "Motorne jahte",
+    sail: "Jedrilice",
+},
   boats: {
     title: "Brodovi",
     subtitle: "Izaberite brod i pošaljite upit za rezervaciju.",
