@@ -92,6 +92,16 @@
         }
       }
     },
+    "year": {
+      "type": "integer",
+      "min": 1900,
+      "max": 2100,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
     "engine_hp": {
       "type": "integer",
       "pluginOptions": {
