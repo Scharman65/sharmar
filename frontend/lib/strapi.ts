@@ -118,6 +118,7 @@ export type BoatFilters = {
 
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
   const qs: string[] = ["populate=*"];
+  qs.push("sort=documentId:asc");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
   if (filters?.vesselType) qs.push(`filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`);
   const path = `/api/boats?${qs.join("&")}`;
@@ -148,6 +149,8 @@ export async function fetchBoatsAdvanced(
   filters: AdvancedBoatFilters
 ): Promise<Boat[]> {
   const qs: string[] = ["populate[0]=cover", "populate[1]=rate_plans"];
+
+  qs.push("sort=documentId:asc");
 
   qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
 
