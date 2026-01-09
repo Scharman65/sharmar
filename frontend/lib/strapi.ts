@@ -55,10 +55,9 @@ async function strapiFetchWithFallback<T extends { data?: unknown }>(
   if ((Array.isArray(data) && data.length) || (data && !Array.isArray(data))) {
     return primary;
   }
-  if (locale && locale !== "en") {
-    return await strapiFetch<T>(withLocale(path, "en"));
-  }
-
+  // IMPORTANT:
+  // We must NEVER fallback to English for non-English locales, otherwise pages like /me may render EN text.
+  // If a locale has no data, return the empty primary result and let the UI handle "not found"/empty state.
   return primary;
 }
 
