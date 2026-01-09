@@ -17,6 +17,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
+  const __dbg = { rawLang, lang, strapiLocale, boatId: boat?.id, boatTitle: boat?.title, boatDescHead: (boat?.description ?? "").slice(0, 80) };
+
   if (!boat) {
     return { title: "Boat not found" };
   }
@@ -38,6 +40,8 @@ export default async function BoatPage({ params }: Props) {
   if (!boat) {
     return (
       <main className="main">
+
+        <pre id=\"__dbg_boat\" style={{display:\"none\"}}>{JSON.stringify(__dbg)}</pre>
         <div className="container">
           <div className="detail-top">
             <h1 className="h1">Boat not found</h1>
