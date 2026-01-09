@@ -1,12 +1,11 @@
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
 import { isLang, t, type Lang } from "@/i18n";
-
-export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ lang: string; slug: string }>;
