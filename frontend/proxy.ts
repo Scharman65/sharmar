@@ -18,6 +18,7 @@ export function proxy(req: NextRequest) {
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/robots") ||
     pathname.startsWith("/sitemap") ||
+    pathname === "/version.txt" ||
     pathname.startsWith("/brand") ||
     pathname.startsWith("/uploads")
   ) {
