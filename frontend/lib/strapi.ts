@@ -38,6 +38,7 @@ async function strapiFetch<T>(path: string): Promise<T> {
 }
 
 function withLocale(path: string, locale?: string | null): string {
+  if (locale === "me") locale = "sr-Latn-ME";
   if (!locale) return path;
   return path.includes("?")
     ? `${path}&locale=${encodeURIComponent(locale)}`
@@ -54,7 +55,6 @@ async function strapiFetchWithFallback<T extends { data?: unknown }>(
   if ((Array.isArray(data) && data.length) || (data && !Array.isArray(data))) {
     return primary;
   }
-
   if (locale && locale !== "en") {
     return await strapiFetch<T>(withLocale(path, "en"));
   }
