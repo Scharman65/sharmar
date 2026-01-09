@@ -13,7 +13,8 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: rawLang, slug } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
-  const boat = await fetchBoatBySlug(slug, lang);
+  const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
+  const boat = await fetchBoatBySlug(slug, strapiLocale);
 
   if (!boat) {
     return { title: "Boat not found" };
@@ -30,7 +31,8 @@ export default async function BoatPage({ params }: Props) {
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
   const tr = t(lang);
 
-  const boat = await fetchBoatBySlug(slug, lang);
+  const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
+  const boat = await fetchBoatBySlug(slug, strapiLocale);
 
   if (!boat) {
     return (
