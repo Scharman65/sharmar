@@ -1,31 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
-export const runtime = "edge";
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-const ALLOWED = new Set(["en", "ru", "me"]);
+const LANGS = new Set(["en", "ru", "me"]);
 
-function marker(env: string) {
-  const sha =
-    process.env.VERCEL_GIT_COMMIT_SHA ||
-    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
-    "unknown";
-  const utc = new Date().toISOString();
-  const lines = [
-    "sharmar-frontend",
-    `env=${env}`,
-    `commit=${sha}`,
-    `utc=${utc}`,
-  ];
-  return lines.join("\n") + "\n";
+async function readVersionFile(lang: string): Promise<string> {
+  const safeLang = LANGS.has(lang) ? lang : "en";
+  const root = process.cwd();
+
+  const candidate1 = path.join(root, "public", safeLang, "version.txt");
+  const candidate2 = path.join(root, "public", "version.txt");
+
+  try {
+    return await readFile(candidate1, "utf8");
+  } catch {
+    return await readFile(candidate2, "utf8");
+  }
 }
 
-export function GET(_: Request, ctx: { params: { lang: string } }) {
-  const lang = ctx?.params?.lang;
-  if (!lang || !ALLOWED.has(lang)) {
-    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
-  }
-  return new NextResponse(marker(lang), {
+export async function GET(
+  _request: NextRequest,
+  context: { params: Promise<{ lang: string }> }
+) {
+  const { lang } = await context.params;
+  const body = await readVersionFile(lang);
+
+  return new Response(body, {
     status: 200,
     headers: {
       "content-type": "text/plain; charset=utf-8",
