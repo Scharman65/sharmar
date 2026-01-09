@@ -38,6 +38,7 @@ async function strapiFetch<T>(path: string): Promise<T> {
 }
 
 function withLocale(path: string, locale?: string | null): string {
+  if (locale === "me") locale = "sr-Latn-ME";
   if (!locale) return path;
   return path.includes("?")
     ? `${path}&locale=${encodeURIComponent(locale)}`
@@ -54,7 +55,6 @@ async function strapiFetchWithFallback<T extends { data?: unknown }>(
   if ((Array.isArray(data) && data.length) || (data && !Array.isArray(data))) {
     return primary;
   }
-
   if (locale && locale !== "en") {
     return await strapiFetch<T>(withLocale(path, "en"));
   }
@@ -118,6 +118,7 @@ export type BoatFilters = {
 
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
   const qs: string[] = ["populate=*"];
+  qs.push("sort=documentId:asc");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
   if (filters?.vesselType) qs.push(`filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`);
   const path = `/api/boats?${qs.join("&")}`;
@@ -148,6 +149,8 @@ export async function fetchBoatsAdvanced(
   filters: AdvancedBoatFilters
 ): Promise<Boat[]> {
   const qs: string[] = ["populate[0]=cover", "populate[1]=rate_plans"];
+
+  qs.push("sort=documentId:asc");
 
   qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
 

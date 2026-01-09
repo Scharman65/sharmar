@@ -290,6 +290,9 @@ a { color: inherit; }
 }
 
 @media (max-width: 720px) {
+  /* mobile-nav-fix */
+  .header-inner { flex-wrap: wrap; align-items: flex-start; }
+  .nav { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
   .hero { height: 320px; }
   .h1 { font-size: 28px; }
   .page-top { align-items: flex-start; flex-direction: column; }
