@@ -20,6 +20,7 @@ export function proxy(req: NextRequest) {
     pathname.startsWith("/robots") ||
     pathname.startsWith("/sitemap") ||
     pathname === "/version.txt" ||
+    pathname === "/deploy-marker.txt" ||
     pathname.startsWith("/brand") ||
     pathname.startsWith("/uploads")
   ) {
