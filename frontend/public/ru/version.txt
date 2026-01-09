@@ -1,0 +1,4 @@
+sharmar-frontend
+env=ru
+commit=cf332d9
+utc=2026-01-09T15:29:23Z
