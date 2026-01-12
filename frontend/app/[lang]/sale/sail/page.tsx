@@ -1,14 +1,25 @@
 import type { Metadata } from "next";
-import { fetchBoats } from "@/lib/strapi";
+import { fetchBoats, fetchLocations } from "@/lib/strapi";
 import { isLang, t, formatCount, type Lang } from "@/i18n";
 import Link from "next/link";
 import Image from "next/image";
 
+
+function normalizeMarinaSlug(v: unknown): string | null {
+  if (typeof v !== "string" || !v) return null;
+  return v.replace(/^marina-/, "");
+}
+
+
 export const dynamic = "force-dynamic";
+
 
 type Props = {
   params: Promise<{ lang: string }>;
+  searchParams?: Promise<{ marina?: string }>;
 };
+
+
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
@@ -20,14 +31,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SaleSailPage({ params }: Props) {
+export default async function SaleSailPage({ params, searchParams }: Props) {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
-
+  const sp = await (searchParams ?? Promise.resolve({}));
+  const marina = normalizeMarinaSlug(sp.marina);
+  const locations = await fetchLocations(lang);
   const boats = await fetchBoats(lang, {
     listingType: "sale",
     vesselType: "sailboat",
+    homeMarinaSlug: marina || null,
   });
 
   return (
@@ -40,7 +54,37 @@ export default async function SaleSailPage({ params }: Props) {
           <p className="kicker">{formatCount(lang, boats.length)}</p>
         </div>
 
-        {boats.length === 0 ? (
+        
+        {(() => {
+          const marinaLabel = lang === "ru" ? "Марина" : lang === "me" ? "Marina" : "Marina";
+          const allLabel = lang === "ru" ? "Все" : lang === "me" ? "Sve" : "All";
+          const filterLabel = lang === "ru" ? "Фильтр" : lang === "me" ? "Filter" : "Filter";
+          return (
+            <form method="GET" className="mb-4 flex items-center gap-2">
+              <label className="text-sm">{marinaLabel}:</label>
+              <select
+                name="marina"
+                defaultValue={marina ?? ""}
+                className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-transparent"
+              >
+                <option value="">{allLabel}</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.slug}>
+                    {l.name ?? l.slug}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="h-9 rounded-full border border-black/[.12] px-4 text-sm hover:bg-black/[.04] dark:border-white/[.18] dark:hover:bg-white/[.06]"
+              >
+                {filterLabel}
+              </button>
+            </form>
+          );
+        })()}
+
+{boats.length === 0 ? (
           <p className="kicker">{tr.boats.empty}</p>
         ) : (
           <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>

@@ -28,6 +28,13 @@ export type Boat = {
   purposes?: { id: number; title?: string | null }[];
 };
 
+
+export type Location = {
+  id: number;
+  slug: string;
+  name?: string | null;
+};
+
 async function strapiFetch<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {};
   if (STRAPI_TOKEN) headers["Authorization"] = `Bearer ${STRAPI_TOKEN}`;
@@ -113,6 +120,7 @@ function normalizeBoat(item: any): Boat | null {
 export type BoatFilters = {
   listingType?: "rent" | "sale";
   vesselType?: "motorboat" | "sailboat";
+  homeMarinaSlug?: string | null;
 };
 
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
@@ -120,9 +128,27 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
   qs.push("sort=documentId:asc");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
   if (filters?.vesselType) qs.push(`filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`);
+  if (filters?.homeMarinaSlug) qs.push(`filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`);
   const path = `/api/boats?${qs.join("&")}`;
   const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
   return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
+}
+
+export async function fetchLocations(locale?: string): Promise<Location[]> {
+  const qs: string[] = [];
+  qs.push("sort=slug:asc");
+  qs.push("pagination[pageSize]=200");
+  qs.push("fields[0]=name");
+  qs.push("fields[1]=slug");
+  const path = `/api/locations?${qs.join("&")}`;
+  const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
+  return (json.data ?? [])
+    .map((x: any) => {
+      const id = x?.id;
+      if (typeof id !== "number") return null;
+      return { id, slug: x.slug ?? String(id), name: x.name ?? null };
+    })
+    .filter(Boolean) as Location[];
 }
 
 export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {

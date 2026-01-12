@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# production env (do not commit)
+.env.production.local
+.env.production.*
