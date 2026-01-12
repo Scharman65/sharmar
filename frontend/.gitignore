@@ -43,3 +43,6 @@ next-env.d.ts
 # production env (do not commit)
 .env.production.local
 .env.production.*
+
+# allow committing the safe example file
+!.env.production.local.example
