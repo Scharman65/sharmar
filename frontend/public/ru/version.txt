@@ -1,4 +1,1 @@
-sharmar-frontend
-env=ru
-commit=cf332d9
-utc=2026-01-09T15:29:23Z
+sharmar-frontend\nenv=lang:ru\ncommit=60d16f45d44bf4b3b0f50a1109c580ee7d7d262a\nshort=60d16f4\nutc=2026-01-12T13:38:53.504Z\n
