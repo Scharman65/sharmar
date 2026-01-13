@@ -13,6 +13,8 @@ type MediaFile = {
 };
 
 export type Boat = {
+  documentId?: string | null;
+  homeMarinaSlug?: string | null;
   homeMarina?: {
     id: number;
     slug: string | null;

@@ -4,28 +4,22 @@ import { isLang, t, formatCount, type Lang } from "@/i18n";
 import Link from "next/link";
 import Image from "next/image";
 
-
 function normalizeMarinaSlug(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
   return v.replace(/^marina-/, "");
 }
 
-
 export const dynamic = "force-dynamic";
-
 
 type Props = {
   params: Promise<{ lang: string }>;
-  searchParams?: Promise<{ marina?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
-
-
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
-
 
   return {
     title: `${tr.nav.rent} · ${tr.nav.motor}`,
@@ -37,8 +31,14 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
-  const sp = await (searchParams ?? Promise.resolve({}));
-  const marina = normalizeMarinaSlug(sp.marina);
+  const sp = (await (searchParams ?? Promise.resolve({}))) as Record<
+    string,
+    string | string[] | undefined
+  >;
+  const marinaRaw = Array.isArray(sp["marina"])
+    ? (sp["marina"] as string[])[0]
+    : (sp["marina"] as string | undefined);
+  const marina = normalizeMarinaSlug(marinaRaw);
   const locations = await fetchLocations(lang);
   const boats = await fetchBoats(lang, {
     listingType: "rent",
@@ -56,11 +56,13 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
           <p className="kicker">{formatCount(lang, boats.length)}</p>
         </div>
 
-        
         {(() => {
-          const marinaLabel = lang === "ru" ? "Марина" : lang === "me" ? "Marina" : "Marina";
-          const allLabel = lang === "ru" ? "Все" : lang === "me" ? "Sve" : "All";
-          const filterLabel = lang === "ru" ? "Фильтр" : lang === "me" ? "Filter" : "Filter";
+          const marinaLabel =
+            lang === "ru" ? "Марина" : lang === "me" ? "Marina" : "Marina";
+          const allLabel =
+            lang === "ru" ? "Все" : lang === "me" ? "Sve" : "All";
+          const filterLabel =
+            lang === "ru" ? "Фильтр" : lang === "me" ? "Filter" : "Filter";
           return (
             <form method="GET" className="mb-4 flex items-center gap-2">
               <label className="text-sm">{marinaLabel}:</label>
@@ -89,10 +91,16 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
         {boats.length === 0 ? (
           <p className="kicker">{tr.boats.empty}</p>
         ) : (
-          <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul
+            className="grid"
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
+          >
             {boats.map((b) => (
               <li key={b.id} className="card">
-                <Link className="card-link" href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}>
+                <Link
+                  className="card-link"
+                  href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}
+                >
                   {b.cover?.url ? (
                     <div className="card-media">
                       <Image
@@ -111,9 +119,13 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
                     <h3 className="card-title">{b.title ?? `Boat #${b.id}`}</h3>
 
                     <p className="card-sub">
-                      <span>{tr.boat.type}: {b.boat_type ?? "—"}</span>
+                      <span>
+                        {tr.boat.type}: {b.boat_type ?? "—"}
+                      </span>
                       <span>·</span>
-                      <span>{tr.boat.capacity}: {b.capacity ?? "—"}</span>
+                      <span>
+                        {tr.boat.capacity}: {b.capacity ?? "—"}
+                      </span>
                     </p>
 
                     {(b.price_per_hour || b.price_per_day) && (
