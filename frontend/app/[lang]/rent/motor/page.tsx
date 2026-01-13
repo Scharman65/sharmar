@@ -64,7 +64,7 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
           const filterLabel =
             lang === "ru" ? "Фильтр" : lang === "me" ? "Filter" : "Filter";
           return (
-            <form method="GET" data-testid="boats-filters" className="mb-4 flex items-center gap-2">
+            <form method="GET" className="mb-4 flex items-center gap-2">
               <label className="text-sm">{marinaLabel}:</label>
               <select
                 name="marina"
