@@ -17,13 +17,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
-
   if (!boat) {
     return { title: "Boat not found" };
   }
 
   const title = boat.title ?? slug;
-  const description = (boat.description ?? "").trim() || t(lang).boats.no_description;
+  const description =
+    (boat.description ?? "").trim() || t(lang).boats.no_description;
 
   return { title, description };
 }
@@ -33,13 +33,14 @@ export default async function BoatPage({ params }: Props) {
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
   const tr = t(lang);
 
+  const marinaLabel = lang === "ru" ? "Марина" : "Marina";
+
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
   if (!boat) {
     return (
       <main className="main">
-
         <div className="container">
           <div className="detail-top">
             <h1 className="h1">Boat not found</h1>
@@ -85,12 +86,21 @@ export default async function BoatPage({ params }: Props) {
             {tr.boat.capacity}: {boat.capacity ?? "—"}
           </span>
           <span>·</span>
-          <span>
-            {boat.license_required ? tr.boat.license_required : tr.boat.license_not_required}
+          <span data-testid="boat-home-marina">
+            {marinaLabel}: {boat.homeMarina?.name ?? "—"}
+            {boat.homeMarina?.region ? ` (${boat.homeMarina.region})` : ""}
           </span>
           <span>·</span>
           <span>
-            {boat.skipper_available ? tr.boat.skipper_available : tr.boat.skipper_not_available}
+            {boat.license_required
+              ? tr.boat.license_required
+              : tr.boat.license_not_required}
+          </span>
+          <span>·</span>
+          <span>
+            {boat.skipper_available
+              ? tr.boat.skipper_available
+              : tr.boat.skipper_not_available}
           </span>
         </div>
 
@@ -121,7 +131,7 @@ export default async function BoatPage({ params }: Props) {
           <Link
             className="button"
             href={`/${lang}/request?slug=${encodeURIComponent(slug)}&title=${encodeURIComponent(
-              boat.title ?? slug
+              boat.title ?? slug,
             )}`}
           >
             {tr.booking.requestThisBoat}

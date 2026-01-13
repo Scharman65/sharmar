@@ -22,6 +22,8 @@ export default async function BoatsPage({ params }: Props) {
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
 
+  const marinaLabel = lang === "ru" ? "Марина" : "Marina";
+
   const boats = await fetchBoats(lang);
 
   return (
@@ -35,10 +37,16 @@ export default async function BoatsPage({ params }: Props) {
         {boats.length === 0 ? (
           <p className="kicker">{tr.boats.empty}</p>
         ) : (
-          <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul
+            className="grid"
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
+          >
             {boats.map((b) => (
               <li key={b.id} className="card">
-                <Link className="card-link" href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}>
+                <Link
+                  className="card-link"
+                  href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}
+                >
                   {b.cover?.url ? (
                     <div className="card-media">
                       <Image
@@ -57,9 +65,22 @@ export default async function BoatsPage({ params }: Props) {
                     <h3 className="card-title">{b.title ?? `Boat #${b.id}`}</h3>
 
                     <p className="card-sub">
-                      <span>{tr.boat.type}: {b.boat_type ?? "—"}</span>
+                      <span>
+                        {tr.boat.type}: {b.boat_type ?? "—"}
+                      </span>
                       <span>·</span>
-                      <span>{tr.boat.capacity}: {b.capacity ?? "—"}</span>
+                      <span>
+                        {tr.boat.capacity}: {b.capacity ?? "—"}
+                      </span>
+                    </p>
+
+                    <p className="card-sub" data-testid="boat-home-marina">
+                      <span>
+                        {marinaLabel}: {b.homeMarina?.name ?? "—"}
+                        {b.homeMarina?.region
+                          ? ` (${b.homeMarina.region})`
+                          : ""}
+                      </span>
                     </p>
 
                     {b.purposes?.length ? (
@@ -74,9 +95,13 @@ export default async function BoatsPage({ params }: Props) {
 
                     <div className="card-bottom">
                       <span className="kicker">
-                        {b.license_required ? tr.boat.license_required : tr.boat.license_not_required}
+                        {b.license_required
+                          ? tr.boat.license_required
+                          : tr.boat.license_not_required}
                         {" · "}
-                        {b.skipper_available ? tr.boat.skipper_available : tr.boat.skipper_not_available}
+                        {b.skipper_available
+                          ? tr.boat.skipper_available
+                          : tr.boat.skipper_not_available}
                       </span>
                       <span className="pill">{tr.boat.view_details} →</span>
                     </div>

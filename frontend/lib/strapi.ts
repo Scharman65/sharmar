@@ -1,4 +1,8 @@
-const STRAPI_URL = (process.env.STRAPI_URL ?? process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://127.0.0.1:1337").replace(/\/+$/, "");
+const STRAPI_URL = (
+  process.env.STRAPI_URL ??
+  process.env.NEXT_PUBLIC_STRAPI_URL ??
+  "http://127.0.0.1:1337"
+).replace(/\/+$/, "");
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN ?? "";
 
 type MediaFile = {
@@ -9,6 +13,12 @@ type MediaFile = {
 };
 
 export type Boat = {
+  homeMarina?: {
+    id: number;
+    slug: string | null;
+    name: string | null;
+    region: string | null;
+  } | null;
   id: number;
   slug: string;
   title?: string | null;
@@ -28,7 +38,6 @@ export type Boat = {
   purposes?: { id: number; title?: string | null }[];
 };
 
-
 export type Location = {
   id: number;
   slug: string;
@@ -39,7 +48,10 @@ async function strapiFetch<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {};
   if (STRAPI_TOKEN) headers["Authorization"] = `Bearer ${STRAPI_TOKEN}`;
 
-  const res = await fetch(`${STRAPI_URL}${path}`, { cache: "no-store", headers });
+  const res = await fetch(`${STRAPI_URL}${path}`, {
+    cache: "no-store",
+    headers,
+  });
   if (!res.ok) throw new Error(`Strapi request failed: ${res.status}`);
   return (await res.json()) as T;
 }
@@ -54,7 +66,7 @@ function withLocale(path: string, locale?: string | null): string {
 
 async function strapiFetchWithFallback<T extends { data?: unknown }>(
   path: string,
-  locale?: string | null
+  locale?: string | null,
 ): Promise<T> {
   const primary = await strapiFetch<T>(withLocale(path, locale));
   const data: any = (primary as any)?.data;
@@ -75,29 +87,67 @@ function absolutizeUrl(url: string): string {
 }
 
 function pickBestMediaUrl(m?: MediaFile | null): string | null {
-  return (
-    m?.formats?.medium?.url ??
+  return (m?.formats?.medium?.url ??
     m?.formats?.small?.url ??
     m?.formats?.large?.url ??
     m?.formats?.thumbnail?.url ??
     m?.url ??
-    null
-  ) ? absolutizeUrl(
-    m?.formats?.medium?.url ??
-    m?.formats?.small?.url ??
-    m?.formats?.large?.url ??
-    m?.formats?.thumbnail?.url ??
-    m?.url ??
-    ""
-  ) : null;
+    null)
+    ? absolutizeUrl(
+        m?.formats?.medium?.url ??
+          m?.formats?.small?.url ??
+          m?.formats?.large?.url ??
+          m?.formats?.thumbnail?.url ??
+          m?.url ??
+          "",
+      )
+    : null;
 }
 
 function normalizeBoat(item: any): Boat | null {
+  function pickHomeMarina(input: any) {
+    if (!input) return null;
+
+    let x: any = input;
+
+    // Strapi v4 style: { data: { id, attributes } }
+    if (x && typeof x === "object" && "data" in x) x = (x as any).data;
+
+    // Strapi v4: { id, attributes: { name, slug, region } }
+    if (
+      x &&
+      typeof x === "object" &&
+      (x as any).attributes &&
+      !(x as any).name
+    ) {
+      const id = typeof (x as any).id === "number" ? (x as any).id : null;
+      const a = (x as any).attributes || {};
+      const name = a.name ?? null;
+      const slug = a.slug ?? null;
+      const region = a.region ?? null;
+      if (!id && !name && !slug) return null;
+      return { id, name, slug, region };
+    }
+
+    // Strapi v5 style: { id, name, slug, region }
+    if (x && typeof x === "object") {
+      const id = typeof (x as any).id === "number" ? (x as any).id : null;
+      const name = (x as any).name ?? (x as any).attributes?.name ?? null;
+      const slug = (x as any).slug ?? (x as any).attributes?.slug ?? null;
+      const region = (x as any).region ?? (x as any).attributes?.region ?? null;
+      if (!id && !name && !slug) return null;
+      return { id, name, slug, region };
+    }
+
+    return null;
+  }
+
   const id = item?.id;
   if (typeof id !== "number") return null;
 
   return {
     id,
+    documentId: item.documentId ?? null,
     slug: item.slug ?? String(id),
     title: item.title ?? null,
     description: item.description ?? null,
@@ -107,9 +157,20 @@ function normalizeBoat(item: any): Boat | null {
     skipper_available: item.skipper_available ?? null,
     vesselType: item.vesselType ?? null,
     listing_type: item.listing_type ?? null,
-    cover: item.cover ? { url: pickBestMediaUrl(item.cover)!, alternativeText: item.cover.alternativeText ?? null } : null,
+    homeMarina: pickHomeMarina(item.home_marina),
+    homeMarinaSlug: pickHomeMarina(item.home_marina)?.slug ?? null,
+    cover: item.cover
+      ? {
+          url: pickBestMediaUrl(item.cover)!,
+          alternativeText: item.cover.alternativeText ?? null,
+        }
+      : null,
     images: Array.isArray(item.images)
-      ? item.images.map((i: any) => ({ id: i.id, url: absolutizeUrl(i.url), alternativeText: i.alternativeText ?? null }))
+      ? item.images.map((i: any) => ({
+          id: i.id,
+          url: absolutizeUrl(i.url),
+          alternativeText: i.alternativeText ?? null,
+        }))
       : [],
     purposes: Array.isArray(item.purposes)
       ? item.purposes.map((p: any) => ({ id: p.id, title: p.title ?? null }))
@@ -123,12 +184,33 @@ export type BoatFilters = {
   homeMarinaSlug?: string | null;
 };
 
-export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
-  const qs: string[] = ["populate=*"];
+export async function fetchBoats(
+  locale?: string,
+  filters?: BoatFilters,
+): Promise<Boat[]> {
+  const qs: string[] = [
+    "populate[cover][fields][0]=url",
+    "populate[cover][fields][1]=alternativeText",
+    "populate[images][fields][0]=url",
+    "populate[images][fields][1]=alternativeText",
+    "populate[purposes][fields][0]=title",
+    "populate[home_marina][fields][0]=name",
+    "populate[home_marina][fields][1]=slug",
+    "populate[home_marina][fields][2]=region",
+  ];
   qs.push("sort=documentId:asc");
-  if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
-  if (filters?.vesselType) qs.push(`filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`);
-  if (filters?.homeMarinaSlug) qs.push(`filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`);
+  if (filters?.listingType)
+    qs.push(
+      `filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`,
+    );
+  if (filters?.vesselType)
+    qs.push(
+      `filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`,
+    );
+  if (filters?.homeMarinaSlug)
+    qs.push(
+      `filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`,
+    );
   const path = `/api/boats?${qs.join("&")}`;
   const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
   return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
@@ -151,10 +233,13 @@ export async function fetchLocations(locale?: string): Promise<Location[]> {
     .filter(Boolean) as Location[];
 }
 
-export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
+export async function fetchBoatBySlug(
+  slug: string,
+  locale?: string,
+): Promise<Boat | null> {
   const json = await strapiFetchWithFallback<{ data: any[] }>(
-    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate=*`,
-    locale
+    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate[cover][fields][0]=url&populate[cover][fields][1]=alternativeText&populate[images][fields][0]=url&populate[images][fields][1]=alternativeText&populate[purposes][fields][0]=title&populate[home_marina][fields][0]=name&populate[home_marina][fields][1]=slug&populate[home_marina][fields][2]=region`,
+    locale,
   );
   return json.data?.[0] ? normalizeBoat(json.data[0]) : null;
 }
@@ -171,13 +256,15 @@ export type AdvancedBoatFilters = {
 
 export async function fetchBoatsAdvanced(
   locale: string | undefined,
-  filters: AdvancedBoatFilters
+  filters: AdvancedBoatFilters,
 ): Promise<Boat[]> {
   const qs: string[] = ["populate[0]=cover", "populate[1]=rate_plans"];
 
   qs.push("sort=documentId:asc");
 
-  qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
+  qs.push(
+    `filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`,
+  );
 
   if (filters.boatTypes?.length) {
     filters.boatTypes.forEach((t, i) => {
@@ -194,7 +281,9 @@ export async function fetchBoatsAdvanced(
   }
 
   if (filters.priceType) {
-    qs.push(`filters[rate_plans][type][$eq]=${encodeURIComponent(filters.priceType)}`);
+    qs.push(
+      `filters[rate_plans][type][$eq]=${encodeURIComponent(filters.priceType)}`,
+    );
   }
 
   if (typeof filters.priceMin === "number") {
@@ -210,4 +299,3 @@ export async function fetchBoatsAdvanced(
 
   return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
 }
-
