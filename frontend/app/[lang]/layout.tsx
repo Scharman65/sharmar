@@ -2,6 +2,7 @@ import Link from "next/link";
 import "../globals.css";
 import { isLang, t, type Lang } from "@/i18n";
 import LanguageSwitcher from "./LanguageSwitcher";
+import HeaderMarinaFilter from "./HeaderMarinaFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,9 @@ export default async function LangLayout({ children, params }: Props) {
             <Link href={`/${lang}/rent/sail`} className="nav-button">
               {tr.nav.rent} · {tr.nav.sail}
             </Link>
+
+            <HeaderMarinaFilter lang={lang} />
+
 
             <LanguageSwitcher lang={lang} />
           </nav>
