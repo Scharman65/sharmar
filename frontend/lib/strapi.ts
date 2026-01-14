@@ -168,11 +168,13 @@ function normalizeBoat(item: any): Boat | null {
         }
       : null,
     images: Array.isArray(item.images)
-      ? item.images.map((i: any) => ({
-          id: i.id,
-          url: absolutizeUrl(i.url),
-          alternativeText: i.alternativeText ?? null,
-        }))
+      ? item.images
+          .map((i: any) => ({
+            id: i.id,
+            url: pickBestMediaUrl(i) ?? absolutizeUrl(i.url),
+            alternativeText: i.alternativeText ?? null,
+          }))
+          .filter((x: any) => x.id && x.url)
       : [],
     purposes: Array.isArray(item.purposes)
       ? item.purposes.map((p: any) => ({ id: p.id, title: p.title ?? null }))
@@ -193,8 +195,10 @@ export async function fetchBoats(
   const qs: string[] = [
     "populate[cover][fields][0]=url",
     "populate[cover][fields][1]=alternativeText",
+    "populate[cover][fields][2]=formats",
     "populate[images][fields][0]=url",
     "populate[images][fields][1]=alternativeText",
+    "populate[images][fields][2]=formats",
     "populate[purposes][fields][0]=title",
     "populate[home_marina][fields][0]=name",
     "populate[home_marina][fields][1]=slug",
@@ -240,7 +244,7 @@ export async function fetchBoatBySlug(
   locale?: string,
 ): Promise<Boat | null> {
   const json = await strapiFetchWithFallback<{ data: any[] }>(
-    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate[cover][fields][0]=url&populate[cover][fields][1]=alternativeText&populate[images][fields][0]=url&populate[images][fields][1]=alternativeText&populate[purposes][fields][0]=title&populate[home_marina][fields][0]=name&populate[home_marina][fields][1]=slug&populate[home_marina][fields][2]=region`,
+    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate[cover][fields][0]=url&populate[cover][fields][1]=alternativeText&populate[cover][fields][2]=formats&populate[images][fields][0]=url&populate[images][fields][1]=alternativeText&populate[images][fields][2]=formats&populate[purposes][fields][0]=title&populate[home_marina][fields][0]=name&populate[home_marina][fields][1]=slug&populate[home_marina][fields][2]=region`,
     locale,
   );
   return json.data?.[0] ? normalizeBoat(json.data[0]) : null;
