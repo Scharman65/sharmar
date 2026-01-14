@@ -3,6 +3,7 @@ import "../globals.css";
 import { isLang, t, type Lang } from "@/i18n";
 import LanguageSwitcher from "./LanguageSwitcher";
 import HeaderMarinaFilter from "./HeaderMarinaFilter";
+import HeaderTopNav from "./HeaderTopNav";
 
 export const dynamic = "force-dynamic";
 
@@ -25,20 +26,18 @@ export default async function LangLayout({ children, params }: Props) {
           </Link>
 
           <nav className="nav">
-            <Link href={`/${lang}/sale/motor`} className="nav-button">
-              {tr.nav.sale} · {tr.nav.motor}
-            </Link>
-            <Link href={`/${lang}/sale/sail`} className="nav-button">
-              {tr.nav.sale} · {tr.nav.sail}
-            </Link>
-            <Link href={`/${lang}/rent/motor`} className="nav-button">
-              {tr.nav.rent} · {tr.nav.motor}
-            </Link>
-            <Link href={`/${lang}/rent/sail`} className="nav-button">
-              {tr.nav.rent} · {tr.nav.sail}
-            </Link>
 
-            <div data-testid="header-marina-filter"><HeaderMarinaFilter lang={lang} /></div>
+            <HeaderTopNav lang={lang} labels={{
+              rent: tr.nav.rent,
+              sale: tr.nav.sale,
+              motor: tr.nav.motor,
+              sail: tr.nav.sail,
+              catamaran: (lang === "ru" ? "Катамаран" : lang === "me" ? "Katamaran" : "Catamaran"),
+              superyacht: (lang === "ru" ? "Суперяхта" : lang === "me" ? "Super jahta" : "Super yacht"),
+              soon: (lang === "ru" ? "Скоро" : lang === "me" ? "Uskoro" : "Soon"),
+            }} />
+
+<div data-testid="header-marina-filter"><HeaderMarinaFilter lang={lang} /></div>
 
 
             <LanguageSwitcher lang={lang} />
