@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Image from "next/image";
+import { getBoatCardImage } from "@/lib/media";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
@@ -38,6 +39,8 @@ export default async function BoatPage({ params }: Props) {
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
+
+  const heroImg = getBoatCardImage(boat);
   if (!boat) {
     return (
       <main className="main">
@@ -64,11 +67,11 @@ export default async function BoatPage({ params }: Props) {
           </Link>
         </div>
 
-        {boat.cover?.url ? (
+        {heroImg ? (
           <div className="hero">
             <Image
-              src={boat.cover.url}
-              alt={boat.cover.alternativeText ?? boat.title ?? "Boat"}
+              src={heroImg.src}
+              alt={heroImg.alt}
               fill
               sizes="(max-width: 900px) 100vw, 900px"
               style={{ objectFit: "cover" }}

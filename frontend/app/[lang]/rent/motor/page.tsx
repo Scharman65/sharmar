@@ -4,6 +4,7 @@ import { isLang, t, formatCount, type Lang } from "@/i18n";
 import Link from "next/link";
 import Image from "next/image";
 
+import { getBoatCardImage } from "@/lib/media";
 function normalizeMarinaSlug(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
   return v.replace(/^marina-/, "");
@@ -95,17 +96,19 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
             className="grid"
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
-            {boats.map((b) => (
+            {boats.map((b) => {
+              const cardImg = getBoatCardImage(b);
+              return (
               <li key={b.id} className="card">
                 <Link
                   className="card-link"
                   href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}
                 >
-                  {b.cover?.url ? (
+                  {cardImg?.src ? (
                     <div className="card-media">
                       <Image
-                        src={b.cover.url}
-                        alt={b.cover.alternativeText ?? b.title ?? "Boat"}
+                        src={cardImg?.src ?? b.cover.url}
+                        alt={cardImg?.alt ?? b.cover.alternativeText ?? b.title ?? "Boat"}
                         fill
                         sizes="(max-width: 900px) 100vw, 900px"
                         style={{ objectFit: "cover" }}
@@ -150,7 +153,8 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
                   </div>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

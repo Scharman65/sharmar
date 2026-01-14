@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { getBoatCardImage } from "@/lib/media";
 import type { Metadata } from "next";
 import { fetchBoats } from "@/lib/strapi";
 import { isLang, t, formatCount, type Lang } from "@/i18n";
@@ -41,17 +42,19 @@ export default async function BoatsPage({ params }: Props) {
             className="grid"
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
-            {boats.map((b) => (
+            {boats.map((b) => {
+              const cardImg = getBoatCardImage(b);
+              return (
               <li key={b.id} className="card">
                 <Link
                   className="card-link"
                   href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}
                 >
-                  {b.cover?.url ? (
+                  {cardImg?.src ? (
                     <div className="card-media">
                       <Image
-                        src={b.cover.url}
-                        alt={b.cover.alternativeText ?? b.title ?? "Boat"}
+                        src={cardImg?.src ?? b.cover.url}
+                        alt={cardImg?.alt ?? b.cover.alternativeText ?? b.title ?? "Boat"}
                         fill
                         sizes="(max-width: 900px) 100vw, 900px"
                         style={{ objectFit: "cover" }}
@@ -108,7 +111,8 @@ export default async function BoatsPage({ params }: Props) {
                   </div>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
