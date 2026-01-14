@@ -299,3 +299,13 @@ a { color: inherit; }
   .nav-button { padding: 9px 12px; }
   .lang-link { padding: 9px 10px; }
 }
+
+/* === Header nav contrast fix (rent/sale always white) === */
+.header .nav-button {
+  color: #ffffff !important;
+}
+
+.header .nav-button:hover {
+  color: #ffffff !important;
+  background: rgba(255,255,255,0.08);
+}
