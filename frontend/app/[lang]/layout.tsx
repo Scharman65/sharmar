@@ -38,7 +38,7 @@ export default async function LangLayout({ children, params }: Props) {
               {tr.nav.rent} · {tr.nav.sail}
             </Link>
 
-            <HeaderMarinaFilter lang={lang} />
+            <div data-testid="header-marina-filter"><HeaderMarinaFilter lang={lang} /></div>
 
 
             <LanguageSwitcher lang={lang} />
