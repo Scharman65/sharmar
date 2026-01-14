@@ -6,13 +6,13 @@ import { LANGS, type Lang } from "@/i18n";
 
 function replaceLang(pathname: string, nextLang: Lang) {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts.length === 0) return `/${nextLang}/boats`;
+  if (parts.length === 0) return `/${nextLang}`;
   parts[0] = nextLang;
   return "/" + parts.join("/");
 }
 
 export default function LanguageSwitcher({ lang }: { lang: Lang }) {
-  const pathname = usePathname() || `/${lang}/boats`;
+  const pathname = usePathname() || `/${lang}`;
 
   return (
     <div className="lang">

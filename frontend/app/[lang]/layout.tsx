@@ -21,7 +21,7 @@ export default async function LangLayout({ children, params }: Props) {
     <div className="layout">
       <header className="header">
         <div className="header-inner">
-          <Link href={`/${lang}/boats`} className="logo">
+          <Link href={`/`} className="logo">
             Sharmar
           </Link>
 
