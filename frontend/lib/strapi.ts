@@ -163,7 +163,7 @@ function normalizeBoat(item: any): Boat | null {
     capacity: item.capacity ?? null,
     license_required: item.license_required ?? null,
     skipper_available: item.skipper_available ?? null,
-    vesselType: item.vesselType ?? null,
+    vesselType: item.vessel_type ?? item.vesselType ?? null,
     listing_type: item.listing_type ?? null,
     homeMarina: pickHomeMarina(item.home_marina),
     homeMarinaSlug: pickHomeMarina(item.home_marina)?.slug ?? null,
@@ -217,7 +217,7 @@ export async function fetchBoats(
     );
   if (filters?.vesselType)
     qs.push(
-      `filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`,
+      `filters[vessel_type][$eq]=${encodeURIComponent(filters.vesselType)}`,
     );
   if (filters?.homeMarinaSlug)
     qs.push(
