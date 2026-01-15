@@ -217,7 +217,7 @@ export async function fetchBoats(
     );
   if (filters?.vesselType)
     qs.push(
-      `filters[vessel_type][$eq]=${encodeURIComponent(filters.vesselType)}`,
+      `filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`,
     );
   if (filters?.homeMarinaSlug)
     qs.push(
