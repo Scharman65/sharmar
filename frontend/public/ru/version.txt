@@ -1,1 +1,5 @@
-sharmar-frontend\nenv=lang:ru\ncommit=b23f53f9685e6648e12b826d04f921a4fdc55967\nshort=b23f53f\nutc=2026-01-15T04:10:20.643Z\n
+sharmar-frontend
+env=lang:ru
+commit=e0bfc85f17da716f0db05afb9dd7be8dc1ab134c
+short=e0bfc85
+utc=2026-01-15T04:31:40.701Z

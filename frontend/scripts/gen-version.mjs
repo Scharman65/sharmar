@@ -23,7 +23,7 @@ const bodyRoot = [
   `commit=${sha}`,
   `short=${short}`,
   `utc=${utc}`,
-].join("\\n") + "\\n";
+].join("\n") + "\n";
 
 const langs = ["en", "ru", "me"];
 
@@ -41,7 +41,7 @@ for (const lang of langs) {
     `commit=${sha}`,
     `short=${short}`,
     `utc=${utc}`,
-  ].join("\\n") + "\\n";
+  ].join("\n") + "\n";
 
   write(join("public", lang, "version.txt"), body);
 }
