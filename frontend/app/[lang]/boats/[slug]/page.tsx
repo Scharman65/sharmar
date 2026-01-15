@@ -36,6 +36,31 @@ export default async function BoatPage({ params }: Props) {
 
   const marinaLabel = lang === "ru" ? "Марина" : "Marina";
 
+
+  const specsLabel = lang === "ru" ? "Характеристики" : "Specifications";
+  const saleLabel = lang === "ru" ? "Продажа" : "Sale";
+  const rentLabel = lang === "ru" ? "Аренда" : "Rent";
+
+  const fmtMoney = (v: unknown) => {
+    if (v === null || v === undefined) return null;
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) return null;
+    return `${n} ${boat?.currency ?? ""}`.trim();
+  };
+
+  const rows: Array<{ label: string; value: string }> = [];
+  const add = (
+    label: string,
+    value: unknown,
+    fmt: (x: unknown) => string | null = (x) => {
+      if (x === null || x === undefined) return null;
+      const t = String(x).trim();
+      return t ? t : null;
+    },
+  ) => {
+    const v = fmt(value);
+    if (v) rows.push({ label, value: v });
+  };
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
@@ -106,6 +131,73 @@ export default async function BoatPage({ params }: Props) {
               : tr.boat.skipper_not_available}
           </span>
         </div>
+
+        {(() => {
+          rows.length = 0;
+
+          add(lang === "ru" ? "Тип" : "Type", boat.boat_type ?? boat.vesselType ?? null);
+          add(lang === "ru" ? "Вместимость" : "Capacity", boat.capacity, (x) => (x === null || x === undefined) ? null : `${x}`);
+          add(lang === "ru" ? "Длина" : "Length", (boat.length_m ?? null), (x) => (x === null || x === undefined) ? null : `${x} m`);
+          add(lang === "ru" ? "Мощность двигателя" : "Engine power", (boat.engine_hp ?? null), (x) => (x === null || x === undefined) ? null : `${x} hp`);
+
+          const listing = (boat as any).listing_type ?? null;
+
+          if (listing === "sale") {
+            add(lang === "ru" ? "Год" : "Year", (boat as any).year ?? null);
+          }
+
+          if (listing === "rent") {
+            add(lang === "ru" ? "Цена/час" : "Price/hour", (boat as any).price_per_hour ?? null, fmtMoney);
+            add(lang === "ru" ? "Цена/день" : "Price/day", (boat as any).price_per_day ?? null, fmtMoney);
+            add(lang === "ru" ? "Цена/неделя" : "Price/week", (boat as any).price_per_week ?? null, fmtMoney);
+            add(lang === "ru" ? "Депозит" : "Deposit", (boat as any).deposit ?? null, fmtMoney);
+
+            add(lang === "ru" ? "Шкипер/час" : "Skipper/hour", (boat as any).skipper_price_per_hour ?? null, fmtMoney);
+            add(lang === "ru" ? "Шкипер/день" : "Skipper/day", (boat as any).skipper_price_per_day ?? null, fmtMoney);
+          }
+
+          add(
+            lang === "ru" ? "Лицензия" : "License",
+            boat.license_required === true
+              ? (lang === "ru" ? "Требуется" : "Required")
+              : boat.license_required === false
+                ? (lang === "ru" ? "Не требуется" : "Not required")
+                : null,
+          );
+
+          add(
+            lang === "ru" ? "Шкипер" : "Skipper",
+            boat.skipper_available === true
+              ? (lang === "ru" ? "Доступен" : "Available")
+              : boat.skipper_available === false
+                ? (lang === "ru" ? "Недоступен" : "Not available")
+                : null,
+          );
+
+          if (!rows.length) return null;
+
+          return (
+            <div style={{ marginTop: 18 }}>
+              <p className="kicker" style={{ marginBottom: 10 }}>
+                {specsLabel}
+                {listing ? (
+                  <span style={{ marginLeft: 10, opacity: 0.7 }}>
+                    · {listing === "sale" ? saleLabel : listing === "rent" ? rentLabel : String(listing)}
+                  </span>
+                ) : null}
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+                {rows.map((r) => (
+                  <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                    <span style={{ opacity: 0.8 }}>{r.label}</span>
+                    <span style={{ fontWeight: 600 }}>{r.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         <div style={{ marginTop: 14 }}>
           {boat.description?.trim() ? (

@@ -106,8 +106,8 @@ export default async function SaleSailPage({ params, searchParams }: Props) {
                   {cardImg?.src ? (
                     <div className="card-media">
                       <Image
-                        src={cardImg?.src ?? b.cover.url}
-                        alt={cardImg?.alt ?? b.cover.alternativeText ?? b.title ?? "Boat"}
+                        src={cardImg.src}
+                        alt={cardImg.alt ?? b.title ?? "Boat"}
                         fill
                         sizes="(max-width: 900px) 100vw, 900px"
                         style={{ objectFit: "cover" }}

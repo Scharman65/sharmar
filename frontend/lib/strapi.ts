@@ -27,12 +27,18 @@ export type Boat = {
   description?: string | null;
   boat_type?: string | null;
   capacity?: number | null;
+  length_m?: number | null;
+  engine_hp?: number | null;
+  year?: number | null;
   license_required?: boolean | null;
   skipper_available?: boolean | null;
   vesselType?: string | null;
   listing_type?: string | null;
   price_per_hour?: number | null;
   price_per_day?: number | null;
+  price_per_week?: number | null;
+  skipper_price_per_hour?: number | null;
+  skipper_price_per_day?: number | null;
   deposit?: number | null;
   currency?: string | null;
   cover?: { url: string; alternativeText?: string | null } | null;
