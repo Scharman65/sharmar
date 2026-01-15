@@ -137,8 +137,9 @@ export default async function BoatPage({ params }: Props) {
 
           add(lang === "ru" ? "Тип" : "Type", boat.boat_type ?? boat.vesselType ?? null);
           add(lang === "ru" ? "Вместимость" : "Capacity", boat.capacity, (x) => (x === null || x === undefined) ? null : `${x}`);
-          add(lang === "ru" ? "Длина" : "Length", (boat.length_m ?? null), (x) => (x === null || x === undefined) ? null : `${x} m`);
-          add(lang === "ru" ? "Мощность двигателя" : "Engine power", (boat.engine_hp ?? null), (x) => (x === null || x === undefined) ? null : `${x} hp`);
+          add(lang === "ru" ? "Марина" : "Marina", (boat as any).home_marina?.name ?? boat.homeMarina?.name ?? null);
+          add(lang === "ru" ? "Длина" : "Length", ((boat as any).length_m ?? (boat as any).lengthM ?? boat.length_m ?? null), (x) => (x === null || x === undefined) ? null : `${x} m`);
+          add(lang === "ru" ? "Мощность двигателя" : "Engine power", ((boat as any).engine_hp ?? (boat as any).engineHp ?? boat.engine_hp ?? null), (x) => (x === null || x === undefined) ? null : `${x} hp`);
 
           const listing = (boat as any).listing_type ?? null;
 
