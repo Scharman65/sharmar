@@ -84,7 +84,7 @@ export default function HeaderMarinaFilter({ lang }: { lang: Lang }) {
           const qs = nextParams.toString();
           router.push(qs ? `${pathname}?${qs}` : pathname);
         }}
-        className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-transparent"
+        className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-white text-black dark:bg-transparent dark:text-white"
         aria-label="Marina"
       >
         <option value="">{loading ? "…" : allLabel}</option>

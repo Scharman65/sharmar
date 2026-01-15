@@ -69,7 +69,7 @@ export default async function SaleSailPage({ params, searchParams }: Props) {
               <select
                 name="marina"
                 defaultValue={marina ?? ""}
-                className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-transparent"
+                className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-white text-black dark:bg-transparent dark:text-white"
               >
                 <option value="">{allLabel}</option>
                 {locations.map((l) => (
