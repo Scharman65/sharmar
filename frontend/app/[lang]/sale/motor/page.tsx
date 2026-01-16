@@ -101,7 +101,7 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
               <select
                 name="marina"
                 defaultValue={marina ?? ""}
-                className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-white text-black dark:bg-transparent dark:text-white"
+                style={{ colorScheme: "light dark" }} className="h-9 rounded-md border px-2 text-sm bg-white text-black border-black/20 dark:bg-zinc-900 dark:text-white dark:border-white/20"
               >
                 <option value="">{allLabel}</option>
                 {locations.map((l) => (
@@ -126,7 +126,7 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
                     <select
                       name="priceSale"
                       defaultValue={priceSaleSort ?? ""}
-                      className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-white text-black dark:bg-transparent dark:text-white"
+                      style={{ colorScheme: "light dark" }} className="h-9 rounded-md border px-2 text-sm bg-white text-black border-black/20 dark:bg-zinc-900 dark:text-white dark:border-white/20"
                       aria-label="Price"
                     >
                       <option value="">{anyLabel}</option>
