@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { fetchBoats, fetchLocations } from "@/lib/strapi";
+import { fetchBoats, fetchLocations, type Boat } from "@/lib/strapi";
 import { isLang, t, formatCount, type Lang } from "@/i18n";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,6 +8,30 @@ import { getBoatCardImage } from "@/lib/media";
 function normalizeMarinaSlug(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
   return v.replace(/^marina-/, "");
+}
+
+function normalizeSort(v: unknown): "asc" | "desc" | null {
+  if (v === "asc" || v === "desc") return v;
+  return null;
+}
+
+function sortByNullableNumberNullsFirst<T extends Record<string, any>>(
+  rows: T[],
+  key: string,
+  dir: "asc" | "desc",
+): T[] {
+  const out = [...rows];
+  out.sort((a, b) => {
+    const av = (a as any)?.[key] ?? null;
+    const bv = (b as any)?.[key] ?? null;
+
+    if (av === null && bv === null) return 0;
+    if (av === null) return -1;
+    if (bv === null) return 1;
+
+    return dir === "asc" ? av - bv : bv - av;
+  });
+  return out;
 }
 
 export const dynamic = "force-dynamic";
@@ -35,6 +59,10 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
     string,
     string | string[] | undefined
   >;
+  const priceSaleRaw = Array.isArray(sp["priceSale"])
+    ? (sp["priceSale"] as string[])[0]
+    : (sp["priceSale"] as string | undefined);
+  const priceSaleSort = normalizeSort(priceSaleRaw);
   const marinaRaw = Array.isArray(sp["marina"])
     ? (sp["marina"] as string[])[0]
     : (sp["marina"] as string | undefined);
@@ -46,6 +74,10 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
     homeMarinaSlug: marina || null,
   });
 
+  const boatsSorted: Boat[] = priceSaleSort
+    ? sortByNullableNumberNullsFirst(boats, "sale_price", priceSaleSort)
+    : boats;
+
   return (
     <main className="main">
       <div className="container">
@@ -53,7 +85,7 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
           <h1 className="h1">
             {tr.nav.sale} · {tr.nav.motor}
           </h1>
-          <p className="kicker">{formatCount(lang, boats.length)}</p>
+          <p className="kicker">{formatCount(lang, boatsSorted.length)}</p>
         </div>
 
         {(() => {
@@ -78,6 +110,32 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
                   </option>
                 ))}
               </select>
+
+              {(() => {
+                const priceLabel =
+                  lang === "ru" ? "Цена" : lang === "me" ? "Price" : "Price";
+                const anyLabel =
+                  lang === "ru" ? "Любая" : lang === "me" ? "Any" : "Any";
+                const upLabel =
+                  lang === "ru" ? "По возрастанию" : lang === "me" ? "Asc" : "Asc";
+                const downLabel =
+                  lang === "ru" ? "По убыванию" : lang === "me" ? "Desc" : "Desc";
+                return (
+                  <>
+                    <label className="text-sm">{priceLabel}:</label>
+                    <select
+                      name="priceSale"
+                      defaultValue={priceSaleSort ?? ""}
+                      className="h-9 rounded-md border border-black/[.12] px-2 text-sm dark:border-white/[.18] bg-white text-black dark:bg-transparent dark:text-white"
+                      aria-label="Price"
+                    >
+                      <option value="">{anyLabel}</option>
+                      <option value="asc">{upLabel}</option>
+                      <option value="desc">{downLabel}</option>
+                    </select>
+                  </>
+                );
+              })()}
               <button
                 type="submit"
                 className="h-9 rounded-full border border-black/[.12] px-4 text-sm hover:bg-black/[.04] dark:border-white/[.18] dark:hover:bg-white/[.06]"
@@ -88,14 +146,14 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
           );
         })()}
 
-        {boats.length === 0 ? (
+        {boatsSorted.length === 0 ? (
           <p className="kicker">{tr.boats.empty}</p>
         ) : (
           <ul
             className="grid"
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
-            {boats.map((b) => {
+            {boatsSorted.map((b) => {
               const cardImg = getBoatCardImage(b);
               return (
               <li key={b.id} className="card">

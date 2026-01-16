@@ -191,6 +191,7 @@ function normalizeBoat(item: any): Boat | null {
 export type BoatFilters = {
   listingType?: "rent" | "sale";
   vesselType?: "motorboat" | "sailboat";
+  boatType?: string; // Strapi enum: "Motorboat" | "Sailboat" | "Catamaran" | "Superyacht" | ...
   homeMarinaSlug?: string | null;
 };
 
@@ -218,6 +219,10 @@ export async function fetchBoats(
   if (filters?.vesselType)
     qs.push(
       `filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`,
+    );
+  if (filters?.boatType)
+    qs.push(
+      `filters[boat_type][$eq]=${encodeURIComponent(filters.boatType)}`,
     );
   if (filters?.homeMarinaSlug)
     qs.push(
