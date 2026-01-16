@@ -188,6 +188,29 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
                       </span>
                     </p>
 
+                    <p className="card-sub">
+                      <span>
+                        {lang === "ru" ? "Бренд" : lang === "me" ? "Brand" : "Brand"}:{" "}
+                        {(b as any).brand?.name ??
+                          (b as any).brand?.title ??
+                          (b as any).builder?.name ??
+                          (b as any).builder?.title ??
+                          "—"}
+                      </span>
+                      <span>·</span>
+                      <span>
+                        {lang === "ru" ? "Год" : lang === "me" ? "Year" : "Year"}:{" "}
+                        {(b as any).year ?? "—"}
+                      </span>
+                      <span>·</span>
+                      <span>
+                        {lang === "ru" ? "Длина" : lang === "me" ? "Length" : "Length"}:{" "}
+                        {(b as any).length_m !== null && (b as any).length_m !== undefined
+                          ? `${(b as any).length_m} m`
+                          : "—"}
+                      </span>
+                    </p>
+
                     <div className="card-bottom">
                       <span className="pill">{tr.boat.view_details} →</span>
                     </div>
