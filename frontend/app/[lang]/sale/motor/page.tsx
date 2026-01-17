@@ -159,7 +159,7 @@ export default async function SaleMotorPage({ params, searchParams }: Props) {
               <li key={b.id} className="card">
                 <Link
                   className="card-link"
-                  href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}
+                  href={`/${lang}/boats/${encodeURIComponent(b.slug)}`}
                 >
                   {cardImg?.src ? (
                     <div className="card-media">
