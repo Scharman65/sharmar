@@ -216,6 +216,8 @@ export async function fetchBoats(
     "populate[purposes][fields][0]=title",
     "fields[0]=year",
     "fields[1]=length_m",
+    "fields[2]=slug",
+    "fields[3]=title",
     "populate[home_marina][fields][0]=name",
     "populate[home_marina][fields][1]=slug",
     "populate[home_marina][fields][2]=region",
