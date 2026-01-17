@@ -44,6 +44,8 @@ export type Boat = {
   cover?: { url: string; alternativeText?: string | null } | null;
   images?: { id: number; url: string; alternativeText?: string | null }[];
   purposes?: { id: number; title?: string | null }[];
+  brand?: string | null;
+  builder?: any | null;
 };
 
 export type Location = {
@@ -161,6 +163,11 @@ function normalizeBoat(item: any): Boat | null {
     description: item.description ?? null,
     boat_type: item.boat_type ?? null,
     capacity: item.capacity ?? null,
+
+    year: item.year ?? null,
+    length_m: item.length_m ?? null,
+    brand: item.brand ?? item.brand?.data ?? null,
+    builder: item.builder ?? item.builder?.data ?? null,
     license_required: item.license_required ?? null,
     skipper_available: item.skipper_available ?? null,
     vesselType: item.vessel_type ?? item.vesselType ?? null,
@@ -207,6 +214,8 @@ export async function fetchBoats(
     "populate[images][fields][1]=alternativeText",
     "populate[images][fields][2]=formats",
     "populate[purposes][fields][0]=title",
+    "fields[0]=year",
+    "fields[1]=length_m",
     "populate[home_marina][fields][0]=name",
     "populate[home_marina][fields][1]=slug",
     "populate[home_marina][fields][2]=region",
@@ -221,9 +230,7 @@ export async function fetchBoats(
       `filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`,
     );
   if (filters?.boatType)
-    qs.push(
-      `filters[boat_type][$eq]=${encodeURIComponent(filters.boatType)}`,
-    );
+    qs.push(`filters[boat_type][$eq]=${encodeURIComponent(filters.boatType)}`);
   if (filters?.homeMarinaSlug)
     qs.push(
       `filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`,
