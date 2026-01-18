@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { getBoatCardImage } from "@/lib/media";
+import { CATEGORIES } from "@/lib/categories";
 function normalizeMarinaSlug(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
   return v.replace(/^marina-/, "");
@@ -45,11 +46,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
+
+  const def = CATEGORIES["sale/motor"];
+
+  const baseBoats = await fetchBoats(lang, {
+    listingType: def.listingType,
+    ...(def.vesselType ? { vesselType: def.vesselType } : {}),
+    boatType: def.boatType,
+    homeMarinaSlug: null,
+  });
+
+  const isEmpty = baseBoats.length === 0;
+
   return {
     title: `${tr.nav.sale} · ${tr.nav.motor}`,
     description: tr.boats.subtitle,
+    robots: isEmpty ? { index: false, follow: true } : { index: true, follow: true },
   };
 }
+
 
 export default async function SaleMotorPage({ params, searchParams }: Props) {
   const { lang: raw } = await params;
