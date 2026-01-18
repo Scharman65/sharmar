@@ -77,12 +77,14 @@ function Menu({
                   key={idx}
                   role="menuitem"
                   href={it.href}
-                  className="nav-button"
+                  className="dropdown-item"
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     width: "100%",
                     margin: 0,
+                    padding: "10px 12px",
+                    borderRadius: 12,
                   }}
                   onClick={() => setOpen(false)}
                 >
@@ -95,7 +97,7 @@ function Menu({
               <div
                 key={idx}
                 aria-disabled="true"
-                className="nav-button"
+                className="dropdown-item"
                 style={{
                   opacity: 0.55,
                   cursor: "not-allowed",
@@ -103,6 +105,8 @@ function Menu({
                   justifyContent: "space-between",
                   width: "100%",
                   margin: 0,
+                  padding: "10px 12px",
+                  borderRadius: 12,
                 }}
               >
                 <span>{it.text}</span>
@@ -120,6 +124,22 @@ function Menu({
               </div>
             );
           })}
+
+          <style jsx>{`
+            :global(.dropdown-item) {
+              color: rgba(0, 0, 0, 0.88);
+              text-decoration: none;
+            }
+            :global(.dropdown-item:hover) {
+              background: rgba(0, 0, 0, 0.06);
+            }
+            :global(.dark .dropdown-item) {
+              color: rgba(255, 255, 255, 0.92);
+            }
+            :global(.dark .dropdown-item:hover) {
+              background: rgba(255, 255, 255, 0.08);
+            }
+          `}</style>
         </div>
       )}
     </div>
