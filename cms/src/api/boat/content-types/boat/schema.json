@@ -156,6 +156,14 @@
         }
       }
     },
+    "sale_price": {
+      "type": "decimal",
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
     "brand": {
       "type": "relation",
       "relation": "manyToOne",
