@@ -48,9 +48,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tr = t(lang);
   const catLabel =
     lang === "ru" ? "Катамаран" : lang === "me" ? "Catamaran" : "Catamaran";
+
+  const baseBoats = await fetchBoats(lang, {
+    listingType: "sale",
+    boatType: "Catamaran",
+    homeMarinaSlug: null,
+  });
+
+  const isEmpty = baseBoats.length === 0;
+
   return {
     title: `${tr.nav.sale} · ${catLabel}`,
     description: tr.boats.subtitle,
+    robots: isEmpty ? { index: false, follow: true } : { index: true, follow: true },
   };
 }
 
