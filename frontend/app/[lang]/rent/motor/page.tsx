@@ -11,6 +11,22 @@ function normalizeMarinaSlug(v: unknown): string | null {
   return v.replace(/^marina-/, "");
 }
 
+function normalizeBoatType(v: unknown): string | null {
+  if (typeof v !== "string" || !v) return null;
+  const allowed = new Set([
+    "RIB",
+    "Motorboat",
+    "Speedboat",
+    "Sailboat",
+    "Yacht",
+    "Catamaran",
+    "Fishing boat",
+    "Jet ski",
+    "Other",
+  ]);
+  return allowed.has(v) ? v : null;
+}
+
 function normalizePriceSort(v: unknown): "asc" | "desc" | null {
   if (typeof v !== "string") return null;
   if (v === "asc" || v === "desc") return v;
@@ -70,6 +86,11 @@ export default async function RentMotorPage({ params, searchParams }: Props) {
     : (sp["marina"] as string | undefined);
   const marina = normalizeMarinaSlug(marinaRaw);
 
+  const typeRaw = Array.isArray(sp["type"])
+    ? (sp["type"] as string[])[0]
+    : (sp["type"] as string | undefined);
+  const boatType = normalizeBoatType(typeRaw);
+
   const priceHourRaw = Array.isArray(sp["priceHour"])
     ? (sp["priceHour"] as string[])[0]
     : (sp["priceHour"] as string | undefined);
@@ -80,6 +101,7 @@ export default async function RentMotorPage({ params, searchParams }: Props) {
   const boats = await fetchBoats(lang, {
     listingType: "rent",
     vesselType: "motorboat",
+    boatType: boatType || undefined,
     homeMarinaSlug: marina || null,
   });
 
@@ -104,6 +126,11 @@ export default async function RentMotorPage({ params, searchParams }: Props) {
             lang === "ru" ? "Все" : lang === "me" ? "Sve" : "All";
           const filterLabel =
             lang === "ru" ? "Фильтр" : lang === "me" ? "Filter" : "Filter";
+
+          const typeLabel =
+            lang === "ru" ? "Тип" : lang === "me" ? "Tip" : "Type";
+          const typeAllLabel =
+            lang === "ru" ? "Все" : lang === "me" ? "Sve" : "All";
 
           const priceLabel =
             lang === "ru"
@@ -140,6 +167,26 @@ export default async function RentMotorPage({ params, searchParams }: Props) {
                     {l.name ?? l.slug}
                   </option>
                 ))}
+              </select>
+
+              <label className="text-sm">{typeLabel}:</label>
+              <select
+                name="type"
+                defaultValue={boatType ?? ""}
+                style={{ colorScheme: "light dark" }}
+                className="h-9 rounded-md border px-2 text-sm bg-white text-black border-black/20 dark:bg-zinc-900 dark:text-white dark:border-white/20"
+                aria-label={typeLabel}
+              >
+                <option value="">{typeAllLabel}</option>
+                <option value="RIB">RIB</option>
+                <option value="Motorboat">Motorboat</option>
+                <option value="Speedboat">Speedboat</option>
+                <option value="Sailboat">Sailboat</option>
+                <option value="Yacht">Yacht</option>
+                <option value="Catamaran">Catamaran</option>
+                <option value="Fishing boat">Fishing boat</option>
+                <option value="Jet ski">Jet ski</option>
+                <option value="Other">Other</option>
               </select>
 
               <label className="text-sm">{priceLabel}:</label>
