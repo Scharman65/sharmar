@@ -160,7 +160,7 @@ export default function HeaderTopNav({
         items={[
           { kind: "link", href: `/${lang}/rent/motor`, text: labels.motor },
           { kind: "link", href: `/${lang}/rent/sail`, text: labels.sail },
-          { kind: "soon", text: labels.catamaran, badge: labels.soon },
+          { kind: "link", href: `/${lang}/rent/catamaran`, text: labels.catamaran },
           { kind: "soon", text: labels.superyacht, badge: labels.soon },
         ]}
       />
@@ -169,7 +169,7 @@ export default function HeaderTopNav({
         items={[
           { kind: "link", href: `/${lang}/sale/motor`, text: labels.motor },
           { kind: "link", href: `/${lang}/sale/sail`, text: labels.sail },
-          { kind: "soon", text: labels.catamaran, badge: labels.soon },
+          { kind: "link", href: `/${lang}/sale/catamaran`, text: labels.catamaran },
           { kind: "soon", text: labels.superyacht, badge: labels.soon },
         ]}
       />
