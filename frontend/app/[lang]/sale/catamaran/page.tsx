@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { getBoatCardImage } from "@/lib/media";
+import { CATEGORIES } from "@/lib/categories";
 
 function normalizeMarinaSlug(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
@@ -46,12 +47,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
+
+  const def = CATEGORIES["sale/catamaran"];
   const catLabel =
     lang === "ru" ? "Катамаран" : lang === "me" ? "Catamaran" : "Catamaran";
 
   const baseBoats = await fetchBoats(lang, {
-    listingType: "sale",
-    boatType: "Catamaran",
+    listingType: def.listingType,
+    ...(def.vesselType ? { vesselType: def.vesselType } : {}),
+    boatType: def.boatType,
     homeMarinaSlug: null,
   });
 
@@ -63,6 +67,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     robots: isEmpty ? { index: false, follow: true } : { index: true, follow: true },
   };
 }
+
 
 export default async function SaleCatamaranPage({ params, searchParams }: Props) {
   const { lang: raw } = await params;
