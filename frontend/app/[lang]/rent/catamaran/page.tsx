@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const baseBoats = await fetchBoats(lang, {
     listingType: def.listingType,
-    vesselType: "sailboat",
+    ...(def.vesselType ? { vesselType: def.vesselType } : {}),
     boatType: def.boatType,
     homeMarinaSlug: null,
   });
