@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Lang } from "@/i18n";
-
+import { fetchLocations } from "@/lib/strapi";
 type Location = { id: number; slug: string; name: string | null };
-
-const STRAPI_BASE = (process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://127.0.0.1:1337").replace(/\/+$/, "");
 
 function isRentOrSale(pathname: string): "rent" | "sale" | null {
   const p = pathname || "";
@@ -39,19 +37,12 @@ export default function HeaderMarinaFilter({ lang }: { lang: Lang }) {
         qs.set("fields[0]", "name");
         qs.set("fields[1]", "slug");
 
-        const url = `${STRAPI_BASE}/api/locations?${qs.toString()}&locale=${encodeURIComponent(lang)}`;
-        const r = await fetch(url, { headers: { accept: "application/json" } });
-        const j = await r.json();
-
-        const rows: Location[] = (j?.data ?? [])
-          .map((x: any) => {
-            const id = x?.id;
-            const slug = x?.slug ?? x?.attributes?.slug;
-            const name = x?.name ?? x?.attributes?.name ?? null;
-            if (typeof id !== "number" || typeof slug !== "string") return null;
-            return { id, slug, name };
-          })
-          .filter(Boolean);
+        const rowsRaw = await fetchLocations(lang);
+        const rows: Location[] = (rowsRaw ?? []).map((l: any) => ({
+          id: l.id,
+          slug: l.slug,
+          name: (l.name ?? null) as (string | null),
+        }));
 
         if (alive) setLocations(rows);
       } catch {
