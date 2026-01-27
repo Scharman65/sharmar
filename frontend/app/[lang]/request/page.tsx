@@ -34,6 +34,20 @@ type RequestPayload = {
 
 const DEPOSIT_RATE = 0.2;
 
+
+function isValidIsoDate(v: string): boolean {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)) return false;
+  const [ys, ms, ds] = v.split("-");
+  const y = Number(ys);
+  const m = Number(ms);
+  const d = Number(ds);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return false;
+  if (y < 1900 || y > 2100) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === (m - 1) && dt.getUTCDate() === d;
+}
+
+
 function diffHours(from: string, to: string): number {
   const [fh, fm] = from.split(":").map((x) => Number(x));
   const [th, tm] = to.split(":").map((x) => Number(x));
@@ -134,6 +148,9 @@ export default function RequestPage() {
     }
 if (!name.trim() || !phone.trim() || !date) {
       return fail("Please fill required fields.");
+    }
+    if (!isValidIsoDate(date)) {
+      return fail("Please enter a valid date in YYYY-MM-DD format.");
     }
 if (!timeFrom || !timeTo || !timeOk) {
       setError("Please choose a valid time range (end time must be after start time).");
@@ -276,8 +293,17 @@ if (!timeFrom || !timeTo || !timeOk) {
                 <div className="kicker">{tr.booking.dateFrom} *</div>
                 <input
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  type="date"
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const cleaned = v.replace(/[^\d-]/g, "").slice(0, 10);
+                    setDate(cleaned);
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="YYYY-MM-DD"
+                  aria-label="Date (YYYY-MM-DD)"
+                  title="YYYY-MM-DD"
+                  pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
                   required
                   style={{
                     width: "100%",
