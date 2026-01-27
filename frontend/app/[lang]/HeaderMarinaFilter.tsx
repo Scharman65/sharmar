@@ -6,6 +6,8 @@ import type { Lang } from "@/i18n";
 
 type Location = { id: number; slug: string; name: string | null };
 
+const STRAPI_BASE = (process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://127.0.0.1:1337").replace(/\/+$/, "");
+
 function isRentOrSale(pathname: string): "rent" | "sale" | null {
   const p = pathname || "";
   if (p.includes("/rent/")) return "rent";
@@ -37,7 +39,7 @@ export default function HeaderMarinaFilter({ lang }: { lang: Lang }) {
         qs.set("fields[0]", "name");
         qs.set("fields[1]", "slug");
 
-        const url = `https://api.sharmar.me/api/locations?${qs.toString()}&locale=${encodeURIComponent(lang)}`;
+        const url = `${STRAPI_BASE}/api/locations?${qs.toString()}&locale=${encodeURIComponent(lang)}`;
         const r = await fetch(url, { headers: { accept: "application/json" } });
         const j = await r.json();
 

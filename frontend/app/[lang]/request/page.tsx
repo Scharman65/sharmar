@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { isLang, t, type Lang } from "@/i18n";
@@ -95,6 +95,7 @@ export default function RequestPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackMailto, setFallbackMailto] = useState<string | null>(null);
 
@@ -117,20 +118,24 @@ export default function RequestPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     setFallbackMailto(null);
 
+
+    const fail = (msg: string) => {
+      setError(msg);
+      inFlight.current = false;
+      return;
+    };
     if (!boatSlug || !boatTitle) {
-      setError("Missing boat data in URL.");
-      return;
+      return fail("Missing boat data in URL.");
     }
-
-    if (!name.trim() || !phone.trim() || !date) {
-      setError("Please fill required fields.");
-      return;
+if (!name.trim() || !phone.trim() || !date) {
+      return fail("Please fill required fields.");
     }
-
-    if (!timeFrom || !timeTo || !timeOk) {
+if (!timeFrom || !timeTo || !timeOk) {
       setError("Please choose a valid time range (end time must be after start time).");
       return;
     }
@@ -182,8 +187,9 @@ export default function RequestPage() {
       setError(String(err));
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
-  }
+}
 
   const canSubmit =
     !busy &&

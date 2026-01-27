@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
+import { bookingAdminEmail } from "@/app/lib/emailTemplates";
 
 type JsonObj = Record<string, unknown>;
 
@@ -207,6 +209,33 @@ export async function POST(req: Request) {
     }
 
     const id = getNum(json.data.id) ?? 0;
+
+    if (id > 0 && BOOKING_TO && resend) {
+      try {
+        const mail = bookingAdminEmail({
+          id,
+          boatTitle: p.boatTitle || p.boatSlug,
+          boatSlug: p.boatSlug,
+          name: p.name,
+          phone: p.phone,
+          email: p.email || undefined,
+          start,
+          end,
+          people,
+          skipper: Boolean(p.needSkipper),
+          notes: p.message || undefined,
+        });
+
+        await resend.emails.send({
+          from: BOOKING_FROM,
+          to: BOOKING_TO,
+          subject: mail.subject,
+          text: mail.text,
+        });
+      } catch (e) {
+        console.error("EMAIL_SEND_FAILED", e);
+      }
+    }
     return NextResponse.json({ ok: true, id }, { status: 200 });
   } catch (e) {
     return NextResponse.json(
