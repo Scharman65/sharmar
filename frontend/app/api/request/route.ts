@@ -12,6 +12,8 @@ type Payload = {
   email?: string;
   dateFrom: string;
   dateTo: string;
+  timeFrom?: string;
+  timeTo?: string;
   peopleCount?: number;
   needSkipper?: boolean;
   message?: string;
@@ -33,6 +35,65 @@ function getNum(x: unknown): number | null {
   return typeof x === "number" && Number.isFinite(x) ? x : null;
 }
 
+
+function isValidTime(v: string): boolean {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(v.trim());
+}
+
+// Convert local date+time in a given IANA timezone into UTC ISO string.
+function toUtcIsoFromLocal(date: string, time: string, tz: string): string | null {
+  const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+  if (!dm) return null;
+  if (!isValidTime(time)) return null;
+
+  const y = Number(dm[1]);
+  const m = Number(dm[2]);
+  const d = Number(dm[3]);
+  const hh = Number(time.slice(0, 2));
+  const mm = Number(time.slice(3, 5));
+
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+
+  // Start with a UTC guess, then compute timezone offset at that instant.
+  const guess = new Date(Date.UTC(y, m - 1, d, hh, mm, 0, 0));
+
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  const parts = dtf.formatToParts(guess);
+  const pick = (t: string) => parts.find((x) => x.type == t)?.value;
+  const ly = Number(pick("year"));
+  const lmo = Number(pick("month"));
+  const ld = Number(pick("day"));
+  const lh = Number(pick("hour"));
+  const lmin = Number(pick("minute"));
+  const lsec = Number(pick("second"));
+
+  if (![ly, lmo, ld, lh, lmin, lsec].every((x) => Number.isFinite(x))) return null;
+
+  // The "local time" shown in tz for the UTC guess.
+  const shownAsUtc = Date.UTC(ly, lmo - 1, ld, lh, lmin, lsec, 0);
+
+  // Offset in ms between what tz shows and the guess.
+  const offsetMs = shownAsUtc - guess.getTime();
+
+  // Adjust guess by the offset so that tz-local clock matches requested local time.
+  const desiredLocalAsUtc = Date.UTC(y, m - 1, d, hh, mm, 0, 0);
+  const corrected = new Date(desiredLocalAsUtc - offsetMs);
+
+  return corrected.toISOString();
+}
+
+
 function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false; error: string } {
   if (!isRecord(body)) return { ok: false, error: "Invalid JSON body" };
 
@@ -42,9 +103,18 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   const phone = getStr(body.phone);
   const dateFrom = getStr(body.dateFrom);
   const dateTo = getStr(body.dateTo);
+  const timeFrom = getStr(body.timeFrom);
+  const timeTo = getStr(body.timeTo);
 
   if (!boatSlug || !boatTitle || !name || !phone || !dateFrom || !dateTo) {
     return { ok: false, error: "Missing required fields" };
+  }
+
+  if (timeFrom != null && !isValidTime(timeFrom)) {
+    return { ok: false, error: "Invalid timeFrom. Use HH:MM." };
+  }
+  if (timeTo != null && !isValidTime(timeTo)) {
+    return { ok: false, error: "Invalid timeTo. Use HH:MM." };
   }
 
   const email = getStr(body.email) ?? undefined;
@@ -63,6 +133,8 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
       email,
       dateFrom,
       dateTo,
+      timeFrom: timeFrom ?? undefined,
+      timeTo: timeTo ?? undefined,
       peopleCount,
       needSkipper,
       message,
@@ -163,12 +235,23 @@ export async function POST(req: Request) {
 
   const p = parsed.data;
 
-  const start = toIsoFromDate(p.dateFrom, 10);
-  const end = toIsoFromDate(p.dateTo, 10);
+  const bookingTz = process.env.BOOKING_TZ ?? "Europe/Podgorica";
+  const tf = p.timeFrom && isValidTime(p.timeFrom) ? p.timeFrom : "10:00";
+  const tt = p.timeTo && isValidTime(p.timeTo) ? p.timeTo : "14:00";
+
+  const start = toUtcIsoFromLocal(p.dateFrom, tf, bookingTz);
+  const end = toUtcIsoFromLocal(p.dateTo, tt, bookingTz);
 
   if (!start || !end) {
     return NextResponse.json(
-      { ok: false, error: "Invalid dates. Use YYYY-MM-DD.", fallbackMailto: buildFallbackMailto(p) },
+      { ok: false, error: "Invalid dates/times. Use YYYY-MM-DD and HH:MM.", fallbackMailto: buildFallbackMailto(p) },
+      { status: 400 }
+    );
+  }
+
+  if (new Date(end).getTime() <= new Date(start).getTime()) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid time range (end must be after start).", fallbackMailto: buildFallbackMailto(p) },
       { status: 400 }
     );
   }
