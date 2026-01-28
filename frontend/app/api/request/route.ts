@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
 import { bookingAdminEmail } from "@/app/lib/emailTemplates";
+import crypto from "node:crypto";
 
 type JsonObj = Record<string, unknown>;
 
@@ -35,7 +36,6 @@ function getNum(x: unknown): number | null {
   return typeof x === "number" && Number.isFinite(x) ? x : null;
 }
 
-
 function isValidTime(v: string): boolean {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(v.trim());
 }
@@ -55,7 +55,6 @@ function toUtcIsoFromLocal(date: string, time: string, tz: string): string | nul
   if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
   if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
 
-  // Start with a UTC guess, then compute timezone offset at that instant.
   const guess = new Date(Date.UTC(y, m - 1, d, hh, mm, 0, 0));
 
   const dtf = new Intl.DateTimeFormat("en-US", {
@@ -80,19 +79,14 @@ function toUtcIsoFromLocal(date: string, time: string, tz: string): string | nul
 
   if (![ly, lmo, ld, lh, lmin, lsec].every((x) => Number.isFinite(x))) return null;
 
-  // The "local time" shown in tz for the UTC guess.
   const shownAsUtc = Date.UTC(ly, lmo - 1, ld, lh, lmin, lsec, 0);
-
-  // Offset in ms between what tz shows and the guess.
   const offsetMs = shownAsUtc - guess.getTime();
 
-  // Adjust guess by the offset so that tz-local clock matches requested local time.
   const desiredLocalAsUtc = Date.UTC(y, m - 1, d, hh, mm, 0, 0);
   const corrected = new Date(desiredLocalAsUtc - offsetMs);
 
   return corrected.toISOString();
 }
-
 
 function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false; error: string } {
   if (!isRecord(body)) return { ok: false, error: "Invalid JSON body" };
@@ -145,7 +139,6 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   };
 }
 
-
 function buildFallbackMailto(p: Payload): string {
   const subject = `Boat request: ${p.boatTitle}`;
   const bodyLines = [
@@ -163,15 +156,54 @@ function buildFallbackMailto(p: Payload): string {
 
   const to = (process.env.BOOKING_FALLBACK_EMAIL ?? "booking@sharmar.me").trim();
 
-  const url =
+  return (
     "mailto:" +
     to +
     "?subject=" +
     encodeURIComponent(subject) +
     "&body=" +
-    encodeURIComponent(bodyLines.join("\n"));
+    encodeURIComponent(bodyLines.join("\n"))
+  );
+}
 
-  return url;
+function firstIpFromXff(xff: string): string | null {
+  const first = xff.split(",")[0]?.trim();
+  if (!first) return null;
+  const v = first.replace(/^\[|\]$/g, "").trim();
+  return v.length ? v : null;
+}
+
+function getClientIp(req: Request): string | null {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const ip = firstIpFromXff(xff);
+    if (ip) return ip;
+  }
+
+  const xri = req.headers.get("x-real-ip");
+  if (xri && xri.trim().length) return xri.trim();
+
+  const cf = req.headers.get("cf-connecting-ip");
+  if (cf && cf.trim().length) return cf.trim();
+
+  return null;
+}
+
+function sha256Hex(s: string): string {
+  return crypto.createHash("sha256").update(s, "utf8").digest("hex");
+}
+
+function todayUtcYmd(): string {
+  const d = new Date();
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+function isInvalidKeyError(e: unknown): boolean {
+  const msg = String(e);
+  return msg.includes("Invalid key");
 }
 
 async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
@@ -237,6 +269,12 @@ export async function POST(req: Request) {
 
   const p = parsed.data;
 
+  const token = crypto.randomUUID();
+  const ip = getClientIp(req);
+  const ua = (req.headers.get("user-agent") ?? "").trim() || null;
+  const fpBase = [ip ?? "", ua ?? "", p.boatSlug, todayUtcYmd()].join("|");
+  const fingerprint = sha256Hex(fpBase);
+
   const bookingTz = process.env.BOOKING_TZ ?? "Europe/Podgorica";
   const tf = p.timeFrom && isValidTime(p.timeFrom) ? p.timeFrom : "10:00";
   const tt = p.timeTo && isValidTime(p.timeTo) ? p.timeTo : "14:00";
@@ -270,27 +308,47 @@ export async function POST(req: Request) {
 
     const people = p.peopleCount && p.peopleCount >= 1 ? Math.floor(p.peopleCount) : 1;
 
+    const extraData = {
+      status: "new",
+      public_token: token,
+      source_ip: ip,
+      user_agent: ua,
+      fingerprint,
+    };
+
     const createBody = {
       data: {
         full_name: p.name,
         phone: p.phone,
-        email: (p.email && p.email.trim().length ? p.email.trim() : null),
+        email: p.email && p.email.trim().length ? p.email.trim() : null,
         start_datetime: start,
         end_datetime: end,
         people_count: people,
         need_skipper: Boolean(p.needSkipper),
-        notes: (p.message && p.message.trim().length ? p.message.trim() : null),
+        notes: p.message && p.message.trim().length ? p.message.trim() : null,
         boat: boatId,
       },
     };
 
-    const json = await strapiFetch("/api/booking-requests", {
-      method: "POST",
-      body: JSON.stringify(createBody),
-    });
+    let json: unknown;
+    try {
+      json = await strapiFetch("/api/booking-requests", {
+        method: "POST",
+        body: JSON.stringify({ data: { ...createBody.data, ...extraData } }),
+      });
+    } catch (e) {
+      if (isInvalidKeyError(e)) {
+        json = await strapiFetch("/api/booking-requests", {
+          method: "POST",
+          body: JSON.stringify(createBody),
+        });
+      } else {
+        throw e;
+      }
+    }
 
     if (!isRecord(json) || !isRecord(json.data)) {
-      return NextResponse.json({ ok: true, id: 0 }, { status: 200, headers: { "cache-control": "no-store" } });
+      return NextResponse.json({ ok: true, id: 0, token }, { status: 200, headers: { "cache-control": "no-store" } });
     }
 
     const id = getNum(json.data.id) ?? 0;
@@ -321,7 +379,8 @@ export async function POST(req: Request) {
         console.error("EMAIL_SEND_FAILED", e);
       }
     }
-    return NextResponse.json({ ok: true, id }, { status: 200, headers: { "cache-control": "no-store" } });
+
+    return NextResponse.json({ ok: true, id, token }, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: String(e), fallbackMailto: buildFallbackMailto(p) },
