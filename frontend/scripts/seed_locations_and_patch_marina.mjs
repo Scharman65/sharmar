@@ -37,7 +37,7 @@ async function createLocation(slug, name) {
   const payloadA = { slug, name };
   try {
     return await req(`/api/locations?locale=en`, { method: "POST", body: payloadA });
-  } catch (e) {
+  } catch {
     const payloadB = { data: payloadA };
     return await req(`/api/locations?locale=en`, { method: "POST", body: payloadB });
   }
@@ -67,7 +67,7 @@ async function setBoatHomeMarina(boatId, marinaId) {
   const payloadA = { home_marina: marinaId };
   try {
     return await req(`/api/boats/${boatId}?locale=en`, { method: "PUT", body: payloadA });
-  } catch (e) {
+  } catch {
     const payloadB = { data: payloadA };
     return await req(`/api/boats/${boatId}?locale=en`, { method: "PUT", body: payloadB });
   }

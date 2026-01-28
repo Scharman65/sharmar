@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Metadata } from "next";
 import { fetchBoats, fetchLocations, type Boat } from "@/lib/strapi";
 import { isLang, t, formatCount, type Lang } from "@/i18n";
