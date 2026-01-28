@@ -117,8 +117,11 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
     return { ok: false, error: "Invalid timeTo. Use HH:MM." };
   }
 
-  const email = getStr(body.email) ?? undefined;
-  const message = getStr(body.message) ?? undefined;
+  const rawEmail = getStr(body.email);
+  const rawMessage = getStr(body.message);
+
+  const email = rawEmail && rawEmail.trim().length ? rawEmail.trim() : undefined;
+  const message = rawMessage && rawMessage.trim().length ? rawMessage.trim() : undefined;
 
   const peopleCount = getNum(body.peopleCount) ?? undefined;
   const needSkipper = getBool(body.needSkipper) ?? undefined;
@@ -158,10 +161,15 @@ function buildFallbackMailto(p: Payload): string {
     p.message ? `Message: ${p.message}` : null,
   ].filter((x): x is string => Boolean(x));
 
+  const to = (process.env.BOOKING_FALLBACK_EMAIL ?? "booking@sharmar.me").trim();
+
   const url =
-    "mailto:" + (process.env.BOOKING_FALLBACK_EMAIL ?? "booking@sharmar.me") +
-    `?subject=${encodeURIComponent(subject)}` +
-    `&body=${encodeURIComponent(bodyLines.join("\n"))}`;
+    "mailto:" +
+    to +
+    "?subject=" +
+    encodeURIComponent(subject) +
+    "&body=" +
+    encodeURIComponent(bodyLines.join("\n"));
 
   return url;
 }
@@ -266,12 +274,12 @@ export async function POST(req: Request) {
       data: {
         full_name: p.name,
         phone: p.phone,
-        email: p.email ?? null,
+        email: (p.email && p.email.trim().length ? p.email.trim() : null),
         start_datetime: start,
         end_datetime: end,
         people_count: people,
         need_skipper: Boolean(p.needSkipper),
-        notes: p.message ?? null,
+        notes: (p.message && p.message.trim().length ? p.message.trim() : null),
         boat: boatId,
       },
     };
