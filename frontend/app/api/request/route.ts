@@ -159,7 +159,7 @@ function buildFallbackMailto(p: Payload): string {
   ].filter((x): x is string => Boolean(x));
 
   const url =
-    "mailto:booking@sharmar.local" +
+    "mailto:" + (process.env.BOOKING_FALLBACK_EMAIL ?? "booking@sharmar.me") +
     `?subject=${encodeURIComponent(subject)}` +
     `&body=${encodeURIComponent(bodyLines.join("\n"))}`;
 
@@ -219,12 +219,12 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400, headers: { "cache-control": "no-store" } });
   }
 
   const parsed = parsePayload(body);
   if (!parsed.ok) {
-    return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
+    return NextResponse.json({ ok: false, error: parsed.error }, { status: 400, headers: { "cache-control": "no-store" } });
   }
 
   const p = parsed.data;
@@ -239,14 +239,14 @@ export async function POST(req: Request) {
   if (!start || !end) {
     return NextResponse.json(
       { ok: false, error: "Invalid dates/times. Use YYYY-MM-DD and HH:MM.", fallbackMailto: buildFallbackMailto(p) },
-      { status: 400 }
+      { status: 400, headers: { "cache-control": "no-store" } }
     );
   }
 
   if (new Date(end).getTime() <= new Date(start).getTime()) {
     return NextResponse.json(
       { ok: false, error: "Invalid time range (end must be after start).", fallbackMailto: buildFallbackMailto(p) },
-      { status: 400 }
+      { status: 400, headers: { "cache-control": "no-store" } }
     );
   }
 
@@ -256,7 +256,7 @@ export async function POST(req: Request) {
     if (!boatId) {
       return NextResponse.json(
         { ok: false, error: `Boat not found by slug: ${p.boatSlug}`, fallbackMailto: buildFallbackMailto(p) },
-        { status: 404 }
+        { status: 404, headers: { "cache-control": "no-store" } }
       );
     }
 
@@ -282,7 +282,7 @@ export async function POST(req: Request) {
     });
 
     if (!isRecord(json) || !isRecord(json.data)) {
-      return NextResponse.json({ ok: true, id: 0 }, { status: 200 });
+      return NextResponse.json({ ok: true, id: 0 }, { status: 200, headers: { "cache-control": "no-store" } });
     }
 
     const id = getNum(json.data.id) ?? 0;
@@ -313,11 +313,11 @@ export async function POST(req: Request) {
         console.error("EMAIL_SEND_FAILED", e);
       }
     }
-    return NextResponse.json({ ok: true, id }, { status: 200 });
+    return NextResponse.json({ ok: true, id }, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: String(e), fallbackMailto: buildFallbackMailto(p) },
-      { status: 500 }
+      { status: 500, headers: { "cache-control": "no-store" } }
     );
   }
 }
