@@ -208,7 +208,7 @@ function isInvalidKeyError(e: unknown): boolean {
 
 async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
   const base = process.env.STRAPI_URL ?? process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337";
-  const token = process.env.STRAPI_TOKEN ?? "";
+  const apiToken = process.env.STRAPI_TOKEN ?? "";
 
   const url = new URL(path, base);
   const headers: Record<string, string> = {
@@ -216,7 +216,7 @@ async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
     "content-type": "application/json",
   };
 
-  if (token) headers.authorization = `Bearer ${token}`;
+  if (apiToken) headers.authorization = `Bearer ${apiToken}`;
 
   const res = await fetch(url.toString(), { ...init, headers, cache: "no-store" });
 
@@ -269,7 +269,7 @@ export async function POST(req: Request) {
 
   const p = parsed.data;
 
-  const token = crypto.randomUUID();
+  const publicToken = crypto.randomUUID();
   const ip = getClientIp(req);
   const ua = (req.headers.get("user-agent") ?? "").trim() || null;
   const fpBase = [ip ?? "", ua ?? "", p.boatSlug, todayUtcYmd()].join("|");
@@ -310,7 +310,7 @@ export async function POST(req: Request) {
 
     const extraData = {
       status: "new",
-      public_token: token,
+      public_token: publicToken,
       source_ip: ip,
       user_agent: ua,
       fingerprint,
@@ -348,7 +348,7 @@ export async function POST(req: Request) {
     }
 
     if (!isRecord(json) || !isRecord(json.data)) {
-      return NextResponse.json({ ok: true, id: 0, token }, { status: 200, headers: { "cache-control": "no-store" } });
+      return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
     }
 
     const id = getNum(json.data.id) ?? 0;
@@ -380,7 +380,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, id, token }, { status: 200, headers: { "cache-control": "no-store" } });
+    return NextResponse.json({ ok: true, id, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: String(e), fallbackMailto: buildFallbackMailto(p) },
