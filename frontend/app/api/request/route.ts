@@ -244,6 +244,33 @@ async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
   return json;
 }
 
+function isObjectRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+
+function extractIdFromStrapiResponse(json: unknown): number {
+  if (!isObjectRecord(json)) return 0;
+
+  const id1 = Number(json["id"]);
+  if (Number.isFinite(id1) && id1 > 0) return id1;
+
+  const data = json["data"];
+  if (isObjectRecord(data)) {
+    const id2 = Number(data["id"]);
+    if (Number.isFinite(id2) && id2 > 0) return id2;
+
+    const inner = data["data"];
+    if (isObjectRecord(inner)) {
+      const id3 = Number(inner["id"]);
+      if (Number.isFinite(id3) && id3 > 0) return id3;
+    }
+  }
+
+  return 0;
+}
+
+
 async function getBoatIdBySlug(slug: string): Promise<number | null> {
   const qs = new URLSearchParams();
   qs.set("filters[slug][$eq]", slug);
@@ -277,7 +304,10 @@ export async function POST(req: Request) {
 
   const p = parsed.data;
 
-  const publicToken = crypto.randomUUID();
+  const publicToken =
+    isObjectRecord(body) && typeof body["publicToken"] === "string" && body["publicToken"].length
+      ? body["publicToken"]
+      : crypto.randomUUID();
   const ip = getClientIp(req);
   const ua = (req.headers.get("user-agent") ?? "").trim() || null;
   const fpBase = [ip ?? "", ua ?? "", p.boatSlug, todayUtcYmd()].join("|");
@@ -364,7 +394,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
     }
 
-    const id = getNum(json.data.id) ?? 0;
+    const id = extractIdFromStrapiResponse(json);
 
     if (id > 0 && BOOKING_TO && resend) {
       try {

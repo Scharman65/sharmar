@@ -1,5 +1,5 @@
 sharmar-frontend
 env=root
-commit=54d43a74be246d8f1d37fce0aec4986bc5319cbf
-short=54d43a7
-utc=2026-01-29T16:00:46.543Z
+commit=d394a3c5d379e1eef336cda635c2bdfca9d96f90
+short=d394a3c
+utc=2026-01-29T16:44:46.523Z
