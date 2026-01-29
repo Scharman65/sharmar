@@ -381,8 +381,17 @@ export async function POST(req: Request) {
           body: JSON.stringify(createBody),
         });
       } else if (isDuplicatePublicTokenError(e)) {
+        const qs = new URLSearchParams();
+        qs.set("filters[public_token][$eq]", publicToken);
+        qs.append("fields[0]", "id");
+        qs.append("sort[0]", "createdAt:desc");
+        qs.set("pagination[pageSize]", "1");
+
+        const existingJson = await strapiFetch(`/api/booking-requests?${qs.toString()}`, { method: "GET" });
+        const existingId = extractIdFromStrapiResponse(existingJson);
+
         return NextResponse.json(
-          { ok: true, id: 0, token: publicToken },
+          { ok: true, id: existingId > 0 ? existingId : 0, token: publicToken },
           { status: 200, headers: { "cache-control": "no-store" } }
         );
       } else {
