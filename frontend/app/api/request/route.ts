@@ -399,7 +399,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!isRecord(json) || !isRecord(json.data)) {
+    if (!isRecord(json)) {
       return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
     }
 
