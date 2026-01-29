@@ -206,6 +206,14 @@ function isInvalidKeyError(e: unknown): boolean {
   return msg.includes("Invalid key");
 }
 
+function isDuplicatePublicTokenError(e: unknown): boolean {
+  const msg = String(e);
+  return (
+    msg.includes("booking_requests_public_token_uidx") ||
+    msg.includes("duplicate key value violates unique constraint")
+  );
+}
+
 async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
   const base = process.env.STRAPI_URL ?? process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337";
   const apiToken = process.env.STRAPI_TOKEN ?? "";
@@ -332,16 +340,21 @@ export async function POST(req: Request) {
 
     let json: unknown;
     try {
-      json = await strapiFetch("/api/booking-requests", {
+      json = await strapiFetch("/api/booking-requests-idempotent", {
         method: "POST",
         body: JSON.stringify({ data: { ...createBody.data, ...extraData } }),
       });
     } catch (e) {
       if (isInvalidKeyError(e)) {
-        json = await strapiFetch("/api/booking-requests", {
+        json = await strapiFetch("/api/booking-requests-idempotent", {
           method: "POST",
           body: JSON.stringify(createBody),
         });
+      } else if (isDuplicatePublicTokenError(e)) {
+        return NextResponse.json(
+          { ok: true, id: 0, token: publicToken },
+          { status: 200, headers: { "cache-control": "no-store" } }
+        );
       } else {
         throw e;
       }
