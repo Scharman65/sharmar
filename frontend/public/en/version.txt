@@ -1,5 +1,0 @@
-sharmar-frontend
-env=lang:en
-commit=0e72aee50a551163ad490423838633f4ce0bb951
-short=0e72aee
-utc=2026-01-29T19:04:06.677Z
