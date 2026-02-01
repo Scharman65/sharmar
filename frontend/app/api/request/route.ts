@@ -18,6 +18,7 @@ type Payload = {
   peopleCount?: number;
   needSkipper?: boolean;
   message?: string;
+  publicToken?: string;
 };
 
 function isRecord(x: unknown): x is JsonObj {
@@ -40,7 +41,6 @@ function isValidTime(v: string): boolean {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(v.trim());
 }
 
-// Convert local date+time in a given IANA timezone into UTC ISO string.
 function toUtcIsoFromLocal(date: string, time: string, tz: string): string | null {
   const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
   if (!dm) return null;
@@ -69,7 +69,8 @@ function toUtcIsoFromLocal(date: string, time: string, tz: string): string | nul
   });
 
   const parts = dtf.formatToParts(guess);
-  const pick = (t: string) => parts.find((x) => x.type == t)?.value;
+  const pick = (t: string) => parts.find((x) => x.type === t)?.value;
+
   const ly = Number(pick("year"));
   const lmo = Number(pick("month"));
   const ld = Number(pick("day"));
@@ -104,12 +105,8 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
     return { ok: false, error: "Missing required fields" };
   }
 
-  if (timeFrom != null && !isValidTime(timeFrom)) {
-    return { ok: false, error: "Invalid timeFrom. Use HH:MM." };
-  }
-  if (timeTo != null && !isValidTime(timeTo)) {
-    return { ok: false, error: "Invalid timeTo. Use HH:MM." };
-  }
+  if (timeFrom != null && !isValidTime(timeFrom)) return { ok: false, error: "Invalid timeFrom. Use HH:MM." };
+  if (timeTo != null && !isValidTime(timeTo)) return { ok: false, error: "Invalid timeTo. Use HH:MM." };
 
   const rawEmail = getStr(body.email);
   const rawMessage = getStr(body.message);
@@ -120,13 +117,16 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   const peopleCount = getNum(body.peopleCount) ?? undefined;
   const needSkipper = getBool(body.needSkipper) ?? undefined;
 
+  const publicToken =
+    typeof body.publicToken === "string" && body.publicToken.trim().length ? body.publicToken.trim() : undefined;
+
   return {
     ok: true,
     data: {
       boatSlug,
       boatTitle,
-      name,
-      phone,
+      name: name.trim(),
+      phone: phone.trim(),
       email,
       dateFrom,
       dateTo,
@@ -135,6 +135,7 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
       peopleCount,
       needSkipper,
       message,
+      publicToken,
     },
   };
 }
@@ -156,14 +157,7 @@ function buildFallbackMailto(p: Payload): string {
 
   const to = (process.env.BOOKING_FALLBACK_EMAIL ?? "booking@sharmar.me").trim();
 
-  return (
-    "mailto:" +
-    to +
-    "?subject=" +
-    encodeURIComponent(subject) +
-    "&body=" +
-    encodeURIComponent(bodyLines.join("\n"))
-  );
+  return "mailto:" + to + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(bodyLines.join("\n"));
 }
 
 function firstIpFromXff(xff: string): string | null {
@@ -179,39 +173,11 @@ function getClientIp(req: Request): string | null {
     const ip = firstIpFromXff(xff);
     if (ip) return ip;
   }
-
   const xri = req.headers.get("x-real-ip");
   if (xri && xri.trim().length) return xri.trim();
-
   const cf = req.headers.get("cf-connecting-ip");
   if (cf && cf.trim().length) return cf.trim();
-
   return null;
-}
-
-function sha256Hex(s: string): string {
-  return crypto.createHash("sha256").update(s, "utf8").digest("hex");
-}
-
-function todayUtcYmd(): string {
-  const d = new Date();
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
-function isInvalidKeyError(e: unknown): boolean {
-  const msg = String(e);
-  return msg.includes("Invalid key");
-}
-
-function isDuplicatePublicTokenError(e: unknown): boolean {
-  const msg = String(e);
-  return (
-    msg.includes("booking_requests_public_token_uidx") ||
-    msg.includes("duplicate key value violates unique constraint")
-  );
 }
 
 async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
@@ -248,7 +214,6 @@ function isObjectRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-
 function extractIdFromStrapiResponse(json: unknown): number {
   if (!isObjectRecord(json)) return 0;
 
@@ -269,7 +234,6 @@ function extractIdFromStrapiResponse(json: unknown): number {
 
   return 0;
 }
-
 
 async function getBoatIdBySlug(slug: string): Promise<number | null> {
   const qs = new URLSearchParams();
@@ -304,14 +268,7 @@ export async function POST(req: Request) {
 
   const p = parsed.data;
 
-  const publicToken =
-    isObjectRecord(body) && typeof body["publicToken"] === "string" && body["publicToken"].length
-      ? body["publicToken"]
-      : crypto.randomUUID();
-  const ip = getClientIp(req);
-  const ua = (req.headers.get("user-agent") ?? "").trim() || null;
-  const fpBase = [ip ?? "", ua ?? "", p.boatSlug, todayUtcYmd()].join("|");
-  const fingerprint = sha256Hex(fpBase);
+  const publicToken = p.publicToken && p.publicToken.length ? p.publicToken : crypto.randomUUID();
 
   const bookingTz = process.env.BOOKING_TZ ?? "Europe/Podgorica";
   const tf = p.timeFrom && isValidTime(p.timeFrom) ? p.timeFrom : "10:00";
@@ -346,14 +303,6 @@ export async function POST(req: Request) {
 
     const people = p.peopleCount && p.peopleCount >= 1 ? Math.floor(p.peopleCount) : 1;
 
-    const extraData = {
-      status: "new",
-      public_token: publicToken,
-      source_ip: ip,
-      user_agent: ua,
-      fingerprint,
-    };
-
     const createBody = {
       data: {
         full_name: p.name,
@@ -365,43 +314,18 @@ export async function POST(req: Request) {
         need_skipper: Boolean(p.needSkipper),
         notes: p.message && p.message.trim().length ? p.message.trim() : null,
         boat: boatId,
+
+        status: "new",
+        public_token: publicToken,
+
+        contact_method: "phone",
       },
     };
 
-    let json: unknown;
-    try {
-      json = await strapiFetch("/api/booking-requests-idempotent", {
-        method: "POST",
-        body: JSON.stringify({ data: { ...createBody.data, ...extraData } }),
-      });
-    } catch (e) {
-      if (isInvalidKeyError(e)) {
-        json = await strapiFetch("/api/booking-requests-idempotent", {
-          method: "POST",
-          body: JSON.stringify(createBody),
-        });
-      } else if (isDuplicatePublicTokenError(e)) {
-        const qs = new URLSearchParams();
-        qs.set("filters[public_token][$eq]", publicToken);
-        qs.append("fields[0]", "id");
-        qs.append("sort[0]", "createdAt:desc");
-        qs.set("pagination[pageSize]", "1");
-
-        const existingJson = await strapiFetch(`/api/booking-requests?${qs.toString()}`, { method: "GET" });
-        const existingId = extractIdFromStrapiResponse(existingJson);
-
-        return NextResponse.json(
-          { ok: true, id: existingId > 0 ? existingId : 0, token: publicToken },
-          { status: 200, headers: { "cache-control": "no-store" } }
-        );
-      } else {
-        throw e;
-      }
-    }
-
-    if (!isRecord(json)) {
-      return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
-    }
+    const json = await strapiFetch("/api/booking-requests-idempotent", {
+      method: "POST",
+      body: JSON.stringify(createBody),
+    });
 
     const id = extractIdFromStrapiResponse(json);
 

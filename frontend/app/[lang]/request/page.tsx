@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { isLang, t, type Lang } from "@/i18n";
 
-type ApiOk = { ok: true; id: number };
+type ApiOk = { ok: true; id: number; token: string };
 type ApiFail = { ok: false; error: string; fallbackMailto?: string };
 
 type RequestPayload = {
@@ -30,10 +30,11 @@ type RequestPayload = {
   peopleCount?: number;
   needSkipper?: boolean;
   message?: string;
+
+  publicToken?: string;
 };
 
 const DEPOSIT_RATE = 0.2;
-
 
 function isValidIsoDate(v: string): boolean {
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)) return false;
@@ -46,7 +47,6 @@ function isValidIsoDate(v: string): boolean {
   const dt = new Date(Date.UTC(y, m - 1, d));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === (m - 1) && dt.getUTCDate() === d;
 }
-
 
 function diffHours(from: string, to: string): number {
   const [fh, fm] = from.split(":").map((x) => Number(x));
@@ -69,6 +69,16 @@ function money(value: number, currency: string): string {
   } catch {
     return `${value.toFixed(2)} ${currency}`;
   }
+}
+
+function lsDraftKey(boatSlug: string, date: string, timeFrom: string, timeTo: string): string {
+  return `sharmar:booking_request:public_token:v1:${boatSlug}:${date}:${timeFrom}:${timeTo}`;
+}
+
+function genPublicToken(): string {
+  const ts = Date.now();
+  const rnd = Math.random().toString(36).slice(2, 10);
+  return `pt_live_${ts}_${rnd}`;
 }
 
 export default function RequestPage() {
@@ -137,24 +147,41 @@ export default function RequestPage() {
     setError(null);
     setFallbackMailto(null);
 
-
     const fail = (msg: string) => {
       setError(msg);
       inFlight.current = false;
       return;
     };
+
     if (!boatSlug || !boatTitle) {
       return fail("Missing boat data in URL.");
     }
-if (!name.trim() || !phone.trim() || !date) {
+
+    if (!name.trim() || !phone.trim() || !date) {
       return fail("Please fill required fields.");
     }
+
     if (!isValidIsoDate(date)) {
       return fail("Please enter a valid date in YYYY-MM-DD format.");
     }
-if (!timeFrom || !timeTo || !timeOk) {
+
+    if (!timeFrom || !timeTo || !timeOk) {
       setError("Please choose a valid time range (end time must be after start time).");
+      inFlight.current = false;
       return;
+    }
+
+    const key = lsDraftKey(boatSlug, date, timeFrom, timeTo);
+    let publicToken: string | null = null;
+
+    try {
+      publicToken = window.localStorage.getItem(key);
+      if (!publicToken) {
+        publicToken = genPublicToken();
+        window.localStorage.setItem(key, publicToken);
+      }
+    } catch {
+      publicToken = genPublicToken();
     }
 
     const payload: RequestPayload = {
@@ -179,6 +206,8 @@ if (!timeFrom || !timeTo || !timeOk) {
       peopleCount: Number.isFinite(peopleCount) ? peopleCount : 1,
       needSkipper,
       message: message.trim() ? message.trim() : undefined,
+
+      publicToken: publicToken ?? undefined,
     };
 
     setBusy(true);
@@ -192,6 +221,9 @@ if (!timeFrom || !timeTo || !timeOk) {
       const json = (await res.json()) as ApiOk | ApiFail;
 
       if (json && "ok" in json && json.ok) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {}
         router.push(`/${lang}/thanks`);
         return;
       }
@@ -206,7 +238,7 @@ if (!timeFrom || !timeTo || !timeOk) {
       setBusy(false);
       inFlight.current = false;
     }
-}
+  }
 
   const canSubmit =
     !busy &&
