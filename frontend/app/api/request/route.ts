@@ -21,6 +21,14 @@ type Payload = {
   publicToken?: string;
 };
 
+function logBookingEvent(e: Record<string, unknown>): void {
+  try {
+    console.log(JSON.stringify({ tag: "booking_request", ...e }));
+  } catch {
+    console.log("booking_request", e);
+  }
+}
+
 function isRecord(x: unknown): x is JsonObj {
   return typeof x === "object" && x !== null;
 }
@@ -243,26 +251,31 @@ async function getBoatIdBySlug(slug: string): Promise<number | null> {
   const json = await strapiFetch(`/api/boats?${qs.toString()}`);
 
   if (!isRecord(json)) return null;
-  const data = json.data;
+  const data = (json as any).data;
 
   if (!Array.isArray(data) || data.length === 0) return null;
   const first = data[0];
 
   if (!isRecord(first)) return null;
-  const id = getNum(first.id);
+  const id = getNum((first as any).id);
   return id ?? null;
 }
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID();
+  const t0 = Date.now();
+
   let body: unknown;
   try {
     body = await req.json();
   } catch {
+    logBookingEvent({ request_id: requestId, result: "bad_request", http_status: 400, latency_ms: Date.now() - t0, error_class: "InvalidJSON" });
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400, headers: { "cache-control": "no-store" } });
   }
 
   const parsed = parsePayload(body);
   if (!parsed.ok) {
+    logBookingEvent({ request_id: requestId, result: "bad_request", http_status: 400, latency_ms: Date.now() - t0, error_class: "ValidationError" });
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 400, headers: { "cache-control": "no-store" } });
   }
 
@@ -278,6 +291,7 @@ export async function POST(req: Request) {
   const end = toUtcIsoFromLocal(p.dateTo, tt, bookingTz);
 
   if (!start || !end) {
+    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "bad_request", http_status: 400, latency_ms: Date.now() - t0, error_class: "InvalidDatesTimes" });
     return NextResponse.json(
       { ok: false, error: "Invalid dates/times. Use YYYY-MM-DD and HH:MM.", fallbackMailto: buildFallbackMailto(p) },
       { status: 400, headers: { "cache-control": "no-store" } }
@@ -285,6 +299,7 @@ export async function POST(req: Request) {
   }
 
   if (new Date(end).getTime() <= new Date(start).getTime()) {
+    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "bad_request", http_status: 400, latency_ms: Date.now() - t0, error_class: "InvalidTimeRange" });
     return NextResponse.json(
       { ok: false, error: "Invalid time range (end must be after start).", fallbackMailto: buildFallbackMailto(p) },
       { status: 400, headers: { "cache-control": "no-store" } }
@@ -295,6 +310,7 @@ export async function POST(req: Request) {
     const boatId = await getBoatIdBySlug(p.boatSlug);
 
     if (!boatId) {
+      logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "not_found", http_status: 404, latency_ms: Date.now() - t0, error_class: "BoatNotFound" });
       return NextResponse.json(
         { ok: false, error: `Boat not found by slug: ${p.boatSlug}`, fallbackMailto: buildFallbackMailto(p) },
         { status: 404, headers: { "cache-control": "no-store" } }
@@ -319,6 +335,10 @@ export async function POST(req: Request) {
         public_token: publicToken,
 
         contact_method: "phone",
+
+        fingerprint: null,
+        source_ip: getClientIp(req),
+        user_agent: req.headers.get("user-agent"),
       },
     };
 
@@ -356,8 +376,12 @@ export async function POST(req: Request) {
       }
     }
 
+    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "ok", http_status: 200, latency_ms: Date.now() - t0, id });
     return NextResponse.json({ ok: true, id, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (e) {
+    const errorClass =
+      typeof e === "object" && e !== null && "name" in e && typeof (e as any).name === "string" ? String((e as any).name) : "Error";
+    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "error", http_status: 500, latency_ms: Date.now() - t0, error_class: errorClass });
     return NextResponse.json(
       { ok: false, error: String(e), fallbackMailto: buildFallbackMailto(p) },
       { status: 500, headers: { "cache-control": "no-store" } }
