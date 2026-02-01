@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/gen-version.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "postbuild": "node scripts/gen-version.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "next": "^16.1.6",
