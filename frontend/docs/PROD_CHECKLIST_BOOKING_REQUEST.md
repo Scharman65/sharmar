@@ -90,3 +90,18 @@ Frontend:
 
 Backend/DB:
 - No rollback required (additive changes), but schema dump exists if needed.
+
+### Verify production is on the expected commit (cache-bust)
+Static `public/version.txt` can be CDN-cached. Always verify with a cache-busting query param:
+
+```bash
+set -euo pipefail
+curl -sS "https://www.sharmar.me/version.txt?ts=$(date +%s)"
+
+
+# Expected:
+# - short=<expected_commit>
+# - utc is recent
+
+```
+

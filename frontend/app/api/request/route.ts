@@ -342,7 +342,7 @@ export async function POST(req: Request) {
       },
     };
 
-    const json = await strapiFetch("/api/booking-requests-idempotent", {
+    const json = await strapiFetch("/api/request", {
       method: "POST",
       body: JSON.stringify(createBody),
     });
