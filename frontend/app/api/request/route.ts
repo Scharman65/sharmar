@@ -195,6 +195,62 @@ function getClientIp(req: Request): string | null {
   return null;
 }
 
+function stableHashHex(input: string): string {
+  return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+function buildFingerprint(req: Request, ip: string | null): string {
+  const ua = req.headers.get("user-agent") ?? "";
+  const al = req.headers.get("accept-language") ?? "";
+  const ch = req.headers.get("sec-ch-ua") ?? "";
+  const plat = req.headers.get("sec-ch-ua-platform") ?? "";
+  const mob = req.headers.get("sec-ch-ua-mobile") ?? "";
+  const ref = req.headers.get("referer") ?? "";
+  const host = req.headers.get("host") ?? "";
+  const seed = [ip ?? "", ua, al, ch, plat, mob, ref, host].join("|");
+  return stableHashHex(seed).slice(0, 24);
+}
+
+type SoftBucket = { count: number; resetAtMs: number; lastSeenMs: number };
+
+function getSoftRateStore(): Map<string, SoftBucket> {
+  const g = globalThis as unknown as { __SHARMAR_RL__?: Map<string, SoftBucket> };
+  if (!g.__SHARMAR_RL__) g.__SHARMAR_RL__ = new Map<string, SoftBucket>();
+  return g.__SHARMAR_RL__;
+}
+
+function softRateLimitCheck(
+  key: string,
+  limit: number,
+  windowMs: number
+): { allowed: true } | { allowed: false; retryAfterMs: number; count: number } {
+  const now = Date.now();
+  const store = getSoftRateStore();
+
+  if (store.size > 5000) {
+    for (const [k, b] of store.entries()) {
+      if (b.resetAtMs <= now) store.delete(k);
+    }
+  }
+
+  const cur = store.get(key);
+  if (!cur || cur.resetAtMs <= now) {
+    store.set(key, { count: 1, resetAtMs: now + windowMs, lastSeenMs: now });
+    return { allowed: true };
+  }
+
+  cur.lastSeenMs = now;
+
+  if (cur.count + 1 > limit) {
+    const retryAfterMs = Math.max(0, cur.resetAtMs - now);
+    return { allowed: false, retryAfterMs, count: cur.count };
+  }
+
+  cur.count += 1;
+  store.set(key, cur);
+  return { allowed: true };
+}
+
 async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
   const base = process.env.STRAPI_URL ?? process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337";
   const apiToken = process.env.STRAPI_TOKEN ?? "";
@@ -268,6 +324,11 @@ async function getBoatIdBySlug(slug: string): Promise<number | null> {
   return id ?? null;
 }
 
+function isDuplicatePublicTokenError(err: unknown): boolean {
+  const s = String(err ?? "");
+  return s.includes("409 Conflict") && s.toLowerCase().includes("public_token already exists");
+}
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
   const t0 = Date.now();
@@ -287,10 +348,8 @@ export async function POST(req: Request) {
   }
 
   const p = parsed.data;
-
   const publicToken = p.publicToken && p.publicToken.length ? p.publicToken : crypto.randomUUID();
 
-  // Anti-spam: honeypot + minimum fill time. Silent drop with 200 OK to avoid signaling.
   const hp = typeof p.hp === "string" ? p.hp.trim() : "";
   if (hp.length) {
     logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "spam_drop", http_status: 200, latency_ms: Date.now() - t0, reason: "honeypot" });
@@ -304,6 +363,27 @@ export async function POST(req: Request) {
       logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "spam_drop", http_status: 200, latency_ms: Date.now() - t0, reason: "too_fast", delta_ms: delta });
       return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
     }
+  }
+
+  const ip = getClientIp(req);
+  const fp = buildFingerprint(req, ip);
+
+  const rlKey = `ip:${ip ?? "na"}|fp:${fp}`;
+  const rl = softRateLimitCheck(rlKey, 10, 10_000);
+  if (!rl.allowed) {
+    logBookingEvent({
+      request_id: requestId,
+      public_token: publicToken,
+      boat_slug: p.boatSlug,
+      result: "spam_drop",
+      http_status: 200,
+      latency_ms: Date.now() - t0,
+      reason: "soft_rate_limit",
+      retry_after_ms: rl.retryAfterMs,
+      fingerprint: fp,
+      source_ip: ip,
+    });
+    return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
   }
 
   const bookingTz = process.env.BOOKING_TZ ?? "Europe/Podgorica";
@@ -359,8 +439,8 @@ export async function POST(req: Request) {
 
         contact_method: "phone",
 
-        fingerprint: null,
-        source_ip: getClientIp(req),
+        fingerprint: fp,
+        source_ip: ip,
         user_agent: req.headers.get("user-agent"),
       },
     };
@@ -399,12 +479,47 @@ export async function POST(req: Request) {
       }
     }
 
-    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "ok", http_status: 200, latency_ms: Date.now() - t0, id });
+    logBookingEvent({
+      request_id: requestId,
+      public_token: publicToken,
+      boat_slug: p.boatSlug,
+      result: "ok",
+      http_status: 200,
+      latency_ms: Date.now() - t0,
+      id,
+      fingerprint: fp,
+      source_ip: ip,
+    });
     return NextResponse.json({ ok: true, id, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (e) {
+    if (isDuplicatePublicTokenError(e)) {
+      logBookingEvent({
+        request_id: requestId,
+        public_token: publicToken,
+        boat_slug: p.boatSlug,
+        result: "spam_drop",
+        http_status: 200,
+        latency_ms: Date.now() - t0,
+        reason: "duplicate_public_token",
+        fingerprint: fp,
+        source_ip: ip,
+      });
+      return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
+    }
+
     const errorClass =
       typeof e === "object" && e !== null && "name" in e && typeof (e as any).name === "string" ? String((e as any).name) : "Error";
-    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "error", http_status: 500, latency_ms: Date.now() - t0, error_class: errorClass });
+    logBookingEvent({
+      request_id: requestId,
+      public_token: publicToken,
+      boat_slug: p.boatSlug,
+      result: "error",
+      http_status: 500,
+      latency_ms: Date.now() - t0,
+      error_class: errorClass,
+      fingerprint: fp,
+      source_ip: ip,
+    });
     return NextResponse.json(
       { ok: false, error: String(e), fallbackMailto: buildFallbackMailto(p) },
       { status: 500, headers: { "cache-control": "no-store" } }
