@@ -32,6 +32,8 @@ type RequestPayload = {
   message?: string;
 
   publicToken?: string;
+  hp?: string;
+  client_ts?: number;
 };
 
 const DEPOSIT_RATE = 0.2;
@@ -208,6 +210,8 @@ export default function RequestPage() {
       message: message.trim() ? message.trim() : undefined,
 
       publicToken: publicToken ?? undefined,
+      hp: "",
+      client_ts: Date.now(),
     };
 
     setBusy(true);

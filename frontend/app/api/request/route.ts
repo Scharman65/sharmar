@@ -19,6 +19,8 @@ type Payload = {
   needSkipper?: boolean;
   message?: string;
   publicToken?: string;
+  hp?: string;
+  client_ts?: number;
 };
 
 function logBookingEvent(e: Record<string, unknown>): void {
@@ -128,6 +130,9 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   const publicToken =
     typeof body.publicToken === "string" && body.publicToken.trim().length ? body.publicToken.trim() : undefined;
 
+  const hp = typeof body.hp === "string" ? body.hp : undefined;
+  const client_ts = getNum(body.client_ts) ?? undefined;
+
   return {
     ok: true,
     data: {
@@ -144,6 +149,8 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
       needSkipper,
       message,
       publicToken,
+      hp,
+      client_ts,
     },
   };
 }
@@ -282,6 +289,22 @@ export async function POST(req: Request) {
   const p = parsed.data;
 
   const publicToken = p.publicToken && p.publicToken.length ? p.publicToken : crypto.randomUUID();
+
+  // Anti-spam: honeypot + minimum fill time. Silent drop with 200 OK to avoid signaling.
+  const hp = typeof p.hp === "string" ? p.hp.trim() : "";
+  if (hp.length) {
+    logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "spam_drop", http_status: 200, latency_ms: Date.now() - t0, reason: "honeypot" });
+    return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
+  }
+
+  const clientTs = typeof p.client_ts === "number" && Number.isFinite(p.client_ts) ? p.client_ts : null;
+  if (clientTs != null) {
+    const delta = Date.now() - clientTs;
+    if (Number.isFinite(delta) && delta >= 0 && delta < 1200) {
+      logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "spam_drop", http_status: 200, latency_ms: Date.now() - t0, reason: "too_fast", delta_ms: delta });
+      return NextResponse.json({ ok: true, id: 0, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
+    }
+  }
 
   const bookingTz = process.env.BOOKING_TZ ?? "Europe/Podgorica";
   const tf = p.timeFrom && isValidTime(p.timeFrom) ? p.timeFrom : "10:00";
