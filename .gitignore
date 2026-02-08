@@ -45,3 +45,4 @@ backups/
 # build artifacts
 frontend/public/version.txt
 frontend/public/*/version.txt
+/frontend/_quarantine/

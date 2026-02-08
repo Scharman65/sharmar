@@ -1,3 +1,5 @@
+export const dynamicParams = false;
+
 import Link from "next/link";
 import "../globals.css";
 import { isLang, t, type Lang } from "@/i18n";
@@ -52,4 +54,9 @@ export default async function LangLayout({ children, params }: Props) {
       </footer>
     </div>
   );
+}
+
+
+export async function generateStaticParams() {
+  return [{ lang: "en" }, { lang: "ru" }, { lang: "me" }];
 }
