@@ -9,6 +9,9 @@ import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
 import { isLang, t, type Lang } from "@/i18n";
 import { fetchAvailability } from "@/lib/availability";
+import BoatGalleryLightbox from "@/components/BoatGalleryLightbox";
+import BookingSidebar from "@/components/BookingSidebar";
+import MobileBookingBar from "@/components/MobileBookingBar";
 
 type Props = {
   params: Promise<{ lang: string; slug: string }>;
@@ -121,7 +124,6 @@ export default async function BoatPage({ params }: Props) {
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
-  const heroImg = getBoatCardImage(boat);
   if (!boat) {
     return (
       <main className="main">
@@ -138,6 +140,9 @@ export default async function BoatPage({ params }: Props) {
     );
   }
 
+  const heroImg = getBoatCardImage(boat);
+  const galleryImages = (boat.images ?? []).filter((img) => img?.url);
+
   const boatId = Number((boat as any).id ?? 0);
   const availability =
     Number.isFinite(boatId) && boatId > 0 ? await fetchAvailability(lang, boatId) : null;
@@ -152,6 +157,16 @@ export default async function BoatPage({ params }: Props) {
           </Link>
         </div>
 
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "24px",
+            alignItems: "flex-start",
+            marginTop: "18px",
+          }}
+        >
+          <div style={{ flex: "1 1 680px", minWidth: 0 }}>
         {heroImg ? (
           <div className="hero">
             <Image
@@ -161,6 +176,23 @@ export default async function BoatPage({ params }: Props) {
               sizes="(max-width: 900px) 100vw, 900px"
               style={{ objectFit: "cover" }}
               priority
+            />
+          </div>
+        ) : null}
+
+        {galleryImages.length ? (
+          <div
+            style={{
+              marginTop: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <BoatGalleryLightbox
+              images={galleryImages.map((img) => ({
+                url: img.url,
+                alt: img.alternativeText ?? boat.title ?? "Boat image",
+              }))}
+              boatTitle={boat.title ?? slug}
             />
           </div>
         ) : null}
@@ -357,20 +389,47 @@ export default async function BoatPage({ params }: Props) {
           </div>
         ) : null}
 
-        <div className="actions">
-          <Link
-            className="button"
-            href={`/${lang}/request?slug=${encodeURIComponent(slug)}&title=${encodeURIComponent(
-              boat.title ?? slug
-            )}`}
-          >
-            {tr.booking.requestThisBoat}
-          </Link>
+          </div>
 
+          <div style={{ flex: "0 1 360px", width: "100%", maxWidth: "360px" }}>
+            <BookingSidebar
+              lang={lang}
+              boatSlug={slug}
+              boatTitle={boat.title ?? slug}
+              priceLabel={
+                fmtMoney(
+                  (boat as any).price_per_day ??
+                  (boat as any).price_per_hour ??
+                  (boat as any).price_per_week ??
+                  (boat as any).price ??
+                  null
+                ) ?? null
+              }
+            />
+          </div>
+        </div>
+
+        <div className="actions">
           <Link className="button secondary" href={`/${lang}/boats`}>
             {tr.boat.back_to_list}
           </Link>
         </div>
+      </div>
+
+      <div className="mobile-booking-bar">
+        <MobileBookingBar
+          lang={lang}
+          boatSlug={slug}
+          priceLabel={
+            fmtMoney(
+              (boat as any).price_per_day ??
+              (boat as any).price_per_hour ??
+              (boat as any).price_per_week ??
+              (boat as any).price ??
+              null
+            ) ?? null
+          }
+        />
       </div>
     </main>
   );
