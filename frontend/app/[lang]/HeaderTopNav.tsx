@@ -166,18 +166,18 @@ export default function HeaderTopNav({
       <Menu
         label={labels.rent}
         items={[
-          { kind: "link", href: `/${lang}/boats?listing=rent${marinaQuery}`, text: labels.motor },
-          { kind: "link", href: `/${lang}/boats?listing=rent${marinaQuery}`, text: labels.sail },
-          { kind: "link", href: `/${lang}/boats?listing=rent${marinaQuery}`, text: labels.catamaran },
+          { kind: "link", href: `/${lang}/boats?listing=rent&type=motor${marinaQuery}`, text: labels.motor },
+          { kind: "link", href: `/${lang}/boats?listing=rent&type=sail${marinaQuery}`, text: labels.sail },
+          { kind: "link", href: `/${lang}/boats?listing=rent&type=catamaran${marinaQuery}`, text: labels.catamaran },
           { kind: "soon", text: labels.superyacht, badge: labels.soon },
         ]}
       />
       <Menu
         label={labels.sale}
         items={[
-          { kind: "link", href: `/${lang}/boats?listing=sale${marinaQuery}`, text: labels.motor },
-          { kind: "link", href: `/${lang}/boats?listing=sale${marinaQuery}`, text: labels.sail },
-          { kind: "link", href: `/${lang}/boats?listing=sale${marinaQuery}`, text: labels.catamaran },
+          { kind: "link", href: `/${lang}/boats?listing=sale&type=motor${marinaQuery}`, text: labels.motor },
+          { kind: "link", href: `/${lang}/boats?listing=sale&type=sail${marinaQuery}`, text: labels.sail },
+          { kind: "link", href: `/${lang}/boats?listing=sale&type=catamaran${marinaQuery}`, text: labels.catamaran },
           { kind: "soon", text: labels.superyacht, badge: labels.soon },
         ]}
       />

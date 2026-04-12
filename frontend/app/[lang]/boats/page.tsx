@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ lang: string }>;
-  searchParams?: Promise<{ marina?: string; listing?: string }>;
+  searchParams?: Promise<{ marina?: string; listing?: string; type?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -29,13 +29,23 @@ export default async function BoatsPage({ params, searchParams }: Props) {
   const marina = typeof sp.marina === "string" ? sp.marina.trim() : "";
   const listingRaw = typeof sp.listing === "string" ? sp.listing.trim() : "";
   const listing = listingRaw === "rent" || listingRaw === "sale" ? listingRaw : "";
+  const typeRaw = typeof sp.type === "string" ? sp.type.trim() : "";
+  const boatType =
+    typeRaw === "motor"
+      ? "Motorboat"
+      : typeRaw === "sail"
+        ? "Sailboat"
+        : typeRaw === "catamaran"
+          ? "Catamaran"
+          : "";
 
   const boats = await fetchBoats(
     lang,
-    marina || listing
+    marina || listing || boatType
       ? {
           ...(marina ? { homeMarinaSlug: marina } : {}),
           ...(listing ? { listingType: listing } : {}),
+          ...(boatType ? { boatType } : {}),
         }
       : undefined,
   );
