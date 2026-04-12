@@ -6,6 +6,7 @@ import { isLang, t, type Lang } from "@/i18n";
 import LanguageSwitcher from "./LanguageSwitcher";
 import HeaderMarinaFilter from "./HeaderMarinaFilter";
 import HeaderTopNav from "./HeaderTopNav";
+import HeaderAuthNav from "./HeaderAuthNav";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export default async function LangLayout({ children, params }: Props) {
 
 <div data-testid="header-marina-filter"><HeaderMarinaFilter lang={lang} /></div>
 
+
+            <HeaderAuthNav lang={lang} />
 
             <LanguageSwitcher lang={lang} />
           </nav>
