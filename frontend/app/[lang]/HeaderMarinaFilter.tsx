@@ -58,7 +58,9 @@ export default function HeaderMarinaFilter({ lang }: { lang: Lang }) {
     };
   }, [lang, mode]);
 
-  if (!mode) return null;
+  const isBoats = pathname.includes("/boats");
+
+  if (!mode && !isBoats) return null;
 
   const label = lang === "ru" ? "Марина" : "Marina";
   const allLabel = lang === "ru" ? "Все" : lang === "me" ? "Sve" : "All";
