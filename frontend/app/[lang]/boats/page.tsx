@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ lang: string }>;
+  searchParams?: Promise<{ marina?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -18,14 +19,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: tr.nav.boats, description: tr.boats.subtitle };
 }
 
-export default async function BoatsPage({ params }: Props) {
+export default async function BoatsPage({ params, searchParams }: Props) {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
 
   const marinaLabel = lang === "ru" ? "Марина" : "Marina";
+  const sp = (await searchParams) ?? {};
+  const marina = typeof sp.marina === "string" ? sp.marina.trim() : "";
 
-  const boats = await fetchBoats(lang);
+  const boats = await fetchBoats(
+    lang,
+    marina ? { homeMarinaSlug: marina } : undefined,
+  );
 
   return (
     <main className="main">
