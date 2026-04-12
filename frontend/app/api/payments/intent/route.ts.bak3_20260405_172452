@@ -9,7 +9,6 @@ function json(status: number, obj: unknown, extra?: Record<string, string>) {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Sharmar-Route": "app_api_payments_intent_proxy_v1",
-      ...(extra ?? {}),
     },
   });
 }

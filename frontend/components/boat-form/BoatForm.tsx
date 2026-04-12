@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import type { BoatFormMode, BoatFormValues } from "./types";
 
 function inputBase() {
@@ -157,9 +158,16 @@ function validate(values: BoatFormValues, mode: BoatFormMode) {
 }
 
 export function BoatForm({ mode }: { mode: BoatFormMode }) {
+  const router = useRouter();
+  const params = useParams<{ lang?: string }>();
+
   const [values, setValues] = useState<BoatFormValues>(() => defaultValues());
   const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitOk, setSubmitOk] = useState<string | null>(null);
 
+  const lang = typeof params?.lang === "string" && params.lang.trim() ? params.lang : "en";
   const title = useMemo(() => buildTitle(mode), [mode]);
 
   const errors = useMemo(() => validate(values, mode), [values, mode]);
@@ -256,11 +264,76 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
     };
   }, [values, mode]);
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+
     setSubmitted(true);
+    setSubmitError(null);
+    setSubmitOk(null);
+
     if (hasErrors) return;
-    alert("ОК. На следующем шаге подключим сохранение в Strapi.");
+
+    let token = "";
+    try {
+      token = localStorage.getItem("sharmar_jwt") || "";
+    } catch {}
+
+    if (!token) {
+      setSubmitError("Сессия истекла. Войдите заново.");
+      router.push(`/${lang}/login`);
+      return;
+    }
+
+    const payload = {
+      title: values.title.trim(),
+      description: values.description.trim(),
+      listingType: mode.kind,
+      vesselType: mode.boatType === "motor" ? "motorboat" : "sailboat",
+      capacity: toNumberOrNull(values.capacityGuests),
+      lengthM: toNumberOrNull(values.lengthM),
+      year: toNumberOrNull(values.year),
+      engineHp: mode.boatType === "motor" ? toNumberOrNull(values.motorHorsePower) : null,
+      rentPriceDay: mode.kind === "rent" ? toNumberOrNull(values.rentPriceDay) : null,
+      rentPriceWeek: mode.kind === "rent" ? toNumberOrNull(values.rentPriceWeek) : null,
+      marina: values.locationMarina.trim(),
+      currency: "EUR",
+      locale: lang,
+    };
+
+    setBusy(true);
+
+    try {
+      const res = await fetch("/api/owner/boats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json?.details?.error?.message ||
+          json?.error ||
+          "Не удалось сохранить лодку.";
+        setSubmitError(String(msg));
+        return;
+      }
+
+      setSubmitOk("Лодка успешно создана.");
+
+      setTimeout(() => {
+        router.push(`/${lang}/boats`);
+      }, 800);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Ошибка сети.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function fieldError(k: keyof BoatFormValues) {
@@ -552,12 +625,19 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
         </section>
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50">
-            Сохранить (пока без Strapi)
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
+          >
+            {busy ? "Сохранение..." : "Сохранить"}
           </button>
 
           {submitted && hasErrors ? <div className="text-sm text-red-600">Исправь обязательные поля.</div> : null}
         </div>
+
+        {submitError ? <div className="text-sm text-red-600">{submitError}</div> : null}
+        {submitOk ? <div className="text-sm text-green-700">{submitOk}</div> : null}
 
         <section className="space-y-2">
           <div className={sectionTitle()}>JSON предпросмотр</div>

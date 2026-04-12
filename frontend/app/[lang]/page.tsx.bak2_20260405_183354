@@ -51,7 +51,7 @@ export default async function LangHome({ params }: Props) {
               <Link className="button secondary" href={`/${lang}/boats`}>
                 Browse boats
               </Link>
-              <Link className="button secondary" href={`/${lang}/add`}>
+              <Link className="button secondary" href={`/${lang}/add/rent/motor`}>
                 Register your yacht
               </Link>
             </div>

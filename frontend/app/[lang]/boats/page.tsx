@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<{ marina?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -18,14 +19,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: tr.nav.boats, description: tr.boats.subtitle };
 }
 
-export default async function BoatsPage({ params }: Props) {
+export default async function BoatsPage({ params, searchParams }: Props) {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
 
+  const sp = await searchParams;
+  const marina = sp?.marina?.trim() || undefined;
   const marinaLabel = lang === "ru" ? "Марина" : "Marina";
 
-  const boats = await fetchBoats(lang);
+  const boats = await fetchBoats(lang, { homeMarinaSlug: marina });
 
   return (
     <main className="main">
@@ -45,72 +48,90 @@ export default async function BoatsPage({ params }: Props) {
             {boats.map((b) => {
               const cardImg = getBoatCardImage(b);
               return (
-              <li key={b.id} className="card">
-                <Link
-                  className="card-link"
-                  href={`/${lang}/boats/${encodeURIComponent(b.slug)}`}
-                >
-                  {cardImg?.src ? (
-                    <div className="card-media">
-                      <Image
-                        src={cardImg.src}
-                        alt={cardImg.alt ?? b.title ?? "Boat"}
-                        fill
-                        sizes="(max-width: 900px) 100vw, 900px"
-                        style={{ objectFit: "cover" }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="card-media" />
-                  )}
-
-                  <div className="card-body">
-                    <h3 className="card-title">{b.title ?? `Boat #${b.id}`}</h3>
-
-                    <p className="card-sub">
-                      <span>
-                        {tr.boat.type}: {b.boat_type ?? "—"}
-                      </span>
-                      <span>·</span>
-                      <span>
-                        {tr.boat.capacity}: {b.capacity ?? "—"}
-                      </span>
-                    </p>
-
-                    <p className="card-sub" data-testid="boat-home-marina">
-                      <span>
-                        {marinaLabel}: {b.homeMarina?.name ?? "—"}
-                        {b.homeMarina?.region
-                          ? ` (${b.homeMarina.region})`
-                          : ""}
-                      </span>
-                    </p>
-
-                    {b.purposes?.length ? (
-                      <div className="badges">
-                        {b.purposes.map((p) => (
-                          <span className="badge" key={p.id}>
-                            {p.title ?? `Purpose #${p.id}`}
-                          </span>
-                        ))}
+                <li key={b.id} className="card">
+                  <Link
+                    className="card-link"
+                    href={`/${lang}/boats/${encodeURIComponent(b.slug)}`}
+                  >
+                    {cardImg?.src ? (
+                      <div className="card-media">
+                        <Image
+                          src={cardImg.src}
+                          alt={cardImg.alt ?? b.title ?? "Boat"}
+                          fill
+                          sizes="(max-width: 900px) 100vw, 900px"
+                          style={{ objectFit: "cover" }}
+                        />
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="card-media" />
+                    )}
 
-                    <div className="card-bottom">
-                      <span className="kicker">
-                        {b.license_required
-                          ? tr.boat.license_required
-                          : tr.boat.license_not_required}
-                        {" · "}
-                        {b.skipper_available
-                          ? tr.boat.skipper_available
-                          : tr.boat.skipper_not_available}
-                      </span>
-                      <span className="pill">{tr.boat.view_details} →</span>
+                    <div className="card-body">
+                      <h3 className="card-title">{b.title ?? `Boat #${b.id}`}</h3>
+
+                      <p className="card-sub">
+                        <span>
+                          {tr.boat.type}: {b.boat_type ?? "—"}
+                        </span>
+                        <span>·</span>
+                        <span>
+                          {tr.boat.capacity}: {b.capacity ?? "—"}
+                        </span>
+                      </p>
+
+                      <p className="card-sub" data-testid="boat-home-marina">
+                        <span>
+                          {marinaLabel}: {b.homeMarina?.name ?? "—"}
+                          {b.homeMarina?.region
+                            ? ` (${b.homeMarina.region})`
+                            : ""}
+                        </span>
+                      </p>
+
+                      {(b.price_per_hour || b.price_per_day || b.price_per_week) ? (
+                        <p className="card-sub">
+                          {b.price_per_hour ? (
+                            <span>€{b.price_per_hour} / hour</span>
+                          ) : b.price_per_day ? (
+                            <span>€{b.price_per_day} / day</span>
+                          ) : (
+                            <span>€{b.price_per_week} / week</span>
+                          )}
+                          {b.deposit ? (
+                            <>
+                              <span> · </span>
+                              <span>Deposit €{b.deposit}</span>
+                            </>
+                          ) : null}
+                        </p>
+                      ) : null}
+
+                      {b.purposes?.length ? (
+                        <div className="badges">
+                          {b.purposes.map((p) => (
+                            <span className="badge" key={p.id}>
+                              {p.title ?? `Purpose #${p.id}`}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      <div className="card-bottom">
+                        <span className="kicker">
+                          {b.license_required
+                            ? tr.boat.license_required
+                            : tr.boat.license_not_required}
+                          {" · "}
+                          {b.skipper_available
+                            ? tr.boat.skipper_available
+                            : tr.boat.skipper_not_available}
+                        </span>
+                        <span className="pill">{tr.boat.view_details} →</span>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              </li>
+                  </Link>
+                </li>
               );
             })}
           </ul>

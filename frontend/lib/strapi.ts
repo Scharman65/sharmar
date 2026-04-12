@@ -42,8 +42,8 @@ export type Boat = {
   skipper_price_per_day?: number | null;
   deposit?: number | null;
   currency?: string | null;
-  cover?: { url: string; alternativeText?: string | null } | null;
-  images?: { id: number; url: string; alternativeText?: string | null }[];
+  cover?: { url: string; name?: string | null; alternativeText?: string | null } | null;
+  images?: { id: number; url: string; name?: string | null; alternativeText?: string | null }[];
   purposes?: { id: number; title?: string | null }[];
   brand?: string | null;
   builder?: any | null;
@@ -171,13 +171,22 @@ function normalizeBoat(item: any): Boat | null {
     builder: item.builder ?? item.builder?.data ?? null,
     license_required: item.license_required ?? null,
     skipper_available: item.skipper_available ?? null,
+    engine_hp: item.engine_hp ?? null,
     vesselType: item.vessel_type ?? item.vesselType ?? null,
     listing_type: item.listing_type ?? null,
+    price_per_hour: item.price_per_hour ?? null,
+    price_per_day: item.price_per_day ?? null,
+    price_per_week: item.price_per_week ?? null,
+    skipper_price_per_hour: item.skipper_price_per_hour ?? null,
+    skipper_price_per_day: item.skipper_price_per_day ?? null,
+    deposit: item.deposit ?? null,
+    currency: item.currency ?? null,
     homeMarina: pickHomeMarina(item.home_marina),
     homeMarinaSlug: pickHomeMarina(item.home_marina)?.slug ?? null,
     cover: item.cover
       ? {
           url: pickBestMediaUrl(item.cover)!,
+          name: item.cover.name ?? null,
           alternativeText: item.cover.alternativeText ?? null,
         }
       : null,
@@ -186,6 +195,7 @@ function normalizeBoat(item: any): Boat | null {
           .map((i: any) => ({
             id: i.id,
             url: pickBestMediaUrl(i) ?? absolutizeUrl(i.url),
+            name: i.name ?? null,
             alternativeText: i.alternativeText ?? null,
           }))
           .filter((x: any) => x.id && x.url)
