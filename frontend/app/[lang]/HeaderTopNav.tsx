@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Lang } from "@/i18n";
 
 type Labels = {
@@ -153,23 +154,30 @@ export default function HeaderTopNav({
   lang: Lang;
   labels: Labels;
 }) {
+  const sp = useSearchParams();
+
+  const marinaQuery = useMemo(() => {
+    const marina = sp?.get("marina")?.trim();
+    return marina ? `&marina=${encodeURIComponent(marina)}` : "";
+  }, [sp]);
+
   return (
     <>
       <Menu
         label={labels.rent}
         items={[
-          { kind: "link", href: `/${lang}/rent/motor`, text: labels.motor },
-          { kind: "link", href: `/${lang}/rent/sail`, text: labels.sail },
-          { kind: "link", href: `/${lang}/rent/catamaran`, text: labels.catamaran },
+          { kind: "link", href: `/${lang}/boats?listing=rent${marinaQuery}`, text: labels.motor },
+          { kind: "link", href: `/${lang}/boats?listing=rent${marinaQuery}`, text: labels.sail },
+          { kind: "link", href: `/${lang}/boats?listing=rent${marinaQuery}`, text: labels.catamaran },
           { kind: "soon", text: labels.superyacht, badge: labels.soon },
         ]}
       />
       <Menu
         label={labels.sale}
         items={[
-          { kind: "link", href: `/${lang}/sale/motor`, text: labels.motor },
-          { kind: "link", href: `/${lang}/sale/sail`, text: labels.sail },
-          { kind: "link", href: `/${lang}/sale/catamaran`, text: labels.catamaran },
+          { kind: "link", href: `/${lang}/boats?listing=sale${marinaQuery}`, text: labels.motor },
+          { kind: "link", href: `/${lang}/boats?listing=sale${marinaQuery}`, text: labels.sail },
+          { kind: "link", href: `/${lang}/boats?listing=sale${marinaQuery}`, text: labels.catamaran },
           { kind: "soon", text: labels.superyacht, badge: labels.soon },
         ]}
       />

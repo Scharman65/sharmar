@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ lang: string }>;
-  searchParams?: Promise<{ marina?: string }>;
+  searchParams?: Promise<{ marina?: string; listing?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -27,10 +27,17 @@ export default async function BoatsPage({ params, searchParams }: Props) {
   const marinaLabel = lang === "ru" ? "Марина" : "Marina";
   const sp = (await searchParams) ?? {};
   const marina = typeof sp.marina === "string" ? sp.marina.trim() : "";
+  const listingRaw = typeof sp.listing === "string" ? sp.listing.trim() : "";
+  const listing = listingRaw === "rent" || listingRaw === "sale" ? listingRaw : "";
 
   const boats = await fetchBoats(
     lang,
-    marina ? { homeMarinaSlug: marina } : undefined,
+    marina || listing
+      ? {
+          ...(marina ? { homeMarinaSlug: marina } : {}),
+          ...(listing ? { listingType: listing } : {}),
+        }
+      : undefined,
   );
 
   return (
