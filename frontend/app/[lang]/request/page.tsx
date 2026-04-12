@@ -228,7 +228,7 @@ export default function RequestPage() {
         try {
           window.localStorage.removeItem(key);
         } catch {}
-        router.push(`/${lang}/thanks`);
+        router.push(`/${lang}/payments/${encodeURIComponent(json.token)}`);
         return;
       }
 

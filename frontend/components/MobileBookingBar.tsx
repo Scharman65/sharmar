@@ -5,15 +5,17 @@ import Link from "next/link";
 type Props = {
   lang: string;
   boatSlug: string;
+  boatTitle: string;
   priceLabel?: string | null;
 };
 
 export default function MobileBookingBar({
   lang,
   boatSlug,
+  boatTitle,
   priceLabel,
 }: Props) {
-  const href = `/${lang}/request?boat=${encodeURIComponent(boatSlug)}`;
+  const href = `/${lang}/request?slug=${encodeURIComponent(boatSlug)}&title=${encodeURIComponent(boatTitle)}&currency=EUR`;
 
   return (
     <>

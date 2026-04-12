@@ -420,6 +420,7 @@ export default async function BoatPage({ params }: Props) {
         <MobileBookingBar
           lang={lang}
           boatSlug={slug}
+          boatTitle={boat.title ?? slug}
           priceLabel={
             fmtMoney(
               (boat as any).price_per_day ??

@@ -13,7 +13,7 @@ export default function BookingSidebar({
   boatTitle,
   priceLabel,
 }: Props) {
-  const requestHref = `/${lang}/request?boat=${encodeURIComponent(boatSlug)}`;
+  const requestHref = `/${lang}/request?slug=${encodeURIComponent(boatSlug)}&title=${encodeURIComponent(boatTitle)}&currency=EUR`;
 
   return (
     <aside
