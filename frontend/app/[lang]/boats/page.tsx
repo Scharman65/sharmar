@@ -50,6 +50,19 @@ export default async function BoatsPage({ params, searchParams }: Props) {
       : undefined,
   );
 
+  const resetHref = `/${lang}/boats`;
+  const activeFilters: string[] = [];
+  if (listing) activeFilters.push(`${lang === "ru" ? "Сделка" : "Listing"}: ${listing}`);
+  if (typeRaw) activeFilters.push(`${lang === "ru" ? "Тип" : "Type"}: ${typeRaw}`);
+  if (marina) activeFilters.push(`${marinaLabel}: ${marina}`);
+
+  const resetLabel =
+    lang === "ru"
+      ? "Сбросить фильтры"
+      : lang === "me"
+        ? "Resetuj filtere"
+        : "Reset filters";
+
   return (
     <main className="main">
       <div className="container">
@@ -57,6 +70,45 @@ export default async function BoatsPage({ params, searchParams }: Props) {
           <h1 className="h1">{tr.nav.boats}</h1>
           <p className="kicker">{formatCount(lang, boats.length)}</p>
         </div>
+
+        {activeFilters.length > 0 ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              {activeFilters.map((item) => (
+                <span
+                  key={item}
+                  className="badge"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+
+            <Link
+              href={resetHref}
+              className="nav-button"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {resetLabel}
+            </Link>
+          </div>
+        ) : null}
 
         {boats.length === 0 ? (
           <p className="kicker">{tr.boats.empty}</p>

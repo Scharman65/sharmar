@@ -30,7 +30,11 @@ function useOutsideClose(ref: React.RefObject<HTMLElement | null>, onClose: () =
 function Menu({
   label,
   items,
+  buttonClassName,
+  activeType,
 }: {
+  buttonClassName?: string;
+  activeType?: string | null;
   label: string;
   items: Array<
     | { kind: "link"; href: string; text: string }
@@ -45,7 +49,7 @@ function Menu({
     <div ref={ref} style={{ position: "relative" }}>
       <button
         type="button"
-        className="nav-button"
+        className={buttonClassName || "nav-button"}
         aria-haspopup="menu"
         aria-expanded={open ? "true" : "false"}
         onClick={() => setOpen((v) => !v)}
@@ -78,7 +82,7 @@ function Menu({
                   key={idx}
                   role="menuitem"
                   href={it.href}
-                  className="dropdown-item"
+                  className={`dropdown-item ${activeType === (it.href.includes("type=motor") ? "motor" : it.href.includes("type=sail") ? "sail" : it.href.includes("type=catamaran") ? "catamaran" : "") ? "active" : ""}`}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -131,7 +135,17 @@ function Menu({
               color: rgba(0, 0, 0, 0.88);
               text-decoration: none;
             }
-            :global(.dropdown-item:hover) {
+            
+
+            :global(.dropdown-item.active) {
+              background: rgba(0, 0, 0, 0.12);
+              font-weight: 700;
+            }
+
+            :global(.dark .dropdown-item.active) {
+              background: rgba(255, 255, 255, 0.16);
+            }
+:global(.dropdown-item:hover) {
               background: rgba(0, 0, 0, 0.06);
             }
             :global(.dark .dropdown-item) {
@@ -155,6 +169,8 @@ export default function HeaderTopNav({
   labels: Labels;
 }) {
   const sp = useSearchParams();
+  const activeListing = sp?.get("listing");
+  const activeType = sp?.get("type");
 
   const marinaQuery = useMemo(() => {
     const marina = sp?.get("marina")?.trim();
@@ -165,6 +181,8 @@ export default function HeaderTopNav({
     <>
       <Menu
         label={labels.rent}
+        buttonClassName={activeListing === "rent" ? "nav-button active" : "nav-button"}
+        activeType={activeType}
         items={[
           { kind: "link", href: `/${lang}/boats?listing=rent&type=motor${marinaQuery}`, text: labels.motor },
           { kind: "link", href: `/${lang}/boats?listing=rent&type=sail${marinaQuery}`, text: labels.sail },
@@ -174,6 +192,8 @@ export default function HeaderTopNav({
       />
       <Menu
         label={labels.sale}
+        buttonClassName={activeListing === "sale" ? "nav-button active" : "nav-button"}
+        activeType={activeType}
         items={[
           { kind: "link", href: `/${lang}/boats?listing=sale&type=motor${marinaQuery}`, text: labels.motor },
           { kind: "link", href: `/${lang}/boats?listing=sale&type=sail${marinaQuery}`, text: labels.sail },
