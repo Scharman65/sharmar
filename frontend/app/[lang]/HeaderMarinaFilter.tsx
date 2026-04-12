@@ -26,7 +26,8 @@ export default function HeaderMarinaFilter({ lang }: { lang: Lang }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!mode) return;
+    const isBoats = pathname.includes("/boats");
+    if (!mode && !isBoats) return;
     let alive = true;
 
     (async () => {
