@@ -1,8 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement } from '@stripe/react-stripe-js';
+import {
+  Elements,
+  PaymentElement,
+  useElements,
+  useStripe,
+} from '@stripe/react-stripe-js';
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
@@ -22,12 +27,99 @@ type IntentResp =
       message?: string;
     };
 
+function CheckoutForm({
+  lang,
+  publicToken,
+}: {
+  lang: string;
+  publicToken: string;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const [submitError, setSubmitError] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!stripe || !elements) {
+      setSubmitError('Payment form is not ready yet.');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError('');
+
+    const returnUrl = `${window.location.origin}/${lang}/thanks?payment=success&token=${encodeURIComponent(publicToken)}`;
+
+    const result = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: returnUrl,
+      },
+    });
+
+    if (result.error) {
+      setSubmitError(result.error.message || 'Payment confirmation failed.');
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={onSubmit}>
+      <div style={{ padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
+        <PaymentElement />
+
+        {submitError ? (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              border: '1px solid #f2b8b8',
+              borderRadius: 8,
+            }}
+          >
+            <b>Payment failed</b>
+            <div style={{ marginTop: 6 }}>{submitError}</div>
+          </div>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={!stripe || !elements || submitting}
+          style={{
+            marginTop: 16,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '46px',
+            padding: '0 18px',
+            borderRadius: '12px',
+            border: 'none',
+            background: !stripe || !elements || submitting ? '#9ca3af' : '#111827',
+            color: '#ffffff',
+            fontSize: '15px',
+            fontWeight: 600,
+            cursor: !stripe || !elements || submitting ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {submitting ? 'Processing…' : 'Pay now'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function PaymentPage({
   params,
 }: {
   params: { lang: string; public_token: string };
 }) {
-  const { public_token } = params;
+  const { lang, public_token } = params;
 
   const [clientSecret, setClientSecret] = useState<string>('');
   const [err, setErr] = useState<string>('');
@@ -109,12 +201,7 @@ export default function PaymentPage({
 
       {!loading && !err && clientSecret && elementsOptions && (
         <Elements stripe={stripePromise} options={elementsOptions}>
-          <div style={{ padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-            <PaymentElement />
-            <div style={{ marginTop: 12, color: '#666' }}>
-              Next step: add “Pay” button (confirmPayment).
-            </div>
-          </div>
+          <CheckoutForm lang={lang} publicToken={public_token} />
         </Elements>
       )}
     </main>
