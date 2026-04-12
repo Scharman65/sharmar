@@ -309,3 +309,61 @@ a { color: inherit; }
   color: #ffffff !important;
   background: rgba(255,255,255,0.08);
 }
+
+
+/* === MOBILE HEADER FIX === */
+@media (max-width: 768px) {
+  .header-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .logo {
+    display: block;
+    width: 100%;
+  }
+
+  .nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .nav > * {
+    min-width: 0;
+  }
+
+  .nav-button {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .nav [data-testid="header-marina-filter"] {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .nav [data-testid="header-marina-filter"] > div {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .nav [data-testid="header-marina-filter"] select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .nav > :last-child {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
