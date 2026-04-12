@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const STRAPI_URL = (
-  process.env.STRAPI_URL ??
-  process.env.NEXT_PUBLIC_STRAPI_URL ??
-  "http://127.0.0.1:1337"
-).replace(/\/+$/, "");
+const STRAPI_URL =
+  (process.env.NEXT_PUBLIC_STRAPI_URL ||
+    process.env.STRAPI_URL ||
+    "http://127.0.0.1:1337").replace(/\/+\$/, "");
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN ?? "";
 
 type MediaFile = {
