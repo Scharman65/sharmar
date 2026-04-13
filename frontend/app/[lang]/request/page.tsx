@@ -215,6 +215,14 @@ export default function RequestPage() {
 
       if (json && "ok" in json && json.ok) {
         const token = typeof json.token === "string" ? json.token.trim() : "";
+        const createdId = typeof json.id === "number" ? json.id : 0;
+
+        if (createdId <= 0) {
+          setError("Booking request was not created. Please try again.");
+          inFlight.current = false;
+          setBusy(false);
+          return;
+        }
 
         if (!token) {
           setError("Missing booking token.");
