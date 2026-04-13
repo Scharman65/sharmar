@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -16,8 +17,8 @@ const stripePromise = loadStripe(
 type IntentResp =
   | {
       client_secret: string;
-      payment_id: number;
-      booking_request_id: number;
+      payment_id: number | string;
+      booking_request_id: number | string;
       status: string;
       provider: string;
       provider_intent_id: string;
@@ -37,7 +38,7 @@ function CheckoutForm({
   const stripe = useStripe();
   const elements = useElements();
 
-  const [submitError, setSubmitError] = useState<string>('');
+  const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -114,16 +115,16 @@ function CheckoutForm({
   );
 }
 
-export default function PaymentPage({
-  params,
-}: {
-  params: { lang: string; public_token: string };
-}) {
-  const { lang, public_token } = params;
+export default function PaymentPage() {
+  const params = useParams<{ lang?: string; public_token?: string }>();
 
-  const [clientSecret, setClientSecret] = useState<string>('');
-  const [err, setErr] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
+  const lang = typeof params?.lang === 'string' ? params.lang : 'en';
+  const publicToken =
+    typeof params?.public_token === 'string' ? params.public_token : '';
+
+  const [clientSecret, setClientSecret] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,10 +134,14 @@ export default function PaymentPage({
         setLoading(true);
         setErr('');
 
+        if (!publicToken) {
+          throw new Error('missing_public_token');
+        }
+
         const r = await fetch('/api/payments/intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ public_token }),
+          body: JSON.stringify({ public_token: publicToken }),
         });
 
         const j = (await r.json()) as IntentResp;
@@ -165,10 +170,17 @@ export default function PaymentPage({
     return () => {
       cancelled = true;
     };
-  }, [public_token]);
+  }, [publicToken]);
 
   const elementsOptions = useMemo(() => {
-    return clientSecret ? { clientSecret } : undefined;
+    if (!clientSecret) return undefined;
+
+    return {
+      clientSecret,
+      appearance: {
+        theme: 'stripe' as const,
+      },
+    };
   }, [clientSecret]);
 
   return (
@@ -176,7 +188,7 @@ export default function PaymentPage({
       <h1 style={{ fontSize: 22, marginBottom: 12 }}>Payment</h1>
 
       <p style={{ marginBottom: 12 }}>
-        Booking reference: <b>{public_token}</b>
+        Booking reference: <b>{publicToken || '—'}</b>
       </p>
 
       {loading && (
@@ -201,7 +213,7 @@ export default function PaymentPage({
 
       {!loading && !err && clientSecret && elementsOptions && (
         <Elements stripe={stripePromise} options={elementsOptions}>
-          <CheckoutForm lang={lang} publicToken={public_token} />
+          <CheckoutForm lang={lang} publicToken={publicToken} />
         </Elements>
       )}
     </main>
