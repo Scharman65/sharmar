@@ -225,10 +225,20 @@ export default function RequestPage() {
       const json = (await res.json()) as ApiOk | ApiFail;
 
       if (json && "ok" in json && json.ok) {
+        const token = typeof json.token === "string" ? json.token.trim() : "";
+
         try {
           window.localStorage.removeItem(key);
         } catch {}
-        router.push(`/${lang}/thanks`);
+
+        if (!token) {
+          setError("Missing booking token.");
+          inFlight.current = false;
+          setBusy(false);
+          return;
+        }
+
+        router.push(`/${lang}/payments/${encodeURIComponent(token)}`);
         return;
       }
 
