@@ -121,6 +121,7 @@ export default function RequestPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const formOpenedAtRef = useRef<number>(Date.now());
   const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackMailto, setFallbackMailto] = useState<string | null>(null);
@@ -200,7 +201,7 @@ export default function RequestPage() {
 
       publicToken: publicToken ?? undefined,
       hp: "",
-      client_ts: Date.now(),
+      client_ts: formOpenedAtRef.current,
     };
 
     setBusy(true);
