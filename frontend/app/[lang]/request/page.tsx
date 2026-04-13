@@ -173,18 +173,7 @@ export default function RequestPage() {
       return;
     }
 
-    const key = lsDraftKey(boatSlug, date, timeFrom, timeTo);
-    let publicToken: string | null = null;
-
-    try {
-      publicToken = window.localStorage.getItem(key);
-      if (!publicToken) {
-        publicToken = genPublicToken();
-        window.localStorage.setItem(key, publicToken);
-      }
-    } catch {
-      publicToken = genPublicToken();
-    }
+    const publicToken = genPublicToken();
 
     const payload: RequestPayload = {
       boatSlug,
@@ -226,10 +215,6 @@ export default function RequestPage() {
 
       if (json && "ok" in json && json.ok) {
         const token = typeof json.token === "string" ? json.token.trim() : "";
-
-        try {
-          window.localStorage.removeItem(key);
-        } catch {}
 
         if (!token) {
           setError("Missing booking token.");
