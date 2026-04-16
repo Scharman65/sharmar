@@ -56,14 +56,19 @@ export default function OwnerActions({ lang, token, requestStatus, paymentStatus
   const [busy, setBusy] = useState<ActionName | null>(null);
   const [message, setMessage] = useState<string>("");
 
+  const isFinal =
+    requestStatus === "declined" ||
+    requestStatus === "confirmed" ||
+    bookingStatus === "expired";
+
   const canConfirm =
-    requestStatus === "paid_pending_owner" || requestStatus === "pending";
+    !isFinal && (requestStatus === "paid_pending_owner" || requestStatus === "pending");
 
   const canDecline =
-    requestStatus === "paid_pending_owner" || requestStatus === "pending";
+    !isFinal && (requestStatus === "paid_pending_owner" || requestStatus === "pending");
 
   const canRefund =
-    requestStatus === "confirmed" || bookingStatus === "deposit_paid";
+    !isFinal && (requestStatus === "confirmed" || bookingStatus === "deposit_paid");
 
   async function run(action: ActionName) {
     setMessage("");
