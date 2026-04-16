@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
-import { bookingAdminEmail } from "@/app/lib/emailTemplates";
+import { bookingAdminEmail, ownerDecisionEmail } from "@/app/lib/emailTemplates";
 import crypto from "node:crypto";
 
 type JsonObj = Record<string, unknown>;
@@ -329,6 +329,50 @@ function isDuplicatePublicTokenError(err: unknown): boolean {
   return s.includes("409 Conflict") && s.toLowerCase().includes("public_token already exists");
 }
 
+type OwnerContact = {
+  owner_email: string | null;
+  owner_phone: string | null;
+  owner_whatsapp: string | null;
+  owner_viber: string | null;
+};
+
+function detectLangFromRequest(req: Request): "en" | "ru" | "me" {
+  const ref = String(req.headers.get("referer") || "").trim();
+
+  try {
+    if (ref) {
+      const u = new URL(ref);
+      const first = u.pathname.split("/").filter(Boolean)[0] || "";
+      if (first === "ru" || first === "me" || first === "en") return first;
+    }
+  } catch {}
+
+  return "en";
+}
+
+function buildOwnerUrl(req: Request, token: string): string {
+  const lang = detectLangFromRequest(req);
+  const origin = new URL(req.url).origin;
+  return `${origin}/${lang}/owner/${encodeURIComponent(token)}`;
+}
+
+async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null> {
+  const json = await strapiFetch(`/api/boats-owner-contact-by-slug/${encodeURIComponent(slug)}`);
+
+  if (!isRecord(json)) return null;
+  if (json.ok !== true) return null;
+
+  const data = isRecord(json.data) ? json.data : null;
+  if (!data) return null;
+
+  const owner_email = typeof data.owner_email === "string" && data.owner_email.trim().length ? data.owner_email.trim() : null;
+  const owner_phone = typeof data.owner_phone === "string" && data.owner_phone.trim().length ? data.owner_phone.trim() : null;
+  const owner_whatsapp = typeof data.owner_whatsapp === "string" && data.owner_whatsapp.trim().length ? data.owner_whatsapp.trim() : null;
+  const owner_viber = typeof data.owner_viber === "string" && data.owner_viber.trim().length ? data.owner_viber.trim() : null;
+
+  return { owner_email, owner_phone, owner_whatsapp, owner_viber };
+}
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
   const t0 = Date.now();
@@ -451,6 +495,16 @@ export async function POST(req: Request) {
     });
 
     const id = extractIdFromStrapiResponse(json);
+    const ownerUrl = buildOwnerUrl(req, publicToken);
+
+    let ownerContact: OwnerContact | null = null;
+    let ownerEmailSent = false;
+
+    try {
+      ownerContact = await getOwnerContactBySlug(p.boatSlug);
+    } catch (e) {
+      console.error("OWNER_CONTACT_LOOKUP_FAILED", e);
+    }
 
     if (id > 0 && BOOKING_TO && resend) {
       try {
@@ -479,6 +533,35 @@ export async function POST(req: Request) {
       }
     }
 
+    if (id > 0 && ownerContact?.owner_email && resend) {
+      try {
+        const mail = ownerDecisionEmail({
+          boatTitle: p.boatTitle || p.boatSlug,
+          boatSlug: p.boatSlug,
+          ownerUrl,
+          clientName: p.name,
+          clientPhone: p.phone,
+          clientEmail: p.email || undefined,
+          start,
+          end,
+          people,
+          skipper: Boolean(p.needSkipper),
+          notes: p.message || undefined,
+        });
+
+        await resend.emails.send({
+          from: BOOKING_FROM,
+          to: ownerContact.owner_email,
+          subject: mail.subject,
+          text: mail.text,
+        });
+
+        ownerEmailSent = true;
+      } catch (e) {
+        console.error("OWNER_EMAIL_SEND_FAILED", e);
+      }
+    }
+
     logBookingEvent({
       request_id: requestId,
       public_token: publicToken,
@@ -490,7 +573,20 @@ export async function POST(req: Request) {
       fingerprint: fp,
       source_ip: ip,
     });
-    return NextResponse.json({ ok: true, id, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
+    return NextResponse.json(
+      {
+        ok: true,
+        id,
+        token: publicToken,
+        ownerUrl,
+        ownerEmailSent,
+        ownerEmail: ownerContact?.owner_email ?? null,
+        ownerPhone: ownerContact?.owner_phone ?? null,
+        ownerWhatsApp: ownerContact?.owner_whatsapp ?? null,
+        ownerViber: ownerContact?.owner_viber ?? null,
+      },
+      { status: 200, headers: { "cache-control": "no-store" } }
+    );
   } catch (e) {
     if (isDuplicatePublicTokenError(e)) {
       logBookingEvent({
