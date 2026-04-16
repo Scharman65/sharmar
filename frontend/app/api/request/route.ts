@@ -356,6 +356,54 @@ function buildOwnerUrl(req: Request, token: string): string {
   return `${origin}/${lang}/owner/${encodeURIComponent(token)}`;
 }
 
+function normalizePhoneLike(value: string | null | undefined): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const cleaned = raw.replace(/[^\d+]/g, "");
+  if (!cleaned) return null;
+
+  if (cleaned.startsWith("00")) {
+    return "+" + cleaned.slice(2);
+  }
+
+  return cleaned;
+}
+
+function buildOwnerMessage(
+  boatTitle: string,
+  clientName: string,
+  clientPhone: string,
+  start: string,
+  end: string,
+  ownerUrl: string
+): string {
+  return [
+    "New booking request",
+    `Boat: ${boatTitle}`,
+    `Client: ${clientName}`,
+    `Phone: ${clientPhone}`,
+    `From: ${start}`,
+    `To: ${end}`,
+    `Open: ${ownerUrl}`,
+  ].join("\n");
+}
+
+function buildOwnerWhatsAppUrl(ownerWhatsApp: string | null | undefined, message: string): string | null {
+  const phone = normalizePhoneLike(ownerWhatsApp);
+  if (!phone) return null;
+
+  const digits = phone.replace(/^\+/, "");
+  return `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildOwnerViberUrl(ownerViber: string | null | undefined, message: string): string | null {
+  const phone = normalizePhoneLike(ownerViber);
+  if (!phone) return null;
+
+  return `viber://chat?number=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}`;
+}
+
 async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null> {
   const json = await strapiFetch(`/api/boats-owner-contact-by-slug/${encodeURIComponent(slug)}`);
 
@@ -499,12 +547,26 @@ export async function POST(req: Request) {
 
     let ownerContact: OwnerContact | null = null;
     let ownerEmailSent = false;
+    let ownerWhatsAppUrl: string | null = null;
+    let ownerViberUrl: string | null = null;
 
     try {
       ownerContact = await getOwnerContactBySlug(p.boatSlug);
     } catch (e) {
       console.error("OWNER_CONTACT_LOOKUP_FAILED", e);
     }
+
+    const ownerMessage = buildOwnerMessage(
+      p.boatTitle || p.boatSlug,
+      p.name,
+      p.phone,
+      start,
+      end,
+      ownerUrl
+    );
+
+    ownerWhatsAppUrl = buildOwnerWhatsAppUrl(ownerContact?.owner_whatsapp, ownerMessage);
+    ownerViberUrl = buildOwnerViberUrl(ownerContact?.owner_viber, ownerMessage);
 
     if (id > 0 && BOOKING_TO && resend) {
       try {
@@ -584,6 +646,8 @@ export async function POST(req: Request) {
         ownerPhone: ownerContact?.owner_phone ?? null,
         ownerWhatsApp: ownerContact?.owner_whatsapp ?? null,
         ownerViber: ownerContact?.owner_viber ?? null,
+        ownerWhatsAppUrl,
+        ownerViberUrl,
       },
       { status: 200, headers: { "cache-control": "no-store" } }
     );
