@@ -60,10 +60,10 @@ export default function OwnerActions({ lang, token, requestStatus, paymentStatus
     requestStatus === "paid_pending_owner" || requestStatus === "pending";
 
   const canDecline =
-    requestStatus === "paid_pending_owner" || requestStatus === "pending" || requestStatus === "approved";
+    requestStatus === "paid_pending_owner" || requestStatus === "pending";
 
   const canRefund =
-    paymentStatus === "succeeded" || bookingStatus === "paid_pending_owner" || bookingStatus === "confirmed";
+    requestStatus === "confirmed" || bookingStatus === "deposit_paid";
 
   async function run(action: ActionName) {
     setMessage("");
