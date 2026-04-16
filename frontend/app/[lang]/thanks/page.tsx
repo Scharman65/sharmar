@@ -85,6 +85,8 @@ async function loadBookingStatus(token: string): Promise<StatusPayload | null> {
     process.env.STRAPI_URL ||
     "https://api.sharmar.me";
 
+  
+
   const url = `${String(base).replace(/\/+$/, "")}/api/booking-requests/${encodeURIComponent(cleanToken)}/status`;
 
   try {
