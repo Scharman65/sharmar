@@ -30,6 +30,24 @@ function toNumberOrNull(v: string) {
   return Number.isFinite(n) ? n : null;
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function getApiError(v: unknown) {
+  if (!isRecord(v)) return null;
+  return typeof v.error === "string" ? v.error : null;
+}
+
+function getSavedBoatId(v: unknown) {
+  if (!isRecord(v) || !isRecord(v.boat)) return null;
+  const id = v.boat.id;
+  if (typeof id === "number") return String(id);
+  if (typeof id === "string") return id;
+  const documentId = v.boat.documentId;
+  return typeof documentId === "string" ? documentId : null;
+}
+
 function defaultValues(): BoatFormValues {
   return {
     title: "",
@@ -159,6 +177,9 @@ function validate(values: BoatFormValues, mode: BoatFormMode) {
 export function BoatForm({ mode }: { mode: BoatFormMode }) {
   const [values, setValues] = useState<BoatFormValues>(() => defaultValues());
   const [submitted, setSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedBoatId, setSavedBoatId] = useState<string | null>(null);
 
   const title = useMemo(() => buildTitle(mode), [mode]);
 
@@ -256,11 +277,64 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
     };
   }, [values, mode]);
 
-  function onSubmit(e: React.FormEvent) {
+  const apiPayload = useMemo(
+    () => ({
+      title: values.title.trim(),
+      description: values.description.trim(),
+      listingType: mode.kind,
+      vesselType: mode.boatType === "motor" ? "motorboat" : "sailboat",
+      capacity: toNumberOrNull(values.capacityGuests),
+      lengthM: toNumberOrNull(values.lengthM),
+      year: toNumberOrNull(values.year),
+      engineHp: mode.boatType === "motor" ? toNumberOrNull(values.motorHorsePower) : null,
+      rentPriceDay: mode.kind === "rent" ? toNumberOrNull(values.rentPriceDay) : null,
+      rentPriceWeek: mode.kind === "rent" ? toNumberOrNull(values.rentPriceWeek) : null,
+      salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
+      currency: "EUR",
+      ownerPhone: values.ownerPhone.trim(),
+      ownerEmail: values.ownerEmail.trim(),
+      locale: "en",
+    }),
+    [values, mode]
+  );
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitted(true);
+    setSaveError(null);
+    setSavedBoatId(null);
     if (hasErrors) return;
-    alert("ОК. На следующем шаге подключим сохранение в Strapi.");
+
+    const token = localStorage.getItem("owner_jwt")?.trim();
+    if (!token) {
+      setSaveError("Нужен токен владельца. Войдите как владелец и попробуйте снова.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/owner/boats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(apiPayload),
+      });
+
+      const json: unknown = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setSaveError(getApiError(json) ?? "Не удалось сохранить лодку.");
+        return;
+      }
+
+      setSavedBoatId(getSavedBoatId(json));
+    } catch {
+      setSaveError("Не удалось сохранить лодку.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function fieldError(k: keyof BoatFormValues) {
@@ -552,11 +626,13 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
         </section>
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50">
-            Сохранить (пока без Strapi)
+          <button type="submit" disabled={isSaving} className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50">
+            {isSaving ? "Сохраняем..." : "Сохранить"}
           </button>
 
           {submitted && hasErrors ? <div className="text-sm text-red-600">Исправь обязательные поля.</div> : null}
+          {saveError ? <div className="text-sm text-red-600">{saveError}</div> : null}
+          {savedBoatId ? <div className="text-sm text-green-700">Сохранено. ID: {savedBoatId}</div> : null}
         </div>
 
         <section className="space-y-2">
