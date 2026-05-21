@@ -4,9 +4,12 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { isLang, t, type Lang } from "@/i18n";
+import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
 
 type ApiOk = { ok: true; id: number; token: string };
 type ApiFail = { ok: false; error: string; fallbackMailto?: string };
+type HoldOk = { ok: true; booking_id?: number | string; public_id?: string; expires_at?: string };
+type HoldFail = { ok?: false; error?: string; code?: string };
 
 type RequestPayload = {
   boatSlug: string;
@@ -24,7 +27,9 @@ type RequestPayload = {
   hours?: number;
   pricePerHour?: number;
   totalPrice?: number;
-  prepaymentAmount?: number;
+  ownerAmount?: number;
+  marketplaceFeeAmount?: number;
+  customerTotalAmount?: number;
   currency?: string;
 
   peopleCount?: number;
@@ -35,8 +40,6 @@ type RequestPayload = {
   hp?: string;
   client_ts?: number;
 };
-
-const DEPOSIT_RATE = 0.2;
 
 function isValidIsoDate(v: string): boolean {
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)) return false;
@@ -83,6 +86,40 @@ function genPublicToken(): string {
   return `pt_live_${ts}_${rnd}`;
 }
 
+function isIsoUtcTimestamp(v: string): boolean {
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{3})?Z$/.test(v);
+}
+
+function getSlotLocalParts(slotStartUtc: string, slotEndUtc: string) {
+  if (!isIsoUtcTimestamp(slotStartUtc) || !isIsoUtcTimestamp(slotEndUtc)) return null;
+
+  const start = new Date(slotStartUtc);
+  const end = new Date(slotEndUtc);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return null;
+
+  const timeZone = "Europe/Podgorica";
+  const dateParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(start);
+  const timeFmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const get = (type: string) => dateParts.find((p) => p.type === type)?.value ?? "";
+  const date = `${get("year")}-${get("month")}-${get("day")}`;
+  const timeFrom = timeFmt.format(start);
+  const timeTo = timeFmt.format(end);
+
+  if (!isValidIsoDate(date) || !timeFrom || !timeTo) return null;
+  return { date, timeFrom, timeTo };
+}
+
 export default function RequestPage() {
   const router = useRouter();
   const params = useParams<{ lang?: string }>();
@@ -99,6 +136,19 @@ export default function RequestPage() {
   const boatTitle = sp.get("title") ?? boatSlug;
 
   const currency = sp.get("currency") ?? "EUR";
+  const boatIdFromUrl = Number(sp.get("boatId"));
+  const slotStartUtc = sp.get("slot_start_utc") ?? "";
+  const slotEndUtc = sp.get("slot_end_utc") ?? "";
+  const slotParts = useMemo(
+    () => getSlotLocalParts(slotStartUtc, slotEndUtc),
+    [slotStartUtc, slotEndUtc]
+  );
+  const hasHoldSlot =
+    Number.isFinite(boatIdFromUrl) &&
+    boatIdFromUrl > 0 &&
+    isIsoUtcTimestamp(slotStartUtc) &&
+    isIsoUtcTimestamp(slotEndUtc);
+
   const pricePerHourFromUrl = Number(sp.get("pph"));
   const pricePerHourFromEnv = Number(process.env.NEXT_PUBLIC_PRICE_PER_HOUR);
   const PRICE_PER_HOUR =
@@ -112,9 +162,9 @@ export default function RequestPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  const [date, setDate] = useState("");
-  const [timeFrom, setTimeFrom] = useState("10:00");
-  const [timeTo, setTimeTo] = useState("14:00");
+  const [date, setDate] = useState(slotParts?.date ?? "");
+  const [timeFrom, setTimeFrom] = useState(slotParts?.timeFrom ?? "10:00");
+  const [timeTo, setTimeTo] = useState(slotParts?.timeTo ?? "14:00");
 
   const [peopleCount, setPeopleCount] = useState<number>(1);
   const [needSkipper, setNeedSkipper] = useState<boolean>(false);
@@ -131,15 +181,21 @@ export default function RequestPage() {
     return diffHours(timeFrom, timeTo);
   }, [timeFrom, timeTo]);
 
-  const totalPrice = useMemo(() => {
+  const ownerAmount = useMemo(() => {
     if (!hours) return 0;
     return hours * PRICE_PER_HOUR;
   }, [hours, PRICE_PER_HOUR]);
 
-  const prepaymentAmount = useMemo(() => {
-    if (!totalPrice) return 0;
-    return totalPrice * DEPOSIT_RATE;
-  }, [totalPrice]);
+  const marketplaceFeeAmount = useMemo(() => {
+    if (!ownerAmount) return 0;
+    return ownerAmount * MARKETPLACE_FEE_RATE;
+  }, [ownerAmount]);
+
+  const customerTotalAmount = useMemo(() => {
+    return ownerAmount + marketplaceFeeAmount;
+  }, [ownerAmount, marketplaceFeeAmount]);
+
+  const totalPrice = customerTotalAmount;
 
   const timeOk = hours > 0;
 
@@ -192,7 +248,9 @@ export default function RequestPage() {
       hours,
       pricePerHour: PRICE_PER_HOUR,
       totalPrice,
-      prepaymentAmount,
+      ownerAmount,
+      marketplaceFeeAmount,
+      customerTotalAmount,
       currency,
 
       peopleCount: Number.isFinite(peopleCount) ? peopleCount : 1,
@@ -206,6 +264,32 @@ export default function RequestPage() {
 
     setBusy(true);
     try {
+      if (hasHoldSlot) {
+        const holdRes = await fetch("/api/hold", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": `hold:${publicToken}`,
+          },
+          body: JSON.stringify({
+            boatId: boatIdFromUrl,
+            slot_start_utc: slotStartUtc,
+            slot_end_utc: slotEndUtc,
+          }),
+        });
+
+        const holdJson = (await holdRes.json().catch(() => null)) as HoldOk | HoldFail | null;
+        if (!holdRes.ok || !holdJson || holdJson.ok !== true) {
+          const holdFailure = holdJson as HoldFail | null;
+          const holdError =
+            holdFailure && typeof holdFailure === "object"
+              ? String(holdFailure.code || holdFailure.error || "slot_not_available")
+              : "slot_not_available";
+          setError(`Selected slot is no longer available (${holdError}). Please choose another slot.`);
+          return;
+        }
+      }
+
       const res = await fetch("/api/request", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -459,16 +543,16 @@ export default function RequestPage() {
 
               <div className="kicker" style={{ display: "grid", gap: 6 }}>
                 <div>
-                  Price per hour: <b>{money(PRICE_PER_HOUR, currency)}</b>
+                  Owner price per hour: <b>{money(PRICE_PER_HOUR, currency)}</b>
                 </div>
                 <div>
                   Hours: <b>{hours ? hours.toFixed(1) : "—"}</b>
                 </div>
                 <div>
-                  Total: <b>{totalPrice ? money(totalPrice, currency) : "—"}</b>
+                  Customer total: <b>{customerTotalAmount ? money(customerTotalAmount, currency) : "—"}</b>
                 </div>
                 <div>
-                  Prepayment (20%): <b>{prepaymentAmount ? money(prepaymentAmount, currency) : "—"}</b>
+                  Sharmar booking fee ({Math.round(MARKETPLACE_FEE_RATE * 100)}%): <b>{marketplaceFeeAmount ? money(marketplaceFeeAmount, currency) : "—"}</b>
                 </div>
               </div>
 

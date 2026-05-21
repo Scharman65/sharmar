@@ -57,7 +57,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     listingType: def.listingType,
     ...(def.vesselType ? { vesselType: def.vesselType } : {}),
     ...(def.boatType ? { boatType: def.boatType } : {}),
-    homeMarinaSlug: null,
   });
 
   const isEmpty = baseBoats.length === 0;
@@ -96,7 +95,7 @@ export default async function SaleCatamaranPage({ params, searchParams }: Props)
   const boats = await fetchBoats(lang, {
     listingType: "sale",
     boatType: "Catamaran",
-    homeMarinaSlug: marina || null,
+    ...(marina ? { homeMarinaSlug: marina } : {}),
   });
 
   const boatsSorted: Boat[] = priceSaleSort
@@ -131,8 +130,8 @@ export default async function SaleCatamaranPage({ params, searchParams }: Props)
               >
                 <option value="">{allLabel}</option>
                 {locations.map((l) => (
-                  <option key={l.id} value={l.slug}>
-                    {l.name ?? l.slug}
+                  <option key={l.id} value={l.slug ?? ""}>
+                    {l.name ?? l.slug ?? "Marina"}
                   </option>
                 ))}
               </select>

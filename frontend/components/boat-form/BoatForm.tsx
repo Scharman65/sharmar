@@ -74,6 +74,7 @@ function defaultValues(): BoatFormValues {
     ownerPhone: "",
     ownerEmail: "",
 
+    rentPriceHour: "",
     rentPriceDay: "",
     rentPriceWeek: "",
     rentDeposit: "",
@@ -146,9 +147,9 @@ function validate(values: BoatFormValues, mode: BoatFormMode) {
   }
 
   if (mode.kind === "rent") {
-    if (!isNonEmpty(values.rentPriceDay) && !isNonEmpty(values.rentPriceWeek)) {
-      errors.rentPriceDay = "Укажи цену за день или за неделю";
-      errors.rentPriceWeek = "Укажи цену за день или за неделю";
+    if (!isNonEmpty(values.rentPriceHour) && !isNonEmpty(values.rentPriceDay)) {
+      errors.rentPriceHour = "Укажи цену за час или за день";
+      errors.rentPriceDay = "Укажи цену за час или за день";
     }
   }
 
@@ -233,6 +234,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       rent:
         mode.kind === "rent"
           ? {
+              priceHour: toNumberOrNull(values.rentPriceHour),
               priceDay: toNumberOrNull(values.rentPriceDay),
               priceWeek: toNumberOrNull(values.rentPriceWeek),
               deposit: toNumberOrNull(values.rentDeposit),
@@ -287,6 +289,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       lengthM: toNumberOrNull(values.lengthM),
       year: toNumberOrNull(values.year),
       engineHp: mode.boatType === "motor" ? toNumberOrNull(values.motorHorsePower) : null,
+      rentPriceHour: mode.kind === "rent" ? toNumberOrNull(values.rentPriceHour) : null,
       rentPriceDay: mode.kind === "rent" ? toNumberOrNull(values.rentPriceDay) : null,
       rentPriceWeek: mode.kind === "rent" ? toNumberOrNull(values.rentPriceWeek) : null,
       salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
@@ -509,6 +512,12 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
             <div className={sectionTitle()}>Аренда</div>
 
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <div className={labelBase()}>Цена за час</div>
+                <input className={inputBase()} value={values.rentPriceHour} onChange={(e) => set("rentPriceHour", e.target.value)} />
+                {fieldError("rentPriceHour")}
+              </div>
+
               <div className="space-y-1">
                 <div className={labelBase()}>Цена за день</div>
                 <input className={inputBase()} value={values.rentPriceDay} onChange={(e) => set("rentPriceDay", e.target.value)} />

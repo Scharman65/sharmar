@@ -32,6 +32,7 @@ export type BoatFormValues = {
   ownerPhone: string;
   ownerEmail: string;
 
+  rentPriceHour: string;
   rentPriceDay: string;
   rentPriceWeek: string;
   rentDeposit: string;

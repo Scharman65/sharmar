@@ -40,12 +40,13 @@ function statusLabel(lang: Lang, status: string | null | undefined): string {
 
   if (lang === "ru") {
     if (s === "paid_pending_owner") return "Ожидает решения владельца";
+    if (s === "deposit_paid") return "Сбор за бронирование оплачен";
     if (s === "confirmed") return "Подтверждено";
     if (s === "declined") return "Отклонено";
     if (s === "approved") return "Одобрено";
     if (s === "pending") return "В обработке";
     if (s === "new") return "Новая заявка";
-    if (s === "succeeded") return "Платёж выполнен";
+    if (s === "succeeded") return "Сбор за бронирование получен";
     if (s === "canceled") return "Платёж отменён";
     if (s === "requires_capture") return "Ожидает списания";
     return s || "Неизвестно";
@@ -53,24 +54,26 @@ function statusLabel(lang: Lang, status: string | null | undefined): string {
 
   if (lang === "me") {
     if (s === "paid_pending_owner") return "Čeka odluku vlasnika";
+    if (s === "deposit_paid") return "Naknada za rezervaciju plaćena";
     if (s === "confirmed") return "Potvrđeno";
     if (s === "declined") return "Odbijeno";
     if (s === "approved") return "Odobreno";
     if (s === "pending") return "U obradi";
     if (s === "new") return "Novi zahtjev";
-    if (s === "succeeded") return "Plaćanje uspješno";
+    if (s === "succeeded") return "Naknada za rezervaciju primljena";
     if (s === "canceled") return "Plaćanje otkazano";
     if (s === "requires_capture") return "Čeka naplatu";
     return s || "Nepoznato";
   }
 
   if (s === "paid_pending_owner") return "Waiting for owner decision";
+  if (s === "deposit_paid") return "Booking fee paid";
   if (s === "confirmed") return "Confirmed";
   if (s === "declined") return "Declined";
   if (s === "approved") return "Approved";
   if (s === "pending") return "Pending";
   if (s === "new") return "New request";
-  if (s === "succeeded") return "Payment succeeded";
+  if (s === "succeeded") return "Booking fee received";
   if (s === "canceled") return "Payment canceled";
   if (s === "requires_capture") return "Awaiting capture";
   return s || "Unknown";
@@ -131,6 +134,13 @@ export default async function OwnerPage({ params }: Props) {
         ? "Stranica za vlasnika broda. Ovdje je prikazan trenutni status zahtjeva, plaćanja i rezervacije."
         : "Boat owner page. This page shows the current request, payment, and booking status.";
 
+  const feeNote =
+    lang === "ru"
+      ? "Сбор за бронирование оплачен Sharmar. Остаток оплачивается напрямую владельцу."
+      : lang === "me"
+        ? "Naknada za rezervaciju plaćena je Sharmaru. Preostali iznos plaća se direktno vlasniku."
+        : "Booking fee paid to Sharmar. Remaining amount paid directly to owner.";
+
   const refLabel =
     lang === "ru"
       ? "Референс заявки"
@@ -180,6 +190,10 @@ export default async function OwnerPage({ params }: Props) {
 
         <p className="kicker" style={{ marginTop: 12 }}>
           {intro}
+        </p>
+
+        <p className="kicker" style={{ marginTop: 8 }}>
+          {feeNote}
         </p>
 
         <p className="kicker" style={{ marginTop: 12 }}>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
-import { bookingAdminEmail, ownerDecisionEmail } from "@/app/lib/emailTemplates";
+import { bookingAdminEmail, bookingCustomerRequestEmail, ownerDecisionEmail } from "@/app/lib/emailTemplates";
 import crypto from "node:crypto";
 
 type JsonObj = Record<string, unknown>;
@@ -18,6 +18,10 @@ type Payload = {
   peopleCount?: number;
   needSkipper?: boolean;
   message?: string;
+  ownerAmount?: number | null;
+  marketplaceFeeAmount?: number | null;
+  customerTotalAmount?: number | null;
+  currency?: string | null;
   publicToken?: string;
   hp?: string;
   client_ts?: number;
@@ -25,9 +29,9 @@ type Payload = {
 
 function logBookingEvent(e: Record<string, unknown>): void {
   try {
-    console.log(JSON.stringify({ tag: "booking_request", ...e }));
+    console.warn(JSON.stringify({ tag: "booking_request", ...e }));
   } catch {
-    console.log("booking_request", e);
+    console.warn("booking_request", e);
   }
 }
 
@@ -45,6 +49,18 @@ function getBool(x: unknown): boolean | null {
 
 function getNum(x: unknown): number | null {
   return typeof x === "number" && Number.isFinite(x) ? x : null;
+}
+
+function getOptionalNonNegativeAmount(
+  body: JsonObj,
+  key: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const value = body[key];
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return { ok: false, error: `${key} must be a finite non-negative number` };
+  }
+  return { ok: true, value };
 }
 
 function isValidTime(v: string): boolean {
@@ -127,6 +143,18 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   const peopleCount = getNum(body.peopleCount) ?? undefined;
   const needSkipper = getBool(body.needSkipper) ?? undefined;
 
+  const ownerAmount = getOptionalNonNegativeAmount(body, "ownerAmount");
+  if (!ownerAmount.ok) return { ok: false, error: ownerAmount.error };
+
+  const marketplaceFeeAmount = getOptionalNonNegativeAmount(body, "marketplaceFeeAmount");
+  if (!marketplaceFeeAmount.ok) return { ok: false, error: marketplaceFeeAmount.error };
+
+  const customerTotalAmount = getOptionalNonNegativeAmount(body, "customerTotalAmount");
+  if (!customerTotalAmount.ok) return { ok: false, error: customerTotalAmount.error };
+
+  const rawCurrency = getStr(body.currency);
+  const currency = rawCurrency && rawCurrency.trim().length <= 16 ? rawCurrency.trim() : null;
+
   const publicToken =
     typeof body.publicToken === "string" && body.publicToken.trim().length ? body.publicToken.trim() : undefined;
 
@@ -148,6 +176,10 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
       peopleCount,
       needSkipper,
       message,
+      ownerAmount: ownerAmount.value,
+      marketplaceFeeAmount: marketplaceFeeAmount.value,
+      customerTotalAmount: customerTotalAmount.value,
+      currency,
       publicToken,
       hp,
       client_ts,
@@ -528,6 +560,10 @@ export async function POST(req: Request) {
 
         status: "new",
         public_token: publicToken,
+        owner_amount: p.ownerAmount ?? null,
+        marketplace_fee_amount: p.marketplaceFeeAmount ?? null,
+        customer_total_amount: p.customerTotalAmount ?? null,
+        currency: p.currency ?? null,
 
         contact_method: "phone",
 
@@ -621,6 +657,30 @@ export async function POST(req: Request) {
         ownerEmailSent = true;
       } catch (e) {
         console.error("OWNER_EMAIL_SEND_FAILED", e);
+      }
+    }
+
+    if (id > 0 && p.email && resend) {
+      try {
+        const mail = bookingCustomerRequestEmail({
+          boatTitle: p.boatTitle || p.boatSlug,
+          customerName: p.name,
+          start,
+          end,
+          publicToken,
+          supportEmail: BOOKING_TO,
+          supportNote: "If you have questions, reply to this email or contact Sharmar support.",
+        });
+
+        await resend.emails.send({
+          from: BOOKING_FROM,
+          to: p.email,
+          subject: mail.subject,
+          text: mail.text,
+          html: mail.html,
+        });
+      } catch (e) {
+        console.warn("CUSTOMER_EMAIL_SEND_FAILED", e);
       }
     }
 

@@ -47,3 +47,38 @@ frontend/public/version.txt
 frontend/public/*/version.txt
 .vercel
 .env*.local
+
+# Sharmar local safety snapshots / diagnostics
+SAFE_SNAPSHOTS/
+diagnostics/
+FINAL_SAFE_*/
+SAFE_BEFORE_*/
+SAFE_WORKTREE_*/
+HOLD_FIRST_SAFE_*/
+HOLD_FIRST_READY_*/
+HOLD_AND_PRICING_READY_*/
+SERVER_PATCHES_*/
+FINAL_SALE_*/
+sale_package/
+sale_package_*/
+backend_clean/
+
+# Local patch/checkpoint files
+*.bak
+*.bak_*
+*.diff
+PRODUCTION_OWNER_ACTIONS_CHECKPOINT_*.txt
+OWNER_ACTIONS_PRODUCTION_PATCH.diff
+
+# Local sale/export docs not part of production app
+SALE_OVERVIEW.md
+SALE_READY_AUDIT.md
+sale_package_README.md
+sale_package_env_example
+
+# Local archived Strapi helpers
+frontend/lib/strapi.ts.bad_server_copy_*
+frontend/lib/strapi.ts.before_locale_fallback_*
+
+# Additional local safe archives
+SAFE_BOOKING_FEE_FRONTEND_*/

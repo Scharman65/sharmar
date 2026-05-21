@@ -40,12 +40,13 @@ function statusLabel(lang: Lang, status: string | null | undefined): string {
 
   if (lang === "ru") {
     if (s === "paid_pending_owner") return "Ожидает подтверждения владельца";
+    if (s === "deposit_paid") return "Сбор за бронирование оплачен";
     if (s === "confirmed") return "Подтверждено";
     if (s === "declined") return "Отклонено";
     if (s === "approved") return "Одобрено";
     if (s === "pending") return "В обработке";
     if (s === "new") return "Новая заявка";
-    if (s === "succeeded") return "Платёж выполнен";
+    if (s === "succeeded") return "Сбор за бронирование получен";
     if (s === "canceled") return "Платёж отменён";
     if (s === "requires_capture") return "Ожидает списания";
     return s || "Неизвестно";
@@ -53,24 +54,26 @@ function statusLabel(lang: Lang, status: string | null | undefined): string {
 
   if (lang === "me") {
     if (s === "paid_pending_owner") return "Čeka potvrdu vlasnika";
+    if (s === "deposit_paid") return "Naknada za rezervaciju plaćena";
     if (s === "confirmed") return "Potvrđeno";
     if (s === "declined") return "Odbijeno";
     if (s === "approved") return "Odobreno";
     if (s === "pending") return "U obradi";
     if (s === "new") return "Novi zahtjev";
-    if (s === "succeeded") return "Plaćanje uspješno";
+    if (s === "succeeded") return "Naknada za rezervaciju primljena";
     if (s === "canceled") return "Plaćanje otkazano";
     if (s === "requires_capture") return "Čeka naplatu";
     return s || "Nepoznato";
   }
 
   if (s === "paid_pending_owner") return "Waiting for owner confirmation";
+  if (s === "deposit_paid") return "Booking fee paid";
   if (s === "confirmed") return "Confirmed";
   if (s === "declined") return "Declined";
   if (s === "approved") return "Approved";
   if (s === "pending") return "Pending";
   if (s === "new") return "New request";
-  if (s === "succeeded") return "Payment succeeded";
+  if (s === "succeeded") return "Booking fee received";
   if (s === "canceled") return "Payment canceled";
   if (s === "requires_capture") return "Awaiting capture";
   return s || "Unknown";
@@ -135,10 +138,10 @@ export default async function ThanksPage({ params, searchParams }: Props) {
 
   const text = isPaymentSuccess
     ? lang === "ru"
-      ? "Средства на карте были авторизованы, но ещё не списаны окончательно. Мы отправили запрос владельцу лодки. После подтверждения владельцем бронирование будет подтверждено, а платёж завершён."
+      ? "Сбор за бронирование оплачен Sharmar. Остаток оплачивается напрямую владельцу. Мы отправили запрос владельцу лодки; после подтверждения бронирование будет подтверждено."
       : lang === "me"
-        ? "Sredstva na kartici su autorizovana, ali još nijesu konačno naplaćena. Poslali smo zahtjev vlasniku broda. Nakon potvrde vlasnika, rezervacija će biti potvrđena, a plaćanje završeno."
-        : "Your card has been authorized, but the payment has not been captured yet. We have sent the request to the boat owner. After the owner confirms, the booking will be confirmed and the payment will be completed."
+        ? "Naknada za rezervaciju plaćena je Sharmaru. Preostali iznos plaća se direktno vlasniku. Poslali smo zahtjev vlasniku broda; nakon potvrde rezervacija će biti potvrđena."
+        : "Booking fee paid to Sharmar. Remaining amount paid directly to owner. We have sent the request to the boat owner; after the owner confirms, the booking will be confirmed."
     : tr.booking.sentText;
 
   const referenceLabel =

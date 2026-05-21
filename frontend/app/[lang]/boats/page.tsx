@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getBoatCardImage } from "@/lib/media";
+import { DemoBoatOverlay } from "@/components/boat/DemoBoatOverlay";
+import { BoatCardSpecs } from "@/components/boat/BoatCardSpecs";
 import type { Metadata } from "next";
 import { fetchBoats } from "@/lib/strapi";
 import { isLang, t, formatCount, type Lang } from "@/i18n";
@@ -23,8 +24,6 @@ export default async function BoatsPage({ params }: Props) {
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
 
-  const marinaLabel = lang === "ru" ? "Марина" : "Marina";
-
   const boats = await fetchBoats(lang);
 
   return (
@@ -38,53 +37,35 @@ export default async function BoatsPage({ params }: Props) {
         {boats.length === 0 ? (
           <p className="kicker">{tr.boats.empty}</p>
         ) : (
-          <ul
-            className="grid"
-            style={{ listStyle: "none", padding: 0, margin: 0 }}
-          >
-            {boats.map((b) => {
-              const cardImg = getBoatCardImage(b);
-              return (
+          <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {boats.map((b) => (
               <li key={b.id} className="card">
-                <Link
-                  className="card-link"
-                  href={`/${lang}/boats/${encodeURIComponent(b.slug)}`}
-                >
-                  {cardImg?.src ? (
+                <Link className="card-link" href={`/${lang}/boats/${encodeURIComponent(b.slug ?? String(b.id))}`}>
+                  {b.cover?.url ? (
                     <div className="card-media">
                       <Image
-                        src={cardImg.src}
-                        alt={cardImg.alt ?? b.title ?? "Boat"}
+                        src={b.cover.url}
+                        alt={b.cover.alternativeText ?? b.title ?? "Boat"}
                         fill
                         sizes="(max-width: 900px) 100vw, 900px"
                         style={{ objectFit: "cover" }}
                       />
+                      {b.isDemo ? <DemoBoatOverlay /> : null}
                     </div>
                   ) : (
-                    <div className="card-media" />
+                    <div className="card-media">{b.isDemo ? <DemoBoatOverlay /> : null}</div>
                   )}
 
                   <div className="card-body">
                     <h3 className="card-title">{b.title ?? `Boat #${b.id}`}</h3>
 
                     <p className="card-sub">
-                      <span>
-                        {tr.boat.type}: {b.boat_type ?? "—"}
-                      </span>
+                      <span>{tr.boat.type}: {b.boat_type ?? "—"}</span>
                       <span>·</span>
-                      <span>
-                        {tr.boat.capacity}: {b.capacity ?? "—"}
-                      </span>
+                      <span>{tr.boat.capacity}: {b.capacity ?? "—"}</span>
                     </p>
 
-                    <p className="card-sub" data-testid="boat-home-marina">
-                      <span>
-                        {marinaLabel}: {b.homeMarina?.name ?? "—"}
-                        {b.homeMarina?.region
-                          ? ` (${b.homeMarina.region})`
-                          : ""}
-                      </span>
-                    </p>
+                    <BoatCardSpecs boat={b} />
 
                     {b.purposes?.length ? (
                       <div className="badges">
@@ -98,21 +79,16 @@ export default async function BoatsPage({ params }: Props) {
 
                     <div className="card-bottom">
                       <span className="kicker">
-                        {b.license_required
-                          ? tr.boat.license_required
-                          : tr.boat.license_not_required}
+                        {b.license_required ? tr.boat.license_required : tr.boat.license_not_required}
                         {" · "}
-                        {b.skipper_available
-                          ? tr.boat.skipper_available
-                          : tr.boat.skipper_not_available}
+                        {b.skipper_available ? tr.boat.skipper_available : tr.boat.skipper_not_available}
                       </span>
                       <span className="pill">{tr.boat.view_details} →</span>
                     </div>
                   </div>
                 </Link>
               </li>
-              );
-            })}
+            ))}
           </ul>
         )}
       </div>

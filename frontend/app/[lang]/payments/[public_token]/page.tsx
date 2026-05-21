@@ -10,6 +10,17 @@ import {
   useStripe,
 } from '@stripe/react-stripe-js';
 
+
+function errorToText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return value.message;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
 );
@@ -147,10 +158,14 @@ export default function PaymentPage() {
         const j = (await r.json()) as IntentResp;
 
         if (!r.ok) {
-          const msg =
+          const rawMsg =
             (j as any)?.message ||
             (j as any)?.error ||
             `HTTP ${r.status}`;
+          const msg =
+            typeof rawMsg === "string"
+              ? rawMsg
+              : JSON.stringify(rawMsg, null, 2);
           throw new Error(msg);
         }
 
@@ -177,6 +192,7 @@ export default function PaymentPage() {
 
     return {
       clientSecret,
+      locale: 'en' as const,
       appearance: {
         theme: 'stripe' as const,
       },

@@ -2,13 +2,14 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import Image from "next/image";
 import { getBoatCardImage } from "@/lib/media";
+import { BoatGallery } from "@/components/boat/BoatGallery";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
 import { isLang, t, type Lang } from "@/i18n";
 import { fetchAvailability } from "@/lib/availability";
+import { applyMarketplaceFee } from "@/lib/pricing";
 
 type Props = {
   params: Promise<{ lang: string; slug: string }>;
@@ -97,11 +98,20 @@ export default async function BoatPage({ params }: Props) {
         ? "Kalendar je privremeno nedostupan."
         : "Calendar is temporarily unavailable.";
 
+  const requestSlotLabel =
+    lang === "ru"
+      ? "Запросить этот слот"
+      : lang === "me"
+        ? "Zatraži ovaj termin"
+        : "Request this slot";
+
   const fmtMoney = (v: unknown) => {
     if (v === null || v === undefined) return null;
     const n = typeof v === "number" ? v : Number(v);
     if (!Number.isFinite(n)) return null;
-    return `${n} ${(boat as any)?.currency ?? ""}`.trim();
+    const rounded = Math.round((n + Number.EPSILON) * 100) / 100;
+    const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+    return `${formatted} ${(boat as any)?.currency ?? ""}`.trim();
   };
 
   const rows: Array<{ label: string; value: string }> = [];
@@ -152,18 +162,12 @@ export default async function BoatPage({ params }: Props) {
           </Link>
         </div>
 
-        {heroImg ? (
-          <div className="hero">
-            <Image
-              src={heroImg.src}
-              alt={heroImg.alt}
-              fill
-              sizes="(max-width: 900px) 100vw, 900px"
-              style={{ objectFit: "cover" }}
-              priority
-            />
-          </div>
-        ) : null}
+        <BoatGallery
+          heroImg={heroImg}
+          images={(boat as any).images ?? []}
+          title={boat.title ?? slug}
+          slug={slug}
+        />
 
         <div className="meta-row">
           <span>
@@ -175,8 +179,8 @@ export default async function BoatPage({ params }: Props) {
           </span>
           <span>·</span>
           <span data-testid="boat-home-marina">
-            {marinaLabel}: {boat.homeMarina?.name ?? "—"}
-            {boat.homeMarina?.region ? ` (${boat.homeMarina.region})` : ""}
+            {marinaLabel}: {(boat as any).home_marina?.name ?? "—"}
+            {(boat as any).home_marina?.region ? ` (${(boat as any).home_marina.region})` : ""}
           </span>
           <span>·</span>
           <span>
@@ -203,7 +207,7 @@ export default async function BoatPage({ params }: Props) {
           );
           add(
             lang === "ru" ? "Марина" : "Marina",
-            (boat as any).home_marina?.name ?? boat.homeMarina?.name ?? null
+            (boat as any).home_marina?.name ?? (boat as any).home_marina?.name ?? null
           );
           add(
             lang === "ru" ? "Длина" : "Length",
@@ -223,9 +227,9 @@ export default async function BoatPage({ params }: Props) {
           }
 
           if (listing === "rent") {
-            add(lang === "ru" ? "Цена/час" : "Price/hour", (boat as any).price_per_hour ?? null, fmtMoney);
-            add(lang === "ru" ? "Цена/день" : "Price/day", (boat as any).price_per_day ?? null, fmtMoney);
-            add(lang === "ru" ? "Цена/неделя" : "Price/week", (boat as any).price_per_week ?? null, fmtMoney);
+            add(lang === "ru" ? "Цена/час" : "Price/hour", applyMarketplaceFee((boat as any).price_per_hour), fmtMoney);
+            add(lang === "ru" ? "Цена/день" : "Price/day", applyMarketplaceFee((boat as any).price_per_day), fmtMoney);
+            add(lang === "ru" ? "Цена/неделя" : "Price/week", applyMarketplaceFee((boat as any).price_per_week), fmtMoney);
             add(lang === "ru" ? "Депозит" : "Deposit", (boat as any).deposit ?? null, fmtMoney);
 
             add(lang === "ru" ? "Шкипер/час" : "Skipper/hour", (boat as any).skipper_price_per_hour ?? null, fmtMoney);
@@ -310,6 +314,33 @@ export default async function BoatPage({ params }: Props) {
                     availability.timezone || "Europe/Podgorica",
                     lang
                   );
+                  const slotParams = new URLSearchParams({
+                    boatId: String(boatId),
+                    slot_start_utc: s.slot_start_utc,
+                    slot_end_utc: s.slot_end_utc,
+                    slug,
+                    title: boat.title ?? slug,
+                    currency: String((boat as any).currency ?? "EUR"),
+                  });
+
+                  const pricePerHour = (boat as any).price_per_hour;
+                  const pricePerDay = (boat as any).price_per_day;
+                  const pricePerWeek = (boat as any).price_per_week;
+                  const salePrice = (boat as any).sale_price;
+
+                  if (pricePerHour !== null && pricePerHour !== undefined) {
+                    slotParams.set("pph", String(pricePerHour));
+                  }
+                  if (pricePerDay !== null && pricePerDay !== undefined) {
+                    slotParams.set("ppd", String(pricePerDay));
+                  }
+                  if (pricePerWeek !== null && pricePerWeek !== undefined) {
+                    slotParams.set("ppw", String(pricePerWeek));
+                  }
+                  if (salePrice !== null && salePrice !== undefined) {
+                    slotParams.set("sale", String(salePrice));
+                  }
+
                   return (
                     <div
                       key={key}
@@ -323,9 +354,12 @@ export default async function BoatPage({ params }: Props) {
                       }}
                     >
                       <span style={{ fontWeight: 600 }}>{label}</span>
-                      <span className="kicker" style={{ margin: 0 }}>
-                        UTC
-                      </span>
+                      <Link
+                        className="button secondary"
+                        href={`/${lang}/request?${slotParams.toString()}`}
+                      >
+                        {requestSlotLabel}
+                      </Link>
                     </div>
                   );
                 })}

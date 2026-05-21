@@ -11,6 +11,7 @@ type CreateBoatBody = {
   lengthM?: number | null;
   year?: number | null;
   engineHp?: number | null;
+  rentPriceHour?: number | null;
   rentPriceDay?: number | null;
   rentPriceWeek?: number | null;
   salePrice?: number | null;
@@ -29,6 +30,7 @@ type ParsedCreateBoatBody = {
   lengthM: number | null;
   year: number | null;
   engineHp: number | null;
+  rentPriceHour: number | null;
   rentPriceDay: number | null;
   rentPriceWeek: number | null;
   salePrice: number | null;
@@ -145,6 +147,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const lengthM = body.lengthM == null ? null : asNumber(body.lengthM);
   const year = body.year == null ? null : asNumber(body.year);
   const engineHp = body.engineHp == null ? null : asNumber(body.engineHp);
+  const rentPriceHour = body.rentPriceHour == null ? null : asNumber(body.rentPriceHour);
   const rentPriceDay = body.rentPriceDay == null ? null : asNumber(body.rentPriceDay);
   const rentPriceWeek = body.rentPriceWeek == null ? null : asNumber(body.rentPriceWeek);
   const salePrice = body.salePrice == null ? null : asNumber(body.salePrice);
@@ -168,6 +171,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
 
   if (engineHp != null && (engineHp < 0 || engineHp > 100000)) {
     return { ok: false, error: "engineHp is out of range" };
+  }
+
+  if (rentPriceHour != null && (rentPriceHour < 0 || rentPriceHour > 100000000)) {
+    return { ok: false, error: "rentPriceHour is out of range" };
   }
 
   if (rentPriceDay != null && (rentPriceDay < 0 || rentPriceDay > 100000000)) {
@@ -210,6 +217,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       lengthM,
       year,
       engineHp,
+      rentPriceHour,
       rentPriceDay,
       rentPriceWeek,
       salePrice,
@@ -279,13 +287,17 @@ export async function POST(req: NextRequest) {
       length_m: p.lengthM ?? null,
       year: p.year ?? null,
       engine_hp: p.engineHp ?? null,
+      price_per_hour: p.rentPriceHour ?? null,
       price_per_day: p.rentPriceDay ?? null,
       price_per_week: p.rentPriceWeek ?? null,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
       owner_email: p.ownerEmail ?? "",
+      owner_user_email: me.email ?? p.ownerEmail ?? "",
       currency: p.currency ?? "EUR",
-      owner: me.id,
+      booking_enabled: false,
+      contacts_visible: false,
+      publishedAt: null,
       locale: p.locale || "en",
     },
   };
@@ -312,6 +324,24 @@ export async function POST(req: NextRequest) {
 
   const json = createRes.json;
   const data = isRecord(json) && isRecord(json.data) ? json.data : null;
+  const documentId = data && typeof data.documentId === "string" ? data.documentId : null;
+
+  if (documentId) {
+    await strapiFetchJson(
+      `/api/boats/${encodeURIComponent(documentId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          data: {
+            publishedAt: null,
+            booking_enabled: false,
+            contacts_visible: false,
+          },
+        }),
+      },
+      serverToken
+    );
+  }
 
   return NextResponse.json(
     {

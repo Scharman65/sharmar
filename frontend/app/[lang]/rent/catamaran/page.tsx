@@ -7,6 +7,7 @@ import Image from "next/image";
 
 import { getBoatCardImage } from "@/lib/media";
 import { CATEGORIES } from "@/lib/categories";
+import { applyMarketplaceFee } from "@/lib/pricing";
 
 function normalizeMarinaSlug(v: unknown): string | null {
   if (typeof v !== "string" || !v) return null;
@@ -40,6 +41,12 @@ function sortByNullableNumberNullsFirst<T extends Record<string, any>>(
   });
 }
 
+function money(value: unknown, currency = "EUR"): string | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return `${n.toLocaleString("en-US")} ${currency}`.trim();
+}
+
 export const dynamic = "force-dynamic";
 
 type Props = {
@@ -60,7 +67,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     listingType: def.listingType,
     ...(def.vesselType ? { vesselType: def.vesselType } : {}),
     ...(def.boatType ? { boatType: def.boatType } : {}),
-    homeMarinaSlug: null,
   });
 
   const isEmpty = baseBoats.length === 0;
@@ -78,6 +84,12 @@ export default async function RentCatamaranPage({ params, searchParams }: Props)
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
   const catamaranLabel = lang === "ru" ? "Катамаран" : lang === "me" ? "Katamaran" : "Catamaran";
+  const bookingFeeLabel =
+    lang === "ru"
+      ? "Сбор за бронирование"
+      : lang === "me"
+        ? "Naknada za rezervaciju"
+        : "Booking fee";
   const sp = (await (searchParams ?? Promise.resolve({}))) as Record<
     string,
     string | string[] | undefined
@@ -98,7 +110,7 @@ export default async function RentCatamaranPage({ params, searchParams }: Props)
     listingType: "rent",
     vesselType: "sailboat",
     boatType: "Catamaran",
-    homeMarinaSlug: marina || null,
+    ...(marina ? { homeMarinaSlug: marina } : {}),
   });
 
   const boatsSorted: Boat[] = priceHourSort
@@ -155,8 +167,8 @@ export default async function RentCatamaranPage({ params, searchParams }: Props)
               >
                 <option value="">{allLabel}</option>
                 {locations.map((l) => (
-                  <option key={l.id} value={l.slug}>
-                    {l.name ?? l.slug}
+                  <option key={l.id} value={l.slug ?? ""}>
+                    {l.name ?? l.slug ?? "Marina"}
                   </option>
                 ))}
               </select>
@@ -229,14 +241,14 @@ export default async function RentCatamaranPage({ params, searchParams }: Props)
                       {(b.price_per_hour || b.price_per_day) && (
                         <p className="card-sub">
                           {b.price_per_hour ? (
-                            <span>€{b.price_per_hour} / hour</span>
+                            <span>{money(applyMarketplaceFee(b.price_per_hour), b.currency ?? "EUR")} / hour</span>
                           ) : (
-                            <span>€{b.price_per_day} / day</span>
+                            <span>{money(applyMarketplaceFee(b.price_per_day), b.currency ?? "EUR")} / day</span>
                           )}
                           {b.deposit && (
                             <>
                               <span> · </span>
-                              <span>Deposit €{b.deposit}</span>
+                              <span>{bookingFeeLabel} €{b.deposit}</span>
                             </>
                           )}
                         </p>
