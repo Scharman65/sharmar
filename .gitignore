@@ -82,3 +82,8 @@ frontend/lib/strapi.ts.before_locale_fallback_*
 
 # Additional local safe archives
 SAFE_BOOKING_FEE_FRONTEND_*/
+
+# Large local media sources
+frontend/public/sale/raw-demo.mov
+frontend/public/sale/sharmar-demo-final.mp4
+frontend/public/sale/sharmar-demo-final-v2.mp4
