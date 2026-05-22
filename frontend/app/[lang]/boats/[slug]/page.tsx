@@ -4,6 +4,7 @@ export const revalidate = 0;
 
 import { getBoatCardImage } from "@/lib/media";
 import { BoatGallery } from "@/components/boat/BoatGallery";
+import { AvailabilityCalendar } from "@/components/boat/AvailabilityCalendar";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
@@ -30,41 +31,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     (boat.description ?? "").trim() || t(lang).boats.no_description;
 
   return { title, description };
-}
-
-function getLocaleForFmt(lang: Lang): string {
-  if (lang === "ru") return "ru-RU";
-  if (lang === "me") return "sr-Latn-ME";
-  return "en-US";
-}
-
-function fmtSlotRange(
-  startUtcIso: string,
-  endUtcIso: string,
-  timeZone: string,
-  lang: Lang
-): string {
-  const locale = getLocaleForFmt(lang);
-  const start = new Date(startUtcIso);
-  const end = new Date(endUtcIso);
-
-  const dateFmt = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const timeFmt = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
-  return `${dateFmt.format(start)} · ${timeFmt.format(start)}–${timeFmt.format(
-    end
-  )}`;
 }
 
 export default async function BoatPage({ params }: Props) {
@@ -298,83 +264,16 @@ export default async function BoatPage({ params }: Props) {
           )}
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <p className="kicker" style={{ marginBottom: 10 }}>
-            {availabilityTitle}
-          </p>
-
-          {availability ? (
-            availability.data.length ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                {availability.data.map((s) => {
-                  const key = `${s.slot_start_utc}-${s.slot_end_utc}`;
-                  const label = fmtSlotRange(
-                    s.slot_start_utc,
-                    s.slot_end_utc,
-                    availability.timezone || "Europe/Podgorica",
-                    lang
-                  );
-                  const slotParams = new URLSearchParams({
-                    boatId: String(boatId),
-                    slot_start_utc: s.slot_start_utc,
-                    slot_end_utc: s.slot_end_utc,
-                    slug,
-                    title: boat.title ?? slug,
-                    currency: String((boat as any).currency ?? "EUR"),
-                  });
-
-                  const pricePerHour = (boat as any).price_per_hour;
-                  const pricePerDay = (boat as any).price_per_day;
-                  const pricePerWeek = (boat as any).price_per_week;
-                  const salePrice = (boat as any).sale_price;
-
-                  if (pricePerHour !== null && pricePerHour !== undefined) {
-                    slotParams.set("pph", String(pricePerHour));
-                  }
-                  if (pricePerDay !== null && pricePerDay !== undefined) {
-                    slotParams.set("ppd", String(pricePerDay));
-                  }
-                  if (pricePerWeek !== null && pricePerWeek !== undefined) {
-                    slotParams.set("ppw", String(pricePerWeek));
-                  }
-                  if (salePrice !== null && salePrice !== undefined) {
-                    slotParams.set("sale", String(salePrice));
-                  }
-
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 16,
-                        padding: "10px 12px",
-                        borderRadius: 12,
-                        border: "1px solid rgba(255,255,255,0.10)",
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{label}</span>
-                      <Link
-                        className="button secondary"
-                        href={`/${lang}/request?${slotParams.toString()}`}
-                      >
-                        {requestSlotLabel}
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="kicker" style={{ margin: 0 }}>
-                {availabilityEmpty}
-              </p>
-            )
-          ) : (
-            <p className="kicker" style={{ margin: 0 }}>
-              {availabilityUnavailable}
-            </p>
-          )}
-        </div>
+        <AvailabilityCalendar
+          lang={lang}
+          availability={availability}
+          boat={boat}
+          slug={slug}
+          requestSlotLabel={requestSlotLabel}
+          availabilityTitle={availabilityTitle}
+          availabilityEmpty={availabilityEmpty}
+          availabilityUnavailable={availabilityUnavailable}
+        />
 
         {boat.purposes?.length ? (
           <div style={{ marginTop: 18 }}>
