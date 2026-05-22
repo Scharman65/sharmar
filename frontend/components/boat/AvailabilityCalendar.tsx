@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AvailabilityResponse, AvailabilitySlot } from "@/lib/availability";
 import type { Lang } from "@/i18n";
 import type { Boat } from "@/lib/strapi";
@@ -22,6 +22,12 @@ type SlotGroup = {
   dayName: string;
   dateLabel: string;
   slots: AvailabilitySlot[];
+};
+
+type DurationOption = {
+  label: string;
+  slotCount: number;
+  enabled: boolean;
 };
 
 function localeForLang(lang: Lang): string {
@@ -94,6 +100,55 @@ function slotKey(slot: AvailabilitySlot): string {
   return `${slot.slot_start_utc}-${slot.slot_end_utc}`;
 }
 
+function getConsecutiveSlots(slots: AvailabilitySlot[], startSlot: AvailabilitySlot | null): AvailabilitySlot[] {
+  if (!startSlot) return [];
+
+  const sorted = [...slots].sort((a, b) => Date.parse(a.slot_start_utc) - Date.parse(b.slot_start_utc));
+  const startIndex = sorted.findIndex((slot) => slotKey(slot) === slotKey(startSlot));
+  if (startIndex < 0) return [];
+
+  const consecutive = [sorted[startIndex]];
+
+  for (let index = startIndex + 1; index < sorted.length; index += 1) {
+    const previous = consecutive[consecutive.length - 1];
+    const current = sorted[index];
+
+    if (previous.slot_end_utc !== current.slot_start_utc) break;
+    consecutive.push(current);
+  }
+
+  return consecutive;
+}
+
+function getValidDurationOptions(slots: AvailabilitySlot[], startSlot: AvailabilitySlot | null): DurationOption[] {
+  const consecutive = getConsecutiveSlots(slots, startSlot);
+  const availableCount = consecutive.length;
+
+  return [
+    { label: "1h", slotCount: 1, enabled: availableCount >= 1 },
+    { label: "2h", slotCount: 2, enabled: availableCount >= 2 },
+    { label: "3h", slotCount: 3, enabled: availableCount >= 3 },
+    { label: "4h", slotCount: 4, enabled: availableCount >= 4 },
+    { label: "Full day", slotCount: 8, enabled: availableCount >= 8 },
+  ];
+}
+
+function buildDurationSlotRange(
+  slots: AvailabilitySlot[],
+  startSlot: AvailabilitySlot | null,
+  slotCount: number
+): AvailabilitySlot | null {
+  const consecutive = getConsecutiveSlots(slots, startSlot);
+  const safeSlotCount = Math.max(1, Math.floor(slotCount));
+
+  if (!consecutive.length || consecutive.length < safeSlotCount) return startSlot;
+
+  return {
+    slot_start_utc: consecutive[0].slot_start_utc,
+    slot_end_utc: consecutive[safeSlotCount - 1].slot_end_utc,
+  };
+}
+
 function buildRequestHref(lang: Lang, boat: Boat, slug: string, slot: AvailabilitySlot): string {
   const params = new URLSearchParams({
     boatId: String(boat.id),
@@ -142,12 +197,32 @@ export function AvailabilityCalendar({
   const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(
     activeGroup?.slots[0] ? slotKey(activeGroup.slots[0]) : null
   );
+  const [selectedDurationSlots, setSelectedDurationSlots] = useState(1);
   const selectedSlot =
     activeGroup?.slots.find((slot) => slotKey(slot) === selectedSlotKey) ?? activeGroup?.slots[0] ?? null;
+  const durationOptions = useMemo(
+    () => getValidDurationOptions(activeGroup?.slots ?? [], selectedSlot),
+    [activeGroup?.slots, selectedSlot]
+  );
+  const selectedDurationIsValid = durationOptions.some(
+    (option) => option.slotCount === selectedDurationSlots && option.enabled
+  );
+  const requestSlotRange =
+    buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, selectedDurationSlots) ?? selectedSlot;
+
+  useEffect(() => {
+    if (!selectedDurationIsValid) setSelectedDurationSlots(1);
+  }, [selectedDurationIsValid]);
 
   function selectDate(group: SlotGroup) {
     setSelectedDate(group.key);
     setSelectedSlotKey(group.slots[0] ? slotKey(group.slots[0]) : null);
+    setSelectedDurationSlots(1);
+  }
+
+  function selectSlot(slot: AvailabilitySlot) {
+    setSelectedSlotKey(slotKey(slot));
+    setSelectedDurationSlots(1);
   }
 
   return (
@@ -256,7 +331,7 @@ export function AvailabilityCalendar({
                       key={key}
                       type="button"
                       aria-pressed={isActive}
-                      onClick={() => setSelectedSlotKey(key)}
+                      onClick={() => selectSlot(slot)}
                       style={{
                         borderRadius: 999,
                         border: isActive ? "1px solid rgba(255,255,255,0.78)" : "1px solid rgba(255,255,255,0.14)",
@@ -274,9 +349,48 @@ export function AvailabilityCalendar({
               </div>
 
               {selectedSlot ? (
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div style={{ fontSize: 13, opacity: 0.76 }}>Duration</div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
+                      gap: 10,
+                    }}
+                  >
+                    {durationOptions.map((option) => {
+                      const isActive = option.slotCount === selectedDurationSlots && option.enabled;
+
+                      return (
+                        <button
+                          key={option.slotCount}
+                          type="button"
+                          aria-pressed={isActive}
+                          disabled={!option.enabled}
+                          onClick={() => setSelectedDurationSlots(option.slotCount)}
+                          style={{
+                            borderRadius: 12,
+                            border: isActive ? "1px solid rgba(255,255,255,0.78)" : "1px solid rgba(255,255,255,0.14)",
+                            background: isActive ? "rgba(37,99,235,0.58)" : "rgba(255,255,255,0.06)",
+                            color: "inherit",
+                            opacity: option.enabled ? 1 : 0.38,
+                            padding: "10px 12px",
+                            fontWeight: 800,
+                            cursor: option.enabled ? "pointer" : "not-allowed",
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {requestSlotRange ? (
                 <Link
                   className="button"
-                  href={buildRequestHref(lang, boat, slug, selectedSlot)}
+                  href={buildRequestHref(lang, boat, slug, requestSlotRange)}
                   style={{
                     width: "100%",
                     justifyContent: "center",
