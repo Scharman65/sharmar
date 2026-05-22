@@ -266,6 +266,7 @@ export function AvailabilityCalendar({
   }
 
   return (
+    <>
     <section style={{ marginTop: 18 }}>
       <div
         style={{
@@ -523,6 +524,128 @@ export function AvailabilityCalendar({
           ) : null}
         </div>
       )}
+
+      {requestSlotRange ? <div className="mobile-booking-spacer" aria-hidden="true" /> : null}
     </section>
+
+    {requestSlotRange ? (
+      <div className="mobile-booking-bar" role="region" aria-label="Selected booking request">
+        <div className="mobile-booking-summary">
+          <div className="mobile-booking-primary">{ctaLabel}</div>
+          <div className="mobile-booking-meta">
+            <span>{selectedDateLabel ?? activeGroup?.dateLabel}</span>
+            <span aria-hidden="true">·</span>
+            <span>{selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")}</span>
+            <span aria-hidden="true">·</span>
+            <span>{formatDuration(selectedDurationSlots)}</span>
+          </div>
+        </div>
+        <Link
+          className="mobile-booking-link"
+          href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+          aria-label={`${ctaLabel}: ${selectedDateLabel ?? activeGroup?.dateLabel}, ${
+            selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")
+          }, ${formatDuration(selectedDurationSlots)}`}
+        >
+          {ctaLabel}
+        </Link>
+      </div>
+    ) : null}
+
+    <style jsx>{`
+      .mobile-booking-spacer,
+      .mobile-booking-bar {
+        display: none;
+      }
+
+      @media (max-width: 720px) {
+        .mobile-booking-spacer {
+          display: block;
+          height: calc(104px + env(safe-area-inset-bottom, 0px));
+        }
+
+        .mobile-booking-bar {
+          position: fixed;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          z-index: 45;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+          padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+          border-top: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(8, 9, 10, 0.9);
+          box-shadow: 0 -18px 46px rgba(0, 0, 0, 0.36);
+          backdrop-filter: blur(18px);
+        }
+
+        .mobile-booking-summary {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .mobile-booking-primary {
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.94);
+          font-size: 13px;
+          font-weight: 850;
+          line-height: 1.2;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .mobile-booking-meta {
+          display: flex;
+          min-width: 0;
+          gap: 6px;
+          align-items: center;
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.68);
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+
+        .mobile-booking-meta span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .mobile-booking-link {
+          min-height: 44px;
+          max-width: 44vw;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 14px;
+          border: 1px solid rgba(255, 255, 255, 0.32);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.13);
+          color: rgba(255, 255, 255, 0.96);
+          font-size: 13px;
+          font-weight: 850;
+          line-height: 1.1;
+          text-align: center;
+          text-decoration: none;
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .mobile-booking-link:hover {
+          background: rgba(255, 255, 255, 0.17);
+          border-color: rgba(255, 255, 255, 0.42);
+        }
+
+        .mobile-booking-link:focus-visible {
+          outline: 3px solid rgba(255, 255, 255, 0.9);
+          outline-offset: 3px;
+        }
+      }
+    `}</style>
+    </>
   );
 }
