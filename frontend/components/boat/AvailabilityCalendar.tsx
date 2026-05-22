@@ -74,6 +74,36 @@ function formatSlotTime(slot: AvailabilitySlot, timeZone: string, lang: Lang): s
   return `${fmt.format(new Date(slot.slot_start_utc))}-${fmt.format(new Date(slot.slot_end_utc))}`;
 }
 
+function formatTime(value: string, timeZone: string, lang: Lang): string {
+  return new Intl.DateTimeFormat(localeForLang(lang), {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function formatDate(value: string, timeZone: string, lang: Lang): string {
+  return new Intl.DateTimeFormat(localeForLang(lang), {
+    timeZone,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+function formatDuration(slotCount: number): string {
+  if (slotCount === 8) return "Full day";
+  return `${slotCount} ${slotCount === 1 ? "hour" : "hours"}`;
+}
+
+function bookingCtaLabel(label: string): string {
+  return label
+    .replace("this slot", "this booking")
+    .replace("этот слот", "это бронирование")
+    .replace("ovaj termin", "ovu rezervaciju");
+}
+
 function groupSlots(slots: AvailabilitySlot[], timeZone: string, lang: Lang): SlotGroup[] {
   const groups = new Map<string, SlotGroup>();
 
@@ -209,6 +239,16 @@ export function AvailabilityCalendar({
   );
   const requestSlotRange =
     buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, selectedDurationSlots) ?? selectedSlot;
+  const totalSlots = groups.reduce((sum, group) => sum + group.slots.length, 0);
+  const selectedDateLabel = requestSlotRange ? formatDate(requestSlotRange.slot_start_utc, timeZone, lang) : null;
+  const selectedTimeLabel = requestSlotRange
+    ? `${formatTime(requestSlotRange.slot_start_utc, timeZone, lang)}-${formatTime(
+        requestSlotRange.slot_end_utc,
+        timeZone,
+        lang
+      )}`
+    : null;
+  const ctaLabel = bookingCtaLabel(requestSlotLabel) || "Request this booking";
 
   useEffect(() => {
     if (!selectedDurationIsValid) setSelectedDurationSlots(1);
@@ -241,7 +281,7 @@ export function AvailabilityCalendar({
         </p>
         {groups.length ? (
           <span style={{ fontSize: 13, opacity: 0.72 }}>
-            {groups.reduce((sum, group) => sum + group.slots.length, 0)} slots
+            {totalSlots} slots
           </span>
         ) : null}
       </div>
@@ -258,19 +298,23 @@ export function AvailabilityCalendar({
         <div
           style={{
             border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 18,
-            padding: 16,
-            background: "rgba(255,255,255,0.04)",
+            borderRadius: 16,
+            padding: 14,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.035))",
             display: "grid",
-            gap: 16,
+            gap: 14,
+            boxShadow: "0 18px 50px rgba(0,0,0,0.22)",
           }}
         >
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))",
-              gap: 10,
+              display: "flex",
+              gap: 8,
+              overflowX: "auto",
+              paddingBottom: 2,
+              WebkitOverflowScrolling: "touch",
             }}
+            aria-label="Available dates"
           >
             {groups.map((group) => {
               const isActive = group.key === activeGroup?.key;
@@ -282,23 +326,26 @@ export function AvailabilityCalendar({
                   aria-pressed={isActive}
                   onClick={() => selectDate(group)}
                   style={{
+                    minWidth: 104,
+                    flex: "0 0 auto",
                     textAlign: "left",
-                    borderRadius: 14,
-                    border: isActive ? "1px solid rgba(255,255,255,0.72)" : "1px solid rgba(255,255,255,0.12)",
-                    background: isActive ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.14)",
+                    borderRadius: 12,
+                    border: isActive ? "1px solid rgba(255,255,255,0.82)" : "1px solid rgba(255,255,255,0.13)",
+                    background: isActive ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.16)",
                     color: "inherit",
-                    padding: "12px 12px",
+                    padding: "10px 11px",
                     cursor: "pointer",
+                    boxShadow: isActive ? "0 10px 28px rgba(0,0,0,0.2)" : "none",
                   }}
                 >
-                  <div style={{ fontSize: 12, opacity: 0.78, textTransform: "uppercase" }}>
+                  <div style={{ fontSize: 11, opacity: 0.74, textTransform: "uppercase" }}>
                     {group.dayName}
                   </div>
-                  <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800 }}>
+                  <div style={{ marginTop: 3, fontSize: 17, fontWeight: 850 }}>
                     {group.dateLabel}
                   </div>
-                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.72 }}>
-                    {group.slots.length} available
+                  <div style={{ marginTop: 5, fontSize: 12, opacity: 0.76 }}>
+                    {group.slots.length} {group.slots.length === 1 ? "time" : "times"}
                   </div>
                 </button>
               );
@@ -306,100 +353,172 @@ export function AvailabilityCalendar({
           </div>
 
           {activeGroup ? (
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18 }}>{activeGroup.dateLabel}</div>
-                  <div style={{ marginTop: 4, opacity: 0.72, fontSize: 13 }}>{activeGroup.dayName}</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                gap: 14,
+                alignItems: "start",
+              }}
+            >
+              <div style={{ display: "grid", gap: 14, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 850, fontSize: 18 }}>{activeGroup.dateLabel}</div>
+                    <div style={{ marginTop: 4, opacity: 0.72, fontSize: 13 }}>{activeGroup.dayName}</div>
+                  </div>
+                  <div style={{ opacity: 0.72, fontSize: 12, textAlign: "right" }}>{timeZone}</div>
                 </div>
-                <div style={{ opacity: 0.72, fontSize: 13 }}>{timeZone}</div>
-              </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(118px, 1fr))",
-                  gap: 10,
-                }}
-              >
-                {activeGroup.slots.map((slot) => {
-                  const key = slotKey(slot);
-                  const isActive = selectedSlot ? key === slotKey(selectedSlot) : false;
-
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      aria-pressed={isActive}
-                      onClick={() => selectSlot(slot)}
-                      style={{
-                        borderRadius: 999,
-                        border: isActive ? "1px solid rgba(255,255,255,0.78)" : "1px solid rgba(255,255,255,0.14)",
-                        background: isActive ? "rgba(37,99,235,0.58)" : "rgba(255,255,255,0.06)",
-                        color: "inherit",
-                        padding: "11px 12px",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {formatSlotTime(slot, timeZone, lang)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedSlot ? (
                 <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ fontSize: 13, opacity: 0.76 }}>Duration</div>
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
-                      gap: 10,
+                      gridTemplateColumns: "repeat(auto-fit, minmax(118px, 1fr))",
+                      gap: 8,
                     }}
                   >
-                    {durationOptions.map((option) => {
-                      const isActive = option.slotCount === selectedDurationSlots && option.enabled;
+                    {activeGroup.slots.map((slot) => {
+                      const key = slotKey(slot);
+                      const isActive = selectedSlot ? key === slotKey(selectedSlot) : false;
 
                       return (
                         <button
-                          key={option.slotCount}
+                          key={key}
                           type="button"
                           aria-pressed={isActive}
-                          disabled={!option.enabled}
-                          onClick={() => setSelectedDurationSlots(option.slotCount)}
+                          onClick={() => selectSlot(slot)}
                           style={{
                             borderRadius: 12,
-                            border: isActive ? "1px solid rgba(255,255,255,0.78)" : "1px solid rgba(255,255,255,0.14)",
-                            background: isActive ? "rgba(37,99,235,0.58)" : "rgba(255,255,255,0.06)",
+                            border: isActive ? "1px solid rgba(255,255,255,0.84)" : "1px solid rgba(255,255,255,0.13)",
+                            background: isActive ? "rgba(37,99,235,0.62)" : "rgba(255,255,255,0.055)",
                             color: "inherit",
-                            opacity: option.enabled ? 1 : 0.38,
-                            padding: "10px 12px",
-                            fontWeight: 800,
-                            cursor: option.enabled ? "pointer" : "not-allowed",
+                            padding: "10px 11px",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            display: "grid",
+                            gap: 3,
+                            minHeight: 58,
                           }}
                         >
-                          {option.label}
+                          <span style={{ fontSize: 15, fontWeight: 850 }}>
+                            {formatTime(slot.slot_start_utc, timeZone, lang)}
+                          </span>
+                          <span style={{ fontSize: 12, opacity: 0.74 }}>
+                            Until {formatTime(slot.slot_end_utc, timeZone, lang)}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              ) : null}
 
-              {requestSlotRange ? (
-                <Link
-                  className="button"
-                  href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+                {selectedSlot ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>Duration</div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 7,
+                        overflowX: "auto",
+                        padding: 3,
+                        borderRadius: 14,
+                        background: "rgba(0,0,0,0.16)",
+                      }}
+                      aria-label="Trip duration"
+                    >
+                      {durationOptions.map((option) => {
+                        const isActive = option.slotCount === selectedDurationSlots && option.enabled;
+
+                        return (
+                          <button
+                            key={option.slotCount}
+                            type="button"
+                            aria-pressed={isActive}
+                            disabled={!option.enabled}
+                            onClick={() => setSelectedDurationSlots(option.slotCount)}
+                            style={{
+                              flex: "1 0 auto",
+                              minWidth: 72,
+                              borderRadius: 11,
+                              border: isActive
+                                ? "1px solid rgba(255,255,255,0.8)"
+                                : "1px solid rgba(255,255,255,0)",
+                              background: isActive ? "rgba(255,255,255,0.17)" : "transparent",
+                              color: "inherit",
+                              opacity: option.enabled ? 1 : 0.34,
+                              padding: "8px 11px",
+                              fontWeight: 850,
+                              cursor: option.enabled ? "pointer" : "not-allowed",
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <aside
+                style={{
+                  border: "1px solid rgba(255,255,255,0.13)",
+                  borderRadius: 14,
+                  background: "rgba(0,0,0,0.18)",
+                  padding: 14,
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12, opacity: 0.7, textTransform: "uppercase" }}>Your trip</div>
+                  <div style={{ marginTop: 4, fontSize: 18, fontWeight: 850 }}>{boat.title ?? slug}</div>
+                </div>
+
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ opacity: 0.68 }}>Date</span>
+                    <strong style={{ textAlign: "right" }}>{selectedDateLabel ?? activeGroup.dateLabel}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ opacity: 0.68 }}>Time</span>
+                    <strong style={{ textAlign: "right" }}>
+                      {selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ opacity: 0.68 }}>Duration</span>
+                    <strong style={{ textAlign: "right" }}>{formatDuration(selectedDurationSlots)}</strong>
+                  </div>
+                </div>
+
+                <div
                   style={{
-                    width: "100%",
-                    justifyContent: "center",
-                    textAlign: "center",
+                    borderTop: "1px solid rgba(255,255,255,0.11)",
+                    paddingTop: 12,
+                    display: "grid",
+                    gap: 10,
                   }}
                 >
-                  {requestSlotLabel}
-                </Link>
-              ) : null}
+                  <div style={{ fontSize: 12, opacity: 0.68 }}>
+                    No payment yet. Send a request and the owner confirms availability.
+                  </div>
+                  {requestSlotRange ? (
+                    <Link
+                      className="button"
+                      href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+                      style={{
+                        width: "100%",
+                        justifyContent: "center",
+                        textAlign: "center",
+                      }}
+                    >
+                      {ctaLabel}
+                    </Link>
+                  ) : null}
+                </div>
+              </aside>
             </div>
           ) : null}
         </div>
