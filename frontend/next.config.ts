@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
-  turbopack: { root: __dirname },
+  ...(process.env.VERCEL ? {} : { turbopack: { root: __dirname } }),
 
   images: {
     remotePatterns: [
