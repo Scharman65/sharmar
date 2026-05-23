@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { marinas } from "@/data/marinas";
+import { MARINAS } from "@/data/marinas";
 
 type Props = {
   params: Promise<{ lang: string }>;
@@ -40,7 +40,7 @@ export default async function MarinasIndexPage({ params }: Props) {
           </div>
 
           <div className="marina-grid">
-            {marinas.map((marina) => (
+            {MARINAS.map((marina) => (
               <Link
                 key={marina.slug}
                 href={`/${lang}/marina/${marina.slug}`}
@@ -51,7 +51,7 @@ export default async function MarinasIndexPage({ params }: Props) {
                     {marina.country}
                   </div>
 
-                  <h3>{marina.name}</h3>
+                  <h3>{marina.title}</h3>
 
                   <div className="location">
                     {marina.city}
