@@ -1,8 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import type { Lang } from "@/i18n";
-import { MARINAS } from "@/data/marinas";
+import { MARINAS, type MarinaDefinition } from "@/data/marinas";
+import { fetchBoats, type Boat } from "@/lib/strapi";
+import { getBoatCardImage } from "@/lib/media";
 
 type PageProps = {
   params: Promise<{
@@ -13,6 +16,39 @@ type PageProps = {
 
 function getMarina(slug: string) {
   return MARINAS.find((marina) => marina.slug === slug) ?? null;
+}
+
+function getRelatedMarinas(currentMarina: MarinaDefinition): MarinaDefinition[] {
+  return MARINAS.filter((marina) => marina.slug !== currentMarina.slug)
+    .map((marina, index) => {
+      const sameCountry = marina.country === currentMarina.country;
+      const sameRegion = Boolean(currentMarina.region) && marina.region === currentMarina.region;
+
+      return {
+        marina,
+        index,
+        score: (sameCountry ? 2 : 0) + (sameRegion ? 1 : 0),
+      };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 6)
+    .map(({ marina }) => marina);
+}
+
+function money(value: number | null | undefined, currency = "EUR"): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return `${value.toLocaleString("en-US")} ${currency}`.trim();
+}
+
+function getBoatPrice(boat: Boat): string | null {
+  const currency = boat.currency ?? "EUR";
+
+  if (boat.sale_price != null) return money(boat.sale_price, currency);
+  if (boat.price_per_hour != null) return `${money(boat.price_per_hour, currency)} / hour`;
+  if (boat.price_per_day != null) return `${money(boat.price_per_day, currency)} / day`;
+  if (boat.price_per_week != null) return `${money(boat.price_per_week, currency)} / week`;
+
+  return null;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -36,6 +72,9 @@ export default async function MarinaPage({ params }: PageProps) {
   const marina = getMarina(slug);
 
   if (!marina) notFound();
+
+  const boats = await fetchBoats(lang, { homeMarinaSlug: slug }).catch(() => []);
+  const relatedMarinas = getRelatedMarinas(marina);
 
   const rentLinks = [
     { href: `/${lang}/rent/motor`, label: "Motor yachts" },
@@ -110,6 +149,82 @@ export default async function MarinaPage({ params }: PageProps) {
             </Link>
           </article>
         </section>
+
+        <section className="marina-boats" aria-labelledby="marina-boats-title">
+          <div className="marina-section-top">
+            <h2 id="marina-boats-title">Available boats in this marina</h2>
+            <p className="kicker">{boats.length ? `${boats.length} available` : "No boats currently listed"}</p>
+          </div>
+
+          {boats.length === 0 ? (
+            <p className="marina-empty">No boats are currently listed for this marina.</p>
+          ) : (
+            <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {boats.map((boat) => {
+                const cardImg = getBoatCardImage(boat);
+                const price = getBoatPrice(boat);
+
+                return (
+                  <li key={boat.id} className="card">
+                    <Link className="card-link" href={`/${lang}/boats/${encodeURIComponent(boat.slug ?? String(boat.id))}`}>
+                      {cardImg?.src ? (
+                        <div className="card-media">
+                          <Image
+                            src={cardImg.src}
+                            alt={cardImg.alt ?? boat.title ?? "Boat"}
+                            fill
+                            sizes="(max-width: 900px) 100vw, 900px"
+                            style={{ objectFit: "cover" }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="card-media" />
+                      )}
+
+                      <div className="card-body">
+                        <h3 className="card-title">{boat.title ?? `Boat #${boat.id}`}</h3>
+                        <p className="card-sub">
+                          <span>Type: {boat.boat_type ?? boat.vesselType ?? "—"}</span>
+                        </p>
+                        {price ? (
+                          <p className="card-sub">
+                            <span>{price}</span>
+                          </p>
+                        ) : null}
+                        <div className="card-bottom">
+                          <span className="pill">View details →</span>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {relatedMarinas.length > 0 ? (
+          <section className="related-marinas" aria-labelledby="related-marinas-title">
+            <div className="marina-section-top">
+              <h2 id="related-marinas-title">Explore nearby marinas</h2>
+            </div>
+
+            <ul className="related-marina-grid">
+              {relatedMarinas.map((relatedMarina) => (
+                <li key={relatedMarina.slug} className="related-marina-card">
+                  <Link href={`/${lang}/marina/${relatedMarina.slug}`}>
+                    <p className="kicker">
+                      {relatedMarina.city}, {relatedMarina.country}
+                    </p>
+                    <h3>{relatedMarina.title}</h3>
+                    <p>{relatedMarina.seoDescription}</p>
+                    <span>View marina →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <section className="marina-seo">
           <h2>Yacht rentals and boats in {marina.title}</h2>
@@ -215,6 +330,78 @@ export default async function MarinaPage({ params }: PageProps) {
           max-width: 920px;
         }
 
+        .marina-boats {
+          margin-top: 22px;
+          max-width: 1100px;
+        }
+
+        .related-marinas {
+          margin-top: 22px;
+          max-width: 1100px;
+        }
+
+        .marina-section-top {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 14px;
+        }
+
+        .marina-section-top h2 {
+          margin: 0;
+          line-height: 1.15;
+        }
+
+        .marina-empty {
+          margin: 0;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          border-radius: 18px;
+          padding: 18px;
+          background: rgba(255, 255, 255, 0.035);
+          color: rgba(255, 255, 255, 0.66);
+        }
+
+        .related-marina-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .related-marina-card a {
+          display: block;
+          height: 100%;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 18px;
+          padding: 18px;
+          background: rgba(255,255,255,0.045);
+          color: inherit;
+          text-decoration: none;
+        }
+
+        .related-marina-card a:hover {
+          border-color: rgba(255, 255, 255, 0.24);
+        }
+
+        .related-marina-card h3 {
+          margin: 6px 0 0;
+          line-height: 1.15;
+        }
+
+        .related-marina-card p {
+          color: rgba(255, 255, 255, 0.72);
+          line-height: 1.55;
+        }
+
+        .related-marina-card span {
+          display: inline-block;
+          margin-top: 4px;
+          font-weight: 800;
+        }
+
         @media (max-width: 840px) {
           .marina-hero {
             padding: 20px;
@@ -223,6 +410,14 @@ export default async function MarinaPage({ params }: PageProps) {
 
           .marina-grid {
             grid-template-columns: 1fr;
+          }
+
+          .related-marina-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .marina-section-top {
+            display: grid;
           }
         }
       `}</style>
