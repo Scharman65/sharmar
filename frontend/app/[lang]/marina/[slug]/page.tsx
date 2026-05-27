@@ -22,16 +22,15 @@ function getRelatedMarinas(currentMarina: MarinaDefinition): MarinaDefinition[] 
   return MARINAS.filter((marina) => marina.slug !== currentMarina.slug)
     .map((marina, index) => {
       const sameCountry = marina.country === currentMarina.country;
-      const sameRegion = Boolean(currentMarina.region) && marina.region === currentMarina.region;
 
       return {
         marina,
         index,
-        score: (sameCountry ? 2 : 0) + (sameRegion ? 1 : 0),
+        score: sameCountry ? 1 : 0,
       };
     })
     .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, 6)
+    .slice(0, 3)
     .map(({ marina }) => marina);
 }
 
@@ -49,6 +48,69 @@ function getBoatPrice(boat: Boat): string | null {
   if (boat.price_per_week != null) return `${money(boat.price_per_week, currency)} / week`;
 
   return null;
+}
+
+function normalizeMarinaText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function getBoatMarinaCandidates(boat: Boat): string[] {
+  const source = boat as Boat & {
+    marina?: unknown;
+    city?: unknown;
+    location?: unknown;
+    marinaName?: unknown;
+  };
+
+  const location = source.location;
+  const locationCandidates =
+    location && typeof location === "object"
+      ? [
+          (location as { city?: unknown }).city,
+          (location as { marina?: unknown }).marina,
+          (location as { name?: unknown }).name,
+        ]
+      : [location];
+
+  return [
+    source.home_marina?.slug,
+    source.home_marina?.name,
+    source.home_marina?.region,
+    source.marina,
+    source.city,
+    source.marinaName,
+    boat.title,
+    boat.slug,
+    ...locationCandidates,
+  ]
+    .map(normalizeMarinaText)
+    .filter(Boolean);
+}
+
+function getMarinaMatchTerms(marina: MarinaDefinition): string[] {
+  const baseTerms = [marina.slug, marina.title, marina.city];
+
+  const aliases: Record<string, string[]> = {
+    "porto-montenegro": ["tivat", "porto montenegro", "porto montenegro marina"],
+    "budva-marina": ["budva", "budva marina"],
+    "kotor-marina": ["kotor", "kotor marina"],
+    "dubrovnik-marina": ["dubrovnik", "dubrovnik marina"],
+    "split-marina": ["split", "split marina"],
+  };
+
+  return [...baseTerms, ...(aliases[marina.slug] ?? [])]
+    .map(normalizeMarinaText)
+    .filter(Boolean);
+}
+
+function boatMatchesMarina(boat: Boat, marina: MarinaDefinition): boolean {
+  const candidates = getBoatMarinaCandidates(boat);
+  const terms = getMarinaMatchTerms(marina);
+
+  return candidates.some((candidate) =>
+    terms.some((term) => candidate === term || candidate.includes(term) || term.includes(candidate))
+  );
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -73,7 +135,11 @@ export default async function MarinaPage({ params }: PageProps) {
 
   if (!marina) notFound();
 
-  const boats = await fetchBoats(lang, { homeMarinaSlug: slug }).catch(() => []);
+  // Frontend-only marina filtering for the safe scaling phase. A later backend phase can
+  // replace this with API-level marina filtering once the marina contract is finalized.
+  const boats = (await fetchBoats(lang).catch(() => []))
+    .filter((boat) => boatMatchesMarina(boat, marina))
+    .slice(0, 6);
   const relatedMarinas = getRelatedMarinas(marina);
 
   const rentLinks = [
@@ -86,6 +152,12 @@ export default async function MarinaPage({ params }: PageProps) {
     { href: `/${lang}/sale/motor`, label: "Motor boats for sale" },
     { href: `/${lang}/sale/catamaran`, label: "Catamarans for sale" },
     { href: `/${lang}/sale/sail`, label: "Sailing boats for sale" },
+  ];
+
+  const marinaCategoryLinks = [
+    { href: `/${lang}/rent/motor`, label: "Rent motor boats" },
+    { href: `/${lang}/rent/sail`, label: "Rent sailing yachts" },
+    { href: `/${lang}/rent/catamaran`, label: "Catamarans for charter" },
   ];
 
   return (
@@ -150,6 +222,20 @@ export default async function MarinaPage({ params }: PageProps) {
           </article>
         </section>
 
+        <section className="marina-category-links" aria-labelledby="marina-category-links-title">
+          <div className="marina-section-top">
+            <h2 id="marina-category-links-title">Explore boat rentals from this marina</h2>
+          </div>
+
+          <div className="marina-discovery-links">
+            {marinaCategoryLinks.map((item) => (
+              <Link key={item.href} href={item.href}>
+                {item.label} →
+              </Link>
+            ))}
+          </div>
+        </section>
+
         <section className="marina-boats" aria-labelledby="marina-boats-title">
           <div className="marina-section-top">
             <h2 id="marina-boats-title">Available boats in this marina</h2>
@@ -157,7 +243,7 @@ export default async function MarinaPage({ params }: PageProps) {
           </div>
 
           {boats.length === 0 ? (
-            <p className="marina-empty">No boats are currently listed for this marina.</p>
+            <p className="marina-empty">No boats currently linked to this marina.</p>
           ) : (
             <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {boats.map((boat) => {
@@ -325,6 +411,31 @@ export default async function MarinaPage({ params }: PageProps) {
           text-decoration: underline;
         }
 
+        .marina-category-links {
+          margin-top: 18px;
+          max-width: 1100px;
+        }
+
+        .marina-discovery-links {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .marina-discovery-links a {
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 18px;
+          padding: 18px;
+          background: rgba(255,255,255,0.04);
+          color: inherit;
+          font-weight: 800;
+          text-decoration: none;
+        }
+
+        .marina-discovery-links a:hover {
+          border-color: rgba(255, 255, 255, 0.24);
+        }
+
         .marina-seo {
           margin-top: 18px;
           max-width: 920px;
@@ -409,6 +520,10 @@ export default async function MarinaPage({ params }: PageProps) {
           }
 
           .marina-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .marina-discovery-links {
             grid-template-columns: 1fr;
           }
 

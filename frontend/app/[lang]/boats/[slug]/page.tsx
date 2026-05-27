@@ -121,7 +121,9 @@ export default async function BoatPage({ params }: Props) {
   const homeMarina = (boat as any).home_marina;
   const homeMarinaSlug =
     typeof homeMarina?.slug === "string" ? homeMarina.slug.trim() : "";
-  const homeMarinaHref = MARINAS.some((marina) => marina.slug === homeMarinaSlug)
+  const homeMarinaDefinition =
+    MARINAS.find((marina) => marina.slug === homeMarinaSlug) ?? null;
+  const homeMarinaHref = homeMarinaDefinition
     ? `/${lang}/marina/${homeMarinaSlug}`
     : null;
 
@@ -280,6 +282,37 @@ export default async function BoatPage({ params }: Props) {
             <p className="kicker">{tr.boats.no_description}</p>
           )}
         </div>
+
+        {homeMarinaHref && homeMarinaDefinition ? (
+          <section
+            aria-labelledby="boat-located-in-title"
+            style={{
+              marginTop: 18,
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              borderRadius: 18,
+              padding: 18,
+              background: "rgba(255, 255, 255, 0.045)",
+            }}
+          >
+            <p className="kicker" style={{ marginBottom: 8 }}>
+              Located in
+            </p>
+            <h2
+              id="boat-located-in-title"
+              style={{ margin: 0, fontSize: 24, lineHeight: 1.15 }}
+            >
+              <Link
+                href={homeMarinaHref}
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                {homeMarinaDefinition.title}
+              </Link>
+            </h2>
+            <p style={{ margin: "8px 0 0", color: "rgba(255, 255, 255, 0.72)" }}>
+              {homeMarinaDefinition.city}, {homeMarinaDefinition.country}
+            </p>
+          </section>
+        ) : null}
 
         <AvailabilityCalendar
           lang={lang}
