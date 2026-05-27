@@ -11,6 +11,7 @@ import { fetchBoatBySlug } from "@/lib/strapi";
 import { isLang, t, type Lang } from "@/i18n";
 import { fetchAvailability } from "@/lib/availability";
 import { applyMarketplaceFee } from "@/lib/pricing";
+import { MARINAS } from "@/data/marinas";
 
 type Props = {
   params: Promise<{ lang: string; slug: string }>;
@@ -117,6 +118,12 @@ export default async function BoatPage({ params }: Props) {
   const boatId = Number((boat as any).id ?? 0);
   const availability =
     Number.isFinite(boatId) && boatId > 0 ? await fetchAvailability(lang, boatId) : null;
+  const homeMarina = (boat as any).home_marina;
+  const homeMarinaSlug =
+    typeof homeMarina?.slug === "string" ? homeMarina.slug.trim() : "";
+  const homeMarinaHref = MARINAS.some((marina) => marina.slug === homeMarinaSlug)
+    ? `/${lang}/marina/${homeMarinaSlug}`
+    : null;
 
   return (
     <main className="main">
@@ -145,8 +152,18 @@ export default async function BoatPage({ params }: Props) {
           </span>
           <span>·</span>
           <span data-testid="boat-home-marina">
-            {marinaLabel}: {(boat as any).home_marina?.name ?? "—"}
-            {(boat as any).home_marina?.region ? ` (${(boat as any).home_marina.region})` : ""}
+            {marinaLabel}:{" "}
+            {homeMarinaHref ? (
+              <Link href={homeMarinaHref}>
+                {homeMarina?.name ?? "—"}
+                {homeMarina?.region ? ` (${homeMarina.region})` : ""}
+              </Link>
+            ) : (
+              <>
+                {homeMarina?.name ?? "—"}
+                {homeMarina?.region ? ` (${homeMarina.region})` : ""}
+              </>
+            )}
           </span>
           <span>·</span>
           <span>
