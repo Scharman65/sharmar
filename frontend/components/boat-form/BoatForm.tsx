@@ -4,31 +4,31 @@ import React, { useMemo, useState } from "react";
 import type { BoatFormMode, BoatFormValues } from "./types";
 
 function inputBase() {
-  return "w-full rounded-lg border border-white/[0.12] bg-white/[0.07] px-3.5 py-3 text-[15px] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)_inset] outline-none transition placeholder:text-white/[0.32] focus:border-white/[0.35] focus:bg-white/[0.09] focus:ring-4 focus:ring-white/10 disabled:opacity-60";
+  return "boat-form-input";
 }
 
 function labelBase() {
-  return "text-sm font-semibold text-white/[0.88]";
+  return "boat-form-label";
 }
 
 function sectionTitle() {
-  return "text-lg font-semibold text-white";
+  return "boat-form-section-title";
 }
 
 function helpText() {
-  return "text-sm leading-6 text-white/[0.58]";
+  return "boat-form-help";
 }
 
 function sectionCard() {
-  return "rounded-2xl border border-white/10 bg-white/[0.045] p-5 shadow-[0_1px_0_rgba(255,255,255,0.05)_inset] sm:p-6";
+  return "boat-form-section";
 }
 
 function fieldGroup() {
-  return "space-y-2";
+  return "boat-form-field";
 }
 
 function readonlyInput() {
-  return `${inputBase()} cursor-default text-white/70`;
+  return "boat-form-input boat-form-readonly";
 }
 
 function isNonEmpty(v: string) {
@@ -199,38 +199,38 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
     if (!submitted) return null;
     const msg = errors[k];
     if (!msg) return null;
-    return <div className="text-sm font-medium text-red-300">{msg}</div>;
+    return <div className="boat-form-error">{msg}</div>;
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:py-12">
-      <div className="overflow-hidden rounded-3xl border border-white/[0.12] bg-[#071012]/[0.88] shadow-[0_24px_90px_rgba(0,0,0,0.42)]">
-        <div className="border-b border-white/10 bg-white/[0.035] px-5 py-6 sm:px-7 sm:py-7">
-          <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.42]">Owner listing</div>
-          <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">{title}</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/[0.62]">
+    <div className="boat-form-shell">
+      <div className="boat-form-card">
+        <div className="boat-form-hero">
+          <div className="boat-form-kicker">Owner listing</div>
+          <h1>{title}</h1>
+          <p>
             Add the core details for review. Keep the information clear and accurate.
           </p>
         </div>
 
-        <form className="space-y-5 p-5 sm:p-7" onSubmit={onSubmit}>
+        <form className="boat-form-body" onSubmit={onSubmit}>
           <section className={sectionCard()}>
-            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="boat-form-section-header boat-form-section-header-split">
               <div>
                 <div className={sectionTitle()}>Listing details</div>
                 <p className={helpText()}>Name the boat and describe what owners should know first.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1 text-xs font-semibold text-white/[0.68]">
+              <div className="boat-form-badges">
+                <span>
                   {mode.kind === "rent" ? "Rent" : "Sale"}
                 </span>
-                <span className="rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1 text-xs font-semibold text-white/[0.68]">
+                <span>
                   {mode.boatType === "motor" ? "Motor boat" : "Sail boat"}
                 </span>
               </div>
             </div>
 
-            <div className="space-y-5">
+            <div className="boat-form-stack">
               <div className={fieldGroup()}>
                 <div className={labelBase()}>Title</div>
                 <input
@@ -245,7 +245,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               <div className={fieldGroup()}>
                 <div className={labelBase()}>Description</div>
                 <textarea
-                  className={`${inputBase()} min-h-36 resize-y`}
+                  className="boat-form-textarea"
                   rows={5}
                   placeholder="Short description, condition, and useful details"
                   value={values.description}
@@ -257,12 +257,12 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           </section>
 
           <section className={sectionCard()}>
-            <div className="mb-5">
+            <div className="boat-form-section-header">
               <div className={sectionTitle()}>Boat basics</div>
               <p className={helpText()}>Use numbers only where possible.</p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="boat-form-grid">
               <div className={fieldGroup()}>
                 <div className={labelBase()}>Capacity</div>
                 <input
@@ -311,12 +311,12 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
           {mode.kind === "rent" ? (
             <section className={sectionCard()}>
-              <div className="mb-5">
+              <div className="boat-form-section-header">
                 <div className={sectionTitle()}>Rent pricing</div>
                 <p className={helpText()}>Add at least one rental price in EUR.</p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="boat-form-grid">
                 <div className={fieldGroup()}>
                   <div className={labelBase()}>Price per hour, EUR</div>
                   <input
@@ -353,12 +353,12 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
             </section>
           ) : (
             <section className={sectionCard()}>
-              <div className="mb-5">
+              <div className="boat-form-section-header">
                 <div className={sectionTitle()}>Sale pricing</div>
                 <p className={helpText()}>Add the asking price in EUR.</p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="boat-form-grid">
                 <div className={fieldGroup()}>
                   <div className={labelBase()}>Price, EUR</div>
                   <input
@@ -379,12 +379,12 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           )}
 
           <section className={sectionCard()}>
-            <div className="mb-5">
+            <div className="boat-form-section-header">
               <div className={sectionTitle()}>Owner contact</div>
               <p className={helpText()}>Add the phone number for owner follow-up.</p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="boat-form-grid">
               <div className={fieldGroup()}>
                 <div className={labelBase()}>Owner phone</div>
                 <input
@@ -396,29 +396,315 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 {fieldError("ownerPhone")}
               </div>
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-white/60">
+              <div className="boat-form-note">
                 Listing saved for review. Visible after approval.
               </div>
             </div>
           </section>
 
-          <div className="rounded-2xl border border-white/10 bg-black/[0.22] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
-            <div className="min-h-6 text-sm font-medium">
-              {submitted && hasErrors ? <div className="text-red-300">Please complete the highlighted fields.</div> : null}
-              {saveError ? <div className="text-red-300">{saveError}</div> : null}
-              {listingSaved ? <div className="text-emerald-300">Listing saved for review. Visible after approval.</div> : null}
+          <div className="boat-form-actions">
+            <div className="boat-form-status">
+              {submitted && hasErrors ? <div className="boat-form-error">Please complete the highlighted fields.</div> : null}
+              {saveError ? <div className="boat-form-error">{saveError}</div> : null}
+              {listingSaved ? <div className="boat-form-success">Listing saved for review. Visible after approval.</div> : null}
             </div>
 
             <button
               type="submit"
               disabled={isSaving}
-              className="mt-4 w-full rounded-lg bg-white px-5 py-3 text-sm font-bold text-[#071012] shadow-[0_12px_32px_rgba(0,0,0,0.24)] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50 sm:mt-0 sm:w-auto"
+              className="boat-form-submit"
             >
               {isSaving ? "Saving..." : "Save for review"}
             </button>
           </div>
         </form>
       </div>
+
+      <style jsx>{`
+        .boat-form-shell {
+          width: 100%;
+          max-width: 920px;
+          margin: 0 auto;
+          padding: 32px 16px;
+          color: #ffffff;
+        }
+
+        .boat-form-card {
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 28px;
+          background:
+            radial-gradient(circle at top left, rgba(56, 189, 248, 0.13), transparent 34%),
+            linear-gradient(145deg, rgba(7, 16, 18, 0.96), rgba(10, 20, 24, 0.94));
+          box-shadow: 0 28px 100px rgba(0, 0, 0, 0.45);
+        }
+
+        .boat-form-hero {
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.035);
+          padding: 28px;
+        }
+
+        .boat-form-kicker {
+          color: rgba(255, 255, 255, 0.48);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+
+        .boat-form-hero h1 {
+          margin: 12px 0 0;
+          color: #ffffff;
+          font-size: clamp(28px, 4vw, 38px);
+          line-height: 1.08;
+          font-weight: 800;
+          letter-spacing: 0;
+        }
+
+        .boat-form-hero p {
+          max-width: 640px;
+          margin: 14px 0 0;
+          color: rgba(255, 255, 255, 0.66);
+          font-size: 15px;
+          line-height: 1.65;
+        }
+
+        .boat-form-body {
+          display: grid;
+          gap: 20px;
+          padding: 28px;
+        }
+
+        .boat-form-section {
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 20px;
+          background: rgba(255, 255, 255, 0.052);
+          padding: 24px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+        }
+
+        .boat-form-section-header {
+          margin-bottom: 20px;
+        }
+
+        .boat-form-section-header-split {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .boat-form-section-title {
+          color: #ffffff;
+          font-size: 19px;
+          line-height: 1.25;
+          font-weight: 750;
+        }
+
+        .boat-form-help {
+          margin: 7px 0 0;
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .boat-form-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .boat-form-badges span {
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.075);
+          color: rgba(255, 255, 255, 0.72);
+          padding: 6px 11px;
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1;
+        }
+
+        .boat-form-stack {
+          display: grid;
+          gap: 20px;
+        }
+
+        .boat-form-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+        }
+
+        .boat-form-field {
+          min-width: 0;
+        }
+
+        .boat-form-field + .boat-form-field {
+          margin-top: 0;
+        }
+
+        .boat-form-label {
+          display: block;
+          margin-bottom: 8px;
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 14px;
+          font-weight: 700;
+          line-height: 1.3;
+        }
+
+        .boat-form-input,
+        .boat-form-textarea {
+          display: block;
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.074);
+          color: #ffffff;
+          padding: 13px 14px;
+          font: inherit;
+          font-size: 15px;
+          line-height: 1.35;
+          outline: none;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+          transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+        }
+
+        .boat-form-textarea {
+          min-height: 144px;
+          resize: vertical;
+        }
+
+        .boat-form-input::placeholder,
+        .boat-form-textarea::placeholder {
+          color: rgba(255, 255, 255, 0.34);
+        }
+
+        .boat-form-input:focus,
+        .boat-form-textarea:focus {
+          border-color: rgba(255, 255, 255, 0.38);
+          background: rgba(255, 255, 255, 0.095);
+          box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .boat-form-input:disabled,
+        .boat-form-textarea:disabled {
+          opacity: 0.6;
+        }
+
+        .boat-form-readonly {
+          cursor: default;
+          color: rgba(255, 255, 255, 0.72);
+        }
+
+        .boat-form-note {
+          align-self: end;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.052);
+          color: rgba(255, 255, 255, 0.64);
+          padding: 15px;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .boat-form-actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 18px;
+          background: rgba(0, 0, 0, 0.24);
+          padding: 16px;
+        }
+
+        .boat-form-status {
+          min-height: 22px;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 14px;
+          font-weight: 650;
+          line-height: 1.45;
+        }
+
+        .boat-form-error {
+          color: #fca5a5;
+          font-size: 14px;
+          font-weight: 650;
+          line-height: 1.45;
+        }
+
+        .boat-form-field .boat-form-error {
+          margin-top: 8px;
+        }
+
+        .boat-form-success {
+          color: #86efac;
+        }
+
+        .boat-form-submit {
+          flex: 0 0 auto;
+          min-width: 156px;
+          border: 0;
+          border-radius: 12px;
+          background: #ffffff;
+          color: #071012;
+          cursor: pointer;
+          padding: 13px 22px;
+          font: inherit;
+          font-size: 14px;
+          font-weight: 800;
+          line-height: 1.2;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+          transition: opacity 160ms ease, transform 160ms ease, background 160ms ease;
+        }
+
+        .boat-form-submit:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.9);
+          transform: translateY(-1px);
+        }
+
+        .boat-form-submit:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+          transform: none;
+        }
+
+        @media (max-width: 720px) {
+          .boat-form-shell {
+            padding: 20px 12px;
+          }
+
+          .boat-form-card {
+            border-radius: 22px;
+          }
+
+          .boat-form-hero,
+          .boat-form-body {
+            padding: 20px;
+          }
+
+          .boat-form-section {
+            padding: 18px;
+          }
+
+          .boat-form-section-header-split,
+          .boat-form-actions {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .boat-form-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .boat-form-submit {
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   );
 }
