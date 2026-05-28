@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { COUNTRIES, CITIES } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
 
@@ -117,6 +118,39 @@ export default async function MarinasIndexPage({ params }: Props) {
             ))}
           </div>
         </section>
+
+        <section className="marina-section">
+          <div className="section-head">
+            <h2>Explore by geography</h2>
+
+            <p>
+              Browse static country and city destination pages connected to
+              the marina network.
+            </p>
+          </div>
+
+          <div className="geo-link-grid">
+            {COUNTRIES.map((country) => (
+              <Link
+                key={country.slug}
+                href={`/${lang}/country/${country.slug}`}
+                className="geo-link"
+              >
+                {country.title}
+              </Link>
+            ))}
+
+            {CITIES.map((city) => (
+              <Link
+                key={city.slug}
+                href={`/${lang}/city/${city.slug}`}
+                className="geo-link"
+              >
+                {city.title}
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
 
       <style>{`
@@ -178,6 +212,28 @@ export default async function MarinasIndexPage({ params }: Props) {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 18px;
+        }
+
+        .geo-link-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .geo-link {
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 12px;
+          padding: 10px 13px;
+          background: rgba(255,255,255,0.05);
+          color: inherit;
+          font-size: 13px;
+          font-weight: 800;
+          text-decoration: none;
+        }
+
+        .geo-link:hover {
+          border-color: rgba(255,255,255,0.24);
+          background: rgba(255,255,255,0.08);
         }
 
         .marina-card {

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { CITIES, COUNTRIES } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
 import { LANGS } from "@/i18n";
 
@@ -15,6 +16,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: url(`/${lang}/marinas`),
     },
+    ...COUNTRIES.map((country) => ({
+      url: url(`/${lang}/country/${country.slug}`),
+    })),
+    ...CITIES.map((city) => ({
+      url: url(`/${lang}/city/${city.slug}`),
+    })),
     ...MARINAS.map((marina) => ({
       url: url(`/${lang}/marina/${marina.slug}`),
     })),
