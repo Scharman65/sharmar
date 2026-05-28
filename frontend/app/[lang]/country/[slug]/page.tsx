@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { COUNTRIES, CITIES, type CountryDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
+import { RENTAL_TYPES } from "@/data/rental-types";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
@@ -199,6 +200,21 @@ export default async function CountryPage({ params }: Props) {
           </div>
         </section>
 
+        <section className="geo-section" aria-labelledby="country-rent-title">
+          <div className="geo-section-head">
+            <h2 id="country-rent-title">Rental category pages in {country.title}</h2>
+            <p>Explore rental category pages connected to this country destination.</p>
+          </div>
+
+          <div className="rent-grid">
+            {RENTAL_TYPES.map((rentalType) => (
+              <Link key={rentalType.slug} href={`/${lang}/country/${country.slug}/rent/${rentalType.slug}`}>
+                {rentalType.pluralTitle}
+              </Link>
+            ))}
+          </div>
+        </section>
+
         <section className="geo-section" aria-labelledby="country-faq-title">
           <div className="geo-section-head">
             <h2 id="country-faq-title">FAQs about {country.title}</h2>
@@ -288,10 +304,21 @@ export default async function CountryPage({ params }: Props) {
           line-height: 1.55;
         }
 
-        .geo-grid {
+        .geo-grid,
+        .rent-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 14px;
+        }
+
+        .geo-card,
+        .rent-grid a {
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 18px;
+          background: rgba(255,255,255,0.045);
+          color: inherit;
+          text-decoration: none;
+          transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
         }
 
         .geo-card {
@@ -299,16 +326,16 @@ export default async function CountryPage({ params }: Props) {
           min-height: 235px;
           flex-direction: column;
           justify-content: space-between;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 18px;
           padding: 18px;
-          background: rgba(255,255,255,0.045);
-          color: inherit;
-          text-decoration: none;
-          transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
         }
 
-        .geo-card:hover {
+        .rent-grid a {
+          padding: 18px;
+          font-weight: 800;
+        }
+
+        .geo-card:hover,
+        .rent-grid a:hover {
           transform: translateY(-3px);
           border-color: rgba(255, 255, 255, 0.24);
           background: rgba(255,255,255,0.06);
@@ -353,6 +380,7 @@ export default async function CountryPage({ params }: Props) {
 
         @media (max-width: 900px) {
           .geo-grid,
+          .rent-grid,
           .geo-faq-grid {
             grid-template-columns: 1fr 1fr;
           }
@@ -365,6 +393,7 @@ export default async function CountryPage({ params }: Props) {
           }
 
           .geo-grid,
+          .rent-grid,
           .geo-faq-grid {
             grid-template-columns: 1fr;
           }

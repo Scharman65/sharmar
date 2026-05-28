@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CITIES, COUNTRIES, type CityDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
+import { RENTAL_TYPES } from "@/data/rental-types";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
@@ -128,9 +129,10 @@ export default async function CityPage({ params }: Props) {
     faqJsonLd(faqItems),
   ];
   const rentLinks = [
-    { href: `/${lang}/rent/motor`, label: "Motor yachts" },
-    { href: `/${lang}/rent/catamaran`, label: "Catamarans" },
-    { href: `/${lang}/rent/sail`, label: "Sailing boats" },
+    ...RENTAL_TYPES.map((rentalType) => ({
+      href: `/${lang}/city/${city.slug}/rent/${rentalType.slug}`,
+      label: rentalType.pluralTitle,
+    })),
   ];
 
   return (

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { CITIES, COUNTRIES } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
+import { RENTAL_TYPES } from "@/data/rental-types";
 import { LANGS } from "@/i18n";
 
 const SITE_URL = "https://sharmar.me";
@@ -19,9 +20,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...COUNTRIES.map((country) => ({
       url: url(`/${lang}/country/${country.slug}`),
     })),
+    ...COUNTRIES.flatMap((country) =>
+      RENTAL_TYPES.map((rentalType) => ({
+        url: url(`/${lang}/country/${country.slug}/rent/${rentalType.slug}`),
+      }))
+    ),
     ...CITIES.map((city) => ({
       url: url(`/${lang}/city/${city.slug}`),
     })),
+    ...CITIES.flatMap((city) =>
+      RENTAL_TYPES.map((rentalType) => ({
+        url: url(`/${lang}/city/${city.slug}/rent/${rentalType.slug}`),
+      }))
+    ),
     ...MARINAS.map((marina) => ({
       url: url(`/${lang}/marina/${marina.slug}`),
     })),
