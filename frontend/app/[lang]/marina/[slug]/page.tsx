@@ -283,10 +283,10 @@ export default async function MarinaPage({ params }: PageProps) {
             <p className="kicker">For owners</p>
             <h2>List your yacht in {marina.city}</h2>
             <p>
-              Sharmar helps owners receive structured booking requests, protect availability, and grow visibility.
+              Sharmar helps owners receive structured booking requests and connect listings with marina discovery.
             </p>
-            <Link className="button" href={`/${lang}/add/rent/motor`}>
-              Add your boat
+            <Link className="button" href={`/${lang}/list-your-boat`}>
+              List your boat
             </Link>
           </article>
         </section>

@@ -161,6 +161,7 @@ export default async function CountryPage({ params }: Props) {
           <p>{country.description}</p>
           <div className="geo-actions">
             <Link href={`/${lang}/marinas`}>Explore all marinas</Link>
+            <Link href={`/${lang}/owners/${country.slug}`}>List a boat in {country.title}</Link>
           </div>
         </section>
 

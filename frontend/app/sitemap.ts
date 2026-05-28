@@ -17,8 +17,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: url(`/${lang}/marinas`),
     },
+    {
+      url: url(`/${lang}/owners`),
+    },
+    {
+      url: url(`/${lang}/list-your-boat`),
+    },
     ...COUNTRIES.map((country) => ({
       url: url(`/${lang}/country/${country.slug}`),
+    })),
+    ...COUNTRIES.map((country) => ({
+      url: url(`/${lang}/owners/${country.slug}`),
     })),
     ...COUNTRIES.flatMap((country) =>
       RENTAL_TYPES.map((rentalType) => ({
