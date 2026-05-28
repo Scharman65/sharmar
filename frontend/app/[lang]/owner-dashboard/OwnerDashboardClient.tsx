@@ -113,7 +113,7 @@ type ApiPayload = {
 
 function statusLabel(boat: OwnerBoat) {
   if (boat.booking_enabled === true) return "Published";
-  return "Pending moderation";
+  return "Listing saved for review";
 }
 
 function statusColor(boat: OwnerBoat) {
@@ -370,8 +370,14 @@ export default function OwnerDashboardClient() {
           <Link className="button" href={`/${lang}/add/rent/motor`}>
             Add motor boat for rent
           </Link>
+          <Link className="button secondary" href={`/${lang}/add/rent/sail`}>
+            Add sail boat for rent
+          </Link>
           <Link className="button secondary" href={`/${lang}/add/sale/motor`}>
             Add motor boat for sale
+          </Link>
+          <Link className="button secondary" href={`/${lang}/add/sale/sail`}>
+            Add sail boat for sale
           </Link>
         </div>
 
@@ -676,7 +682,7 @@ export default function OwnerDashboardClient() {
                       </div>
                     ) : (
                       <p className="kicker" style={{ margin: 0 }}>
-                        This listing is waiting for admin review before it becomes public.
+                        Visible after approval.
                       </p>
                     )}
                   </div>

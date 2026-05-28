@@ -10,51 +10,15 @@ export type BoatFormMode =
 export type BoatFormValues = {
   title: string;
   description: string;
-
-  locationCity: string;
-  locationMarina: string;
-
-  manufacturer: string;
-  model: string;
   year: string;
-
   lengthM: string;
-  beamM: string;
-
   capacityGuests: string;
-  cabins: string;
-  berths: string;
-
-  mainImageUrl: string;
-  galleryImageUrls: string;
-
-  ownerName: string;
   ownerPhone: string;
-  ownerEmail: string;
 
   rentPriceHour: string;
   rentPriceDay: string;
   rentPriceWeek: string;
-  rentDeposit: string;
-  rentIncludes: string;
-  rentCancellation: string;
 
   salePrice: string;
-  saleCurrency: string;
-  saleCondition: string;
-  saleNegotiable: boolean;
-  saleDocuments: string;
-  saleServiceHistory: string;
-
-  motorEngineType: string;
-  motorEngineCount: string;
   motorHorsePower: string;
-  motorEngineHours: string;
-  motorCruiseSpeed: string;
-
-  sailDraftM: string;
-  sailKeelType: string;
-  sailRigType: string;
-  sailSailArea: string;
-  sailSailsUpdatedYear: string;
 };
