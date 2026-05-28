@@ -1,9 +1,51 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { MARINAS } from "@/data/marinas";
+import { isLang, LANGS, type Lang } from "@/i18n";
 
 type Props = {
   params: Promise<{ lang: string }>;
 };
+
+const SITE_URL = "https://sharmar.me";
+const TITLE = "Mediterranean Marina Network | Sharmar";
+const DESCRIPTION =
+  "Explore yacht charters, boat rentals, and boats for sale across Mediterranean marinas in Montenegro, Croatia, and beyond.";
+
+function marinaIndexPath(lang: Lang): string {
+  return `/${lang}/marinas`;
+}
+
+function languageAlternates() {
+  return Object.fromEntries(
+    LANGS.map((lang) => [lang, `${SITE_URL}${marinaIndexPath(lang)}`])
+  );
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { lang: raw } = await params;
+  const lang: Lang = isLang(raw) ? raw : "en";
+  const canonical = `${SITE_URL}${marinaIndexPath(lang)}`;
+
+  return {
+    title: TITLE,
+    description: DESCRIPTION,
+    alternates: {
+      canonical,
+      languages: {
+        ...languageAlternates(),
+        "x-default": `${SITE_URL}${marinaIndexPath("en")}`,
+      },
+    },
+    openGraph: {
+      title: TITLE,
+      description: DESCRIPTION,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
+  };
+}
 
 export default async function MarinasIndexPage({ params }: Props) {
   const { lang } = await params;

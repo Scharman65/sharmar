@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import type { Lang } from "@/i18n";
+import { LANGS, type Lang } from "@/i18n";
 import { MARINAS, type MarinaDefinition } from "@/data/marinas";
 import { fetchBoats, type Boat } from "@/lib/strapi";
 import { getBoatCardImage } from "@/lib/media";
@@ -14,8 +14,20 @@ type PageProps = {
   }>;
 };
 
+const SITE_URL = "https://sharmar.me";
+
 function getMarina(slug: string) {
   return MARINAS.find((marina) => marina.slug === slug) ?? null;
+}
+
+function marinaPath(lang: Lang, slug: string): string {
+  return `/${lang}/marina/${slug}`;
+}
+
+function languageAlternates(slug: string) {
+  return Object.fromEntries(
+    LANGS.map((lang) => [lang, `${SITE_URL}${marinaPath(lang, slug)}`])
+  );
 }
 
 function getRelatedMarinas(currentMarina: MarinaDefinition): MarinaDefinition[] {
@@ -114,7 +126,7 @@ function boatMatchesMarina(boat: Boat, marina: MarinaDefinition): boolean {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
+  const { lang, slug } = await params;
   const marina = getMarina(slug);
 
   if (!marina) {
@@ -123,9 +135,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
+  const canonical = `${SITE_URL}${marinaPath(lang, marina.slug)}`;
+
   return {
     title: marina.seoTitle,
     description: marina.seoDescription,
+    alternates: {
+      canonical,
+      languages: {
+        ...languageAlternates(marina.slug),
+        "x-default": `${SITE_URL}${marinaPath("en", marina.slug)}`,
+      },
+    },
+    openGraph: {
+      title: marina.seoTitle,
+      description: marina.seoDescription,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
   };
 }
 
