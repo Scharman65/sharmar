@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { COUNTRIES, CITIES, type CountryDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
-import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
+import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
 type Props = {
   params: Promise<{
@@ -37,6 +37,14 @@ function getCountryMarinas(countrySlug: string) {
   );
 
   return MARINAS.filter((marina) => marinaSlugs.has(marina.slug));
+}
+
+function formatTitleList(items: string[], emptyText: string): string {
+  if (items.length === 0) return emptyText;
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 export function generateStaticParams() {
@@ -91,6 +99,28 @@ export default async function CountryPage({ params }: Props) {
   const cities = getCountryCities(country.slug);
   const marinas = getCountryMarinas(country.slug);
   const countryUrl = absoluteSiteUrl(countryPath(lang, country.slug));
+  const cityList = formatTitleList(
+    cities.map((city) => city.title),
+    `no city pages for ${country.title}`
+  );
+  const marinaList = formatTitleList(
+    marinas.map((marina) => marina.title),
+    `no marina pages for ${country.title}`
+  );
+  const faqItems = [
+    {
+      question: `What yacht destinations are listed for ${country.title}?`,
+      answer: `This country page lists ${cityList} as city destinations in ${country.title}. It also links to marina pages including ${marinaList}, based on Sharmar's static destination data.`,
+    },
+    {
+      question: `Can I browse marinas by city in ${country.title}?`,
+      answer: `Yes. The city cards on this page connect to city pages for ${cityList}, where the related marina pages are grouped by destination.`,
+    },
+    {
+      question: "Does Sharmar show boats and marina pages separately?",
+      answer: "Yes. Sharmar keeps destination pages, marina pages, rental category pages, and individual boat pages separate so visitors can move from geography to marina details and then to boat listings when those listings are shown.",
+    },
+  ];
   const jsonLd = [
     webPageJsonLd({
       url: countryUrl,
@@ -107,6 +137,7 @@ export default async function CountryPage({ params }: Props) {
         url: absoluteSiteUrl(`/${lang}/city/${city.slug}`),
       }))
     ),
+    faqJsonLd(faqItems),
   ];
 
   return (
@@ -164,6 +195,22 @@ export default async function CountryPage({ params }: Props) {
                 <p>{marina.description}</p>
                 <span>View marina</span>
               </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="geo-section" aria-labelledby="country-faq-title">
+          <div className="geo-section-head">
+            <h2 id="country-faq-title">FAQs about {country.title}</h2>
+            <p>Destination details based on Sharmar's published city and marina pages.</p>
+          </div>
+
+          <div className="geo-faq-grid">
+            {faqItems.map((item) => (
+              <article key={item.question} className="geo-faq-card">
+                <h3>{item.question}</h3>
+                <p>{item.answer}</p>
+              </article>
             ))}
           </div>
         </section>
@@ -278,8 +325,35 @@ export default async function CountryPage({ params }: Props) {
           line-height: 1.55;
         }
 
+        .geo-faq-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .geo-faq-card {
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 16px;
+          padding: 16px;
+          background: rgba(255,255,255,0.045);
+        }
+
+        .geo-faq-card h3 {
+          margin: 0;
+          font-size: 16px;
+          line-height: 1.35;
+        }
+
+        .geo-faq-card p {
+          margin: 10px 0 0;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
         @media (max-width: 900px) {
-          .geo-grid {
+          .geo-grid,
+          .geo-faq-grid {
             grid-template-columns: 1fr 1fr;
           }
         }
@@ -290,7 +364,8 @@ export default async function CountryPage({ params }: Props) {
             border-radius: 18px;
           }
 
-          .geo-grid {
+          .geo-grid,
+          .geo-faq-grid {
             grid-template-columns: 1fr;
           }
 

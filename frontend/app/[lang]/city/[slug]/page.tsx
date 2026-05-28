@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { CITIES, COUNTRIES, type CityDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
-import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
+import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
 type Props = {
   params: Promise<{
@@ -25,6 +25,14 @@ function languageAlternates(slug: string) {
   return Object.fromEntries(
     LANGS.map((lang) => [lang, `${SITE_URL}${cityPath(lang, slug)}`])
   );
+}
+
+function formatTitleList(items: string[], emptyText: string): string {
+  if (items.length === 0) return emptyText;
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 export function generateStaticParams() {
@@ -79,6 +87,24 @@ export default async function CityPage({ params }: Props) {
   const country = COUNTRIES.find((item) => item.slug === city.countrySlug);
   const marinas = MARINAS.filter((marina) => city.marinaSlugs.includes(marina.slug));
   const cityUrl = absoluteSiteUrl(cityPath(lang, city.slug));
+  const marinaList = formatTitleList(
+    marinas.map((marina) => marina.title),
+    `no marina pages for ${city.title}`
+  );
+  const faqItems = [
+    {
+      question: `Which marinas are listed in ${city.title}?`,
+      answer: `The marina pages connected to ${city.title} are ${marinaList}, based on Sharmar's static destination data.`,
+    },
+    {
+      question: `Can I browse yacht rentals from ${city.title}?`,
+      answer: `Yes. This city page links to Sharmar rental categories for motor yachts, catamarans, and sailing boats. Boat inventory, prices, and availability should be checked on individual boat pages when listings are shown.`,
+    },
+    {
+      question: "How does Sharmar connect city, marina, and boat pages?",
+      answer: `Sharmar links ${city.title} to its related marina pages, then keeps marina information and individual boat pages separate so destination browsing stays distinct from boat listing details.`,
+    },
+  ];
   const jsonLd = [
     webPageJsonLd({
       url: cityUrl,
@@ -99,6 +125,7 @@ export default async function CityPage({ params }: Props) {
         url: absoluteSiteUrl(`/${lang}/marina/${marina.slug}`),
       }))
     ),
+    faqJsonLd(faqItems),
   ];
   const rentLinks = [
     { href: `/${lang}/rent/motor`, label: "Motor yachts" },
@@ -161,6 +188,22 @@ export default async function CityPage({ params }: Props) {
               <Link key={item.href} href={item.href}>
                 {item.label}
               </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="geo-section" aria-labelledby="city-faq-title">
+          <div className="geo-section-head">
+            <h2 id="city-faq-title">FAQs about {city.title}</h2>
+            <p>Destination details based on Sharmar's published marina and rental pages.</p>
+          </div>
+
+          <div className="geo-faq-grid">
+            {faqItems.map((item) => (
+              <article key={item.question} className="geo-faq-card">
+                <h3>{item.question}</h3>
+                <p>{item.answer}</p>
+              </article>
             ))}
           </div>
         </section>
@@ -278,9 +321,36 @@ export default async function CityPage({ params }: Props) {
           text-decoration: none;
         }
 
+        .geo-faq-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .geo-faq-card {
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 16px;
+          padding: 16px;
+          background: rgba(255,255,255,0.045);
+        }
+
+        .geo-faq-card h3 {
+          margin: 0;
+          font-size: 16px;
+          line-height: 1.35;
+        }
+
+        .geo-faq-card p {
+          margin: 10px 0 0;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
         @media (max-width: 900px) {
           .geo-grid,
-          .rent-grid {
+          .rent-grid,
+          .geo-faq-grid {
             grid-template-columns: 1fr 1fr;
           }
         }
@@ -292,7 +362,8 @@ export default async function CityPage({ params }: Props) {
           }
 
           .geo-grid,
-          .rent-grid {
+          .rent-grid,
+          .geo-faq-grid {
             grid-template-columns: 1fr;
           }
 

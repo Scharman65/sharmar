@@ -6,6 +6,11 @@ type ListItemInput = {
   item?: Record<string, unknown>;
 };
 
+type FaqItemInput = {
+  question: string;
+  answer: string;
+};
+
 export function absoluteSiteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -47,6 +52,21 @@ export function itemListJsonLd(items: ListItemInput[]): Record<string, unknown> 
       url: item.url,
       name: item.name,
       ...(item.item ? { item: item.item } : {}),
+    })),
+  };
+}
+
+export function faqJsonLd(items: FaqItemInput[]): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
     })),
   };
 }
