@@ -35,6 +35,15 @@ export const COUNTRIES: CountryDefinition[] = [
     seoDescription:
       "Browse premium yacht rentals, sailing boats, and marina destinations in Croatia with Sharmar.",
   },
+  {
+    slug: "greece",
+    title: "Greece",
+    description:
+      "Explore yacht charters and marina destinations across Greece, from Athens and the Greek islands to Mykonos, Santorini, Corfu, and Rhodes.",
+    seoTitle: "Yacht Rentals in Greece | Sharmar",
+    seoDescription:
+      "Explore yacht charters, sailing boats, catamarans, and marina destinations across Greece with Sharmar.",
+  },
 ];
 
 export const CITIES: CityDefinition[] = [
@@ -92,5 +101,60 @@ export const CITIES: CityDefinition[] = [
     seoDescription:
       "Explore yacht charters, catamarans, and sailing boats from Split Marina in Croatia.",
     marinaSlugs: ["split-marina"],
+  },
+  {
+    slug: "athens",
+    title: "Athens",
+    countrySlug: "greece",
+    description:
+      "Explore yacht charters and marina destinations in Athens, a key Greece sailing base for routes toward the Saronic Gulf and Greek islands.",
+    seoTitle: "Yacht Rentals in Athens | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Athens, Greece.",
+    marinaSlugs: ["athens-marina"],
+  },
+  {
+    slug: "mykonos",
+    title: "Mykonos",
+    countrySlug: "greece",
+    description:
+      "Explore yacht charters and marina destinations in Mykonos, a Cyclades island destination for Greek island sailing.",
+    seoTitle: "Yacht Rentals in Mykonos | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Mykonos, Greece.",
+    marinaSlugs: ["mykonos-marina"],
+  },
+  {
+    slug: "santorini",
+    title: "Santorini",
+    countrySlug: "greece",
+    description:
+      "Explore yacht charters and marina destinations in Santorini, a Greek island destination for Cyclades sailing routes.",
+    seoTitle: "Yacht Rentals in Santorini | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Santorini, Greece.",
+    marinaSlugs: ["santorini-marina"],
+  },
+  {
+    slug: "corfu",
+    title: "Corfu",
+    countrySlug: "greece",
+    description:
+      "Explore yacht charters and marina destinations in Corfu, an Ionian island sailing base in western Greece.",
+    seoTitle: "Yacht Rentals in Corfu | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Corfu, Greece.",
+    marinaSlugs: ["corfu-marina"],
+  },
+  {
+    slug: "rhodes",
+    title: "Rhodes",
+    countrySlug: "greece",
+    description:
+      "Explore yacht charters and marina destinations in Rhodes, a Dodecanese island base for sailing in Greece.",
+    seoTitle: "Yacht Rentals in Rhodes | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Rhodes, Greece.",
+    marinaSlugs: ["rhodes-marina"],
   },
 ];

@@ -79,4 +79,74 @@ export const MARINAS: MarinaDefinition[] = [
     seoDescription:
       "Browse yacht charters and premium boats in Split Marina on the Adriatic coast.",
   },
+
+  {
+    slug: "athens-marina",
+    city: "Athens",
+    country: "Greece",
+    region: "Saronic Gulf",
+    title: "Athens Marina",
+    description:
+      "Explore yacht charters and marina destinations in Athens for sailing routes around Greece and the Greek islands.",
+    seoTitle:
+      "Athens Marina Yacht Rentals & Sailing Boats | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Athens, Greece.",
+  },
+
+  {
+    slug: "mykonos-marina",
+    city: "Mykonos",
+    country: "Greece",
+    region: "Cyclades",
+    title: "Mykonos Marina",
+    description:
+      "Explore yacht charters and marina destinations in Mykonos for Cyclades sailing and Greek island routes.",
+    seoTitle:
+      "Mykonos Marina Yacht Rentals & Catamarans | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Mykonos, Greece.",
+  },
+
+  {
+    slug: "santorini-marina",
+    city: "Santorini",
+    country: "Greece",
+    region: "Cyclades",
+    title: "Santorini Marina",
+    description:
+      "Explore yacht charters and marina destinations in Santorini for sailing routes around the Cyclades and Greek islands.",
+    seoTitle:
+      "Santorini Marina Yacht Rentals & Sailing Boats | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Santorini, Greece.",
+  },
+
+  {
+    slug: "corfu-marina",
+    city: "Corfu",
+    country: "Greece",
+    region: "Ionian Sea",
+    title: "Corfu Marina",
+    description:
+      "Explore yacht charters and marina destinations in Corfu for Ionian Sea sailing routes in Greece.",
+    seoTitle:
+      "Corfu Marina Yacht Rentals & Catamarans | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Corfu, Greece.",
+  },
+
+  {
+    slug: "rhodes-marina",
+    city: "Rhodes",
+    country: "Greece",
+    region: "Dodecanese",
+    title: "Rhodes Marina",
+    description:
+      "Explore yacht charters and marina destinations in Rhodes for Dodecanese sailing routes in Greece.",
+    seoTitle:
+      "Rhodes Marina Yacht Rentals & Sailing Boats | Sharmar",
+    seoDescription:
+      "Explore yacht charters, catamarans, sailing boats, and marina destinations in Rhodes, Greece.",
+  },
 ];
