@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { COUNTRIES, CITIES, type CountryDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
+import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
 type Props = {
   params: Promise<{
@@ -11,8 +12,6 @@ type Props = {
     slug: string;
   }>;
 };
-
-const SITE_URL = "https://sharmar.me";
 
 function getCountry(slug: string): CountryDefinition | null {
   return COUNTRIES.find((country) => country.slug === slug) ?? null;
@@ -91,9 +90,34 @@ export default async function CountryPage({ params }: Props) {
 
   const cities = getCountryCities(country.slug);
   const marinas = getCountryMarinas(country.slug);
+  const countryUrl = absoluteSiteUrl(countryPath(lang, country.slug));
+  const jsonLd = [
+    webPageJsonLd({
+      url: countryUrl,
+      name: country.seoTitle,
+      description: country.seoDescription,
+    }),
+    breadcrumbJsonLd([
+      { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
+      { name: country.title, url: countryUrl },
+    ]),
+    itemListJsonLd(
+      cities.map((city) => ({
+        name: city.title,
+        url: absoluteSiteUrl(`/${lang}/city/${city.slug}`),
+      }))
+    ),
+  ];
 
   return (
     <main className="main">
+      {jsonLd.map((data, index) => (
+        <script
+          key={index}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+        />
+      ))}
       <div className="container geo-page">
         <Link className="backlink" href={`/${lang}/marinas`}>
           Back to all marinas

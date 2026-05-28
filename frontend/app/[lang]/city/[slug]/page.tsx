@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { CITIES, COUNTRIES, type CityDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
+import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
 type Props = {
   params: Promise<{
@@ -11,8 +12,6 @@ type Props = {
     slug: string;
   }>;
 };
-
-const SITE_URL = "https://sharmar.me";
 
 function getCity(slug: string): CityDefinition | null {
   return CITIES.find((city) => city.slug === slug) ?? null;
@@ -79,6 +78,28 @@ export default async function CityPage({ params }: Props) {
 
   const country = COUNTRIES.find((item) => item.slug === city.countrySlug);
   const marinas = MARINAS.filter((marina) => city.marinaSlugs.includes(marina.slug));
+  const cityUrl = absoluteSiteUrl(cityPath(lang, city.slug));
+  const jsonLd = [
+    webPageJsonLd({
+      url: cityUrl,
+      name: city.seoTitle,
+      description: city.seoDescription,
+    }),
+    breadcrumbJsonLd([
+      { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
+      {
+        name: country?.title ?? city.countrySlug,
+        url: absoluteSiteUrl(`/${lang}/country/${country?.slug ?? city.countrySlug}`),
+      },
+      { name: city.title, url: cityUrl },
+    ]),
+    itemListJsonLd(
+      marinas.map((marina) => ({
+        name: marina.title,
+        url: absoluteSiteUrl(`/${lang}/marina/${marina.slug}`),
+      }))
+    ),
+  ];
   const rentLinks = [
     { href: `/${lang}/rent/motor`, label: "Motor yachts" },
     { href: `/${lang}/rent/catamaran`, label: "Catamarans" },
@@ -87,6 +108,13 @@ export default async function CityPage({ params }: Props) {
 
   return (
     <main className="main">
+      {jsonLd.map((data, index) => (
+        <script
+          key={index}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+        />
+      ))}
       <div className="container geo-page">
         {country ? (
           <Link className="backlink" href={`/${lang}/country/${country.slug}`}>

@@ -6,6 +6,7 @@ import { LANGS, type Lang } from "@/i18n";
 import { MARINAS, type MarinaDefinition } from "@/data/marinas";
 import { fetchBoats, type Boat } from "@/lib/strapi";
 import { getBoatCardImage } from "@/lib/media";
+import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
 type PageProps = {
   params: Promise<{
@@ -13,8 +14,6 @@ type PageProps = {
     slug: string;
   }>;
 };
-
-const SITE_URL = "https://sharmar.me";
 
 function getMarina(slug: string) {
   return MARINAS.find((marina) => marina.slug === slug) ?? null;
@@ -169,6 +168,41 @@ export default async function MarinaPage({ params }: PageProps) {
     .filter((boat) => boatMatchesMarina(boat, marina))
     .slice(0, 6);
   const relatedMarinas = getRelatedMarinas(marina);
+  const marinaUrl = absoluteSiteUrl(marinaPath(lang, marina.slug));
+  const jsonLd = [
+    webPageJsonLd({
+      url: marinaUrl,
+      name: marina.seoTitle,
+      description: marina.seoDescription,
+    }),
+    breadcrumbJsonLd([
+      { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
+      { name: "Marinas", url: absoluteSiteUrl(`/${lang}/marinas`) },
+      { name: marina.title, url: marinaUrl },
+    ]),
+    ...(boats.length
+      ? [
+          itemListJsonLd(
+            boats.map((boat) => {
+              const boatUrl = absoluteSiteUrl(`/${lang}/boats/${encodeURIComponent(boat.slug ?? String(boat.id))}`);
+              const name = boat.title ?? `Boat #${boat.id}`;
+
+              return {
+                name,
+                url: boatUrl,
+                item: {
+                  "@type": "Product",
+                  name,
+                  url: boatUrl,
+                  ...(boat.description ? { description: boat.description } : {}),
+                  ...(boat.boat_type ?? boat.vesselType ? { category: boat.boat_type ?? boat.vesselType } : {}),
+                },
+              };
+            })
+          ),
+        ]
+      : []),
+  ];
 
   const rentLinks = [
     { href: `/${lang}/rent/motor`, label: "Motor yachts" },
@@ -190,6 +224,13 @@ export default async function MarinaPage({ params }: PageProps) {
 
   return (
     <main className="main">
+      {jsonLd.map((data, index) => (
+        <script
+          key={index}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+        />
+      ))}
       <div className="container">
         <Link className="backlink" href={`/${lang}/boats`}>
           ← Back to boats
