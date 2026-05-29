@@ -309,14 +309,6 @@ export async function POST(req: NextRequest) {
       price_per_week: p.rentPriceWeek ?? null,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
-      cover:
-        Array.isArray(p.imageIds) && p.imageIds.length > 0
-          ? p.imageIds[0]
-          : null,
-      images:
-        Array.isArray(p.imageIds) && p.imageIds.length > 0
-          ? p.imageIds
-          : [],
       owner_email: p.ownerEmail ?? "",
       owner_user_email: me.email ?? p.ownerEmail ?? "",
       currency: p.currency ?? "EUR",
@@ -361,6 +353,12 @@ export async function POST(req: NextRequest) {
             publishedAt: null,
             booking_enabled: false,
             contacts_visible: false,
+            ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
+              ? {
+                  cover: p.imageIds[0],
+                  images: p.imageIds,
+                }
+              : {}),
           },
         }),
       },
