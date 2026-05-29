@@ -14,6 +14,7 @@ export type BoatFormValues = {
   lengthM: string;
   capacityGuests: string;
   ownerPhone: string;
+  imageIds?: number[];
 
   rentPriceHour: string;
   rentPriceDay: string;

@@ -3,6 +3,14 @@
 import React, { useMemo, useState } from "react";
 import type { BoatFormMode, BoatFormValues } from "./types";
 
+type UploadedImage = {
+  id: number;
+  url: string;
+  name?: string;
+  mime?: string;
+  size?: number;
+};
+
 function inputBase() {
   return "boat-form-input";
 }
@@ -126,6 +134,9 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [listingSaved, setListingSaved] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const title = useMemo(() => buildTitle(mode), [mode]);
 
@@ -152,9 +163,89 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
       currency: "EUR",
       ownerPhone: values.ownerPhone.trim(),
+      imageIds: uploadedImages.map((image) => image.id),
     }),
     [values, mode]
   );
+
+
+  async function handleImageUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    setUploadError(null);
+
+    const selectedFiles = Array.from(files);
+
+    if (uploadedImages.length + selectedFiles.length > 8) {
+      setUploadError("Maximum 8 images per listing");
+      return;
+    }
+
+    for (const file of selectedFiles) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        setUploadError("Only JPG, PNG and WEBP images are allowed");
+        return;
+      }
+
+      if (file.size > 8 * 1024 * 1024) {
+        setUploadError("Maximum file size is 8MB");
+        return;
+      }
+    }
+
+    const token = localStorage.getItem("owner_jwt")?.trim();
+
+    if (!token) {
+      setUploadError("Owner session expired. Please sign in again.");
+      return;
+    }
+
+    try {
+      setUploadingImages(true);
+
+      const formData = new FormData();
+
+      for (const file of selectedFiles) {
+        formData.append("files", file);
+      }
+
+      const response = await fetch("/api/owner/uploads", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+        cache: "no-store",
+      });
+
+      const data = (await response.json()) as {
+        ok?: boolean;
+        files?: UploadedImage[];
+        error?: string;
+      };
+
+      if (!response.ok || !data.ok) {
+        setUploadError(data.error || "Image upload failed");
+        return;
+      }
+
+      setUploadedImages((currentImages) => [
+        ...currentImages,
+        ...(data.files || []),
+      ]);
+    } catch (error) {
+      console.error(error);
+      setUploadError("Image upload failed");
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
+  function removeUploadedImage(id: number) {
+    setUploadedImages((currentImages) =>
+      currentImages.filter((image) => image.id !== id),
+    );
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -402,12 +493,100 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
             </div>
           </section>
 
+            <section className={sectionCard()}>
+              <div>
+                <h2 className={sectionTitle()}>Boat photos</h2>
+                <p className={helpText()}>
+                  Upload up to 8 JPG, PNG or WEBP images. The first image will become the cover later.
+                </p>
+              </div>
+
+              <label
+                className="boat-form-upload"
+                onDragOver={(event) => {
+                  event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  handleImageUpload(event.dataTransfer.files);
+                }}
+              >
+                <span className="boat-form-upload-icon">+</span>
+
+                <span className="boat-form-upload-title">
+                  {uploadingImages ? "Uploading photos..." : "Upload boat photos"}
+                </span>
+
+                <span className="boat-form-upload-subtitle">
+                  Drag & drop images here or click below
+                </span>
+
+                <span className="boat-form-upload-button">
+                  Select images
+                </span>
+
+                <span className="boat-form-upload-meta">
+                  JPG · PNG · WEBP · max 8MB · up to 8 photos
+                </span>
+
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={uploadingImages}
+                  className="boat-form-upload-input"
+                  onChange={(event) => {
+                    handleImageUpload(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+
+              {uploadError ? (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {uploadError}
+                </div>
+              ) : null}
+
+              {uploadedImages.length > 0 ? (
+                <div className="boat-form-preview-grid">
+                  {uploadedImages.map((image, index) => (
+                    <div key={image.id} className="boat-form-preview-card">
+                      <div className="boat-form-preview-image-wrap">
+                        <img
+                          src={image.url}
+                          alt={`Boat photo ${index + 1}`}
+                          className="boat-form-preview-image"
+                        />
+                      </div>
+
+                      <div className="boat-form-preview-footer">
+                        <span className="boat-form-preview-label">
+                          {index === 0 ? "Cover" : `Photo ${index + 1}`}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => removeUploadedImage(image.id)}
+                          className="boat-form-preview-remove"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+
+
           <div className="boat-form-actions">
             <div className="boat-form-status">
               {submitted && hasErrors ? <div className="boat-form-error">Please complete the highlighted fields.</div> : null}
               {saveError ? <div className="boat-form-error">{saveError}</div> : null}
               {listingSaved ? <div className="boat-form-success">Listing saved for review. Visible after approval.</div> : null}
             </div>
+
 
             <button
               type="submit"
@@ -608,6 +787,159 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           padding: 15px;
           font-size: 14px;
           line-height: 1.6;
+        }
+
+
+        .boat-form-upload {
+          min-height: 260px;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 40px 24px;
+          border: 1px dashed rgba(255, 255, 255, 0.18);
+          border-radius: 28px;
+          background:
+            radial-gradient(circle at top, rgba(34, 211, 238, 0.12), transparent 34%),
+            linear-gradient(135deg, rgba(0, 0, 0, 0.32), rgba(8, 47, 73, 0.2));
+          text-align: center;
+          cursor: pointer;
+          transition:
+            border-color 180ms ease,
+            box-shadow 180ms ease,
+            transform 180ms ease,
+            background 180ms ease;
+        }
+
+        .boat-form-upload:hover {
+          border-color: rgba(34, 211, 238, 0.48);
+          box-shadow: 0 0 42px rgba(34, 211, 238, 0.12);
+          transform: translateY(-1px);
+        }
+
+        .boat-form-upload-icon {
+          width: 64px;
+          height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          border: 1px solid rgba(34, 211, 238, 0.35);
+          background: rgba(34, 211, 238, 0.1);
+          color: rgba(207, 250, 254, 1);
+          font-size: 30px;
+          line-height: 1;
+          font-weight: 500;
+        }
+
+        .boat-form-upload-title {
+          color: rgba(255, 255, 255, 0.96);
+          font-size: 17px;
+          font-weight: 800;
+          line-height: 1.2;
+        }
+
+        .boat-form-upload-subtitle {
+          color: rgba(255, 255, 255, 0.64);
+          font-size: 14px;
+          line-height: 1.35;
+        }
+
+        .boat-form-upload-button {
+          margin-top: 4px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40px;
+          padding: 0 20px;
+          border-radius: 14px;
+          border: 1px solid rgba(34, 211, 238, 0.34);
+          background: rgba(34, 211, 238, 0.12);
+          color: rgba(207, 250, 254, 1);
+          font-size: 14px;
+          font-weight: 800;
+          transition: background 160ms ease;
+        }
+
+        .boat-form-upload:hover .boat-form-upload-button {
+          background: rgba(34, 211, 238, 0.2);
+        }
+
+        .boat-form-upload-meta {
+          color: rgba(255, 255, 255, 0.46);
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .boat-form-upload-input {
+          display: none;
+        }
+
+
+        .boat-form-preview-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 14px;
+          margin-top: 18px;
+        }
+
+        .boat-form-preview-card {
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 18px;
+          background: rgba(0, 0, 0, 0.24);
+          box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+        }
+
+        .boat-form-preview-image-wrap {
+          width: 100%;
+          aspect-ratio: 4 / 3;
+          overflow: hidden;
+          background: rgba(0, 0, 0, 0.36);
+        }
+
+        .boat-form-preview-image {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: cover;
+        }
+
+        .boat-form-preview-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 10px;
+        }
+
+        .boat-form-preview-label {
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.64);
+          font-size: 12px;
+          font-weight: 750;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .boat-form-preview-remove {
+          flex: 0 0 auto;
+          border: 1px solid rgba(248, 113, 113, 0.28);
+          border-radius: 10px;
+          background: rgba(248, 113, 113, 0.1);
+          color: #fecaca;
+          cursor: pointer;
+          padding: 6px 9px;
+          font-size: 12px;
+          font-weight: 800;
+          transition: background 160ms ease, border-color 160ms ease;
+        }
+
+        .boat-form-preview-remove:hover {
+          border-color: rgba(248, 113, 113, 0.48);
+          background: rgba(248, 113, 113, 0.18);
         }
 
         .boat-form-actions {

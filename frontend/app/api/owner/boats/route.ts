@@ -16,6 +16,7 @@ type CreateBoatBody = {
   rentPriceWeek?: number | null;
   salePrice?: number | null;
   ownerPhone?: string;
+  imageIds?: number[];
   ownerEmail?: string;
   currency?: "EUR";
   locale?: string;
@@ -35,6 +36,7 @@ type ParsedCreateBoatBody = {
   rentPriceWeek: number | null;
   salePrice: number | null;
   ownerPhone?: string;
+  imageIds?: number[];
   ownerEmail?: string;
   currency: "EUR";
   locale: string;
@@ -67,6 +69,15 @@ function getBearerToken(req: NextRequest): string | null {
   if (!h) return null;
   const m = /^Bearer\s+(.+)$/i.exec(h.trim());
   return m?.[1]?.trim() || null;
+}
+
+
+function asNumberArray(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+
+  return v
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0);
 }
 
 function asString(v: unknown): string | null {
@@ -152,6 +163,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const rentPriceWeek = body.rentPriceWeek == null ? null : asNumber(body.rentPriceWeek);
   const salePrice = body.salePrice == null ? null : asNumber(body.salePrice);
   const ownerPhone = asString(body.ownerPhone);
+  const imageIds = asNumberArray(body.imageIds);
   const ownerEmail = asString(body.ownerEmail);
   const currencyRaw = asString(body.currency);
   const locale = asString(body.locale) || "en";
@@ -197,6 +209,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
     return { ok: false, error: "ownerPhone is too long" };
   }
 
+  if (imageIds.length > 8) {
+    return { ok: false, error: "Maximum 8 images per listing" };
+  }
+
   if (ownerEmail && ownerEmail.length > 320) {
     return { ok: false, error: "ownerEmail is too long" };
   }
@@ -222,6 +238,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       rentPriceWeek,
       salePrice,
       ownerPhone: ownerPhone || undefined,
+      imageIds: imageIds.length > 0 ? imageIds : undefined,
       ownerEmail: ownerEmail || undefined,
       currency,
       locale,
@@ -292,6 +309,14 @@ export async function POST(req: NextRequest) {
       price_per_week: p.rentPriceWeek ?? null,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
+      cover:
+        Array.isArray(p.imageIds) && p.imageIds.length > 0
+          ? p.imageIds[0]
+          : null,
+      images:
+        Array.isArray(p.imageIds) && p.imageIds.length > 0
+          ? p.imageIds
+          : [],
       owner_email: p.ownerEmail ?? "",
       owner_user_email: me.email ?? p.ownerEmail ?? "",
       currency: p.currency ?? "EUR",
