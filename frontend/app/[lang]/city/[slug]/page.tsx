@@ -7,6 +7,76 @@ import { RENTAL_TYPES } from "@/data/rental-types";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
+type PageCopy = {
+  backToCountry: string;
+  backToMarinas: string;
+  cityDestination: string;
+  marinasTitle: string;
+  marinasDescription: string;
+  viewMarina: string;
+  rentTitle: string;
+  rentDescription: string;
+  faqTitle: string;
+  faqDescription: string;
+  home: string;
+  mediterranean: string;
+  cityNotFound: string;
+};
+
+function pageCopy(lang: Lang): PageCopy {
+  if (lang === "ru") {
+    return {
+      backToCountry: "Назад к стране",
+      backToMarinas: "Назад ко всем маринам",
+      cityDestination: "городское направление",
+      marinasTitle: "Марины в",
+      marinasDescription: "Статические связи марин для этого направления.",
+      viewMarina: "Открыть марину",
+      rentTitle: "Аренда лодок в",
+      rentDescription: "Основные категории аренды, связанные с этой страницей города.",
+      faqTitle: "Частые вопросы о",
+      faqDescription: "Информация основана на опубликованных страницах марин и аренды Sharmar.",
+      home: "Главная",
+      mediterranean: "Средиземноморье",
+      cityNotFound: "Город не найден | Sharmar",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      backToCountry: "Nazad na državu",
+      backToMarinas: "Nazad na sve marine",
+      cityDestination: "gradska destinacija",
+      marinasTitle: "Marine u",
+      marinasDescription: "Statičke veze marina za ovu destinaciju.",
+      viewMarina: "Otvori marinu",
+      rentTitle: "Iznajmljivanje plovila u",
+      rentDescription: "Glavne kategorije najma povezane sa ovom gradskom stranicom.",
+      faqTitle: "Česta pitanja o",
+      faqDescription: "Informacije zasnovane na objavljenim stranicama marina i najma na Sharmaru.",
+      home: "Početna",
+      mediterranean: "Mediteran",
+      cityNotFound: "Grad nije pronađen | Sharmar",
+    };
+  }
+
+  return {
+    backToCountry: "Back to country",
+    backToMarinas: "Back to all marinas",
+    cityDestination: "city destination",
+    marinasTitle: "Marinas in",
+    marinasDescription: "Static marina connections for this city destination.",
+    viewMarina: "View marina",
+    rentTitle: "Rent boats from",
+    rentDescription: "Explore core rental categories connected from this city page.",
+    faqTitle: "FAQs about",
+    faqDescription: "Destination details based on Sharmar's published marina and rental pages.",
+    home: "Home",
+    mediterranean: "Mediterranean",
+    cityNotFound: "City not found | Sharmar",
+  };
+}
+
 type Props = {
   params: Promise<{
     lang: string;
@@ -52,7 +122,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!city) {
     return {
-      title: "City not found | Sharmar",
+      title: pageCopy(lang).cityNotFound,
     };
   }
 
@@ -113,7 +183,7 @@ export default async function CityPage({ params }: Props) {
       description: city.seoDescription,
     }),
     breadcrumbJsonLd([
-      { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
+      { name: pageCopy(lang).home, url: absoluteSiteUrl(`/${lang}`) },
       {
         name: country?.title ?? city.countrySlug,
         url: absoluteSiteUrl(`/${lang}/country/${country?.slug ?? city.countrySlug}`),
@@ -147,24 +217,24 @@ export default async function CityPage({ params }: Props) {
       <div className="container geo-page">
         {country ? (
           <Link className="backlink" href={`/${lang}/country/${country.slug}`}>
-            Back to {country.title}
+            {pageCopy(lang).backToCountry} {country.title}
           </Link>
         ) : (
           <Link className="backlink" href={`/${lang}/marinas`}>
-            Back to all marinas
+            {pageCopy(lang).backToMarinas}
           </Link>
         )}
 
         <section className="geo-hero">
-          <p className="kicker">{country?.title ?? "Mediterranean"} city destination</p>
+          <p className="kicker">{country?.title ?? pageCopy(lang).mediterranean} {pageCopy(lang).cityDestination}</p>
           <h1>{city.title} yacht rentals and marinas</h1>
           <p>{city.description}</p>
         </section>
 
         <section className="geo-section" aria-labelledby="city-marinas-title">
           <div className="geo-section-head">
-            <h2 id="city-marinas-title">Marinas in {city.title}</h2>
-            <p>Static marina connections for this city destination.</p>
+            <h2 id="city-marinas-title">{pageCopy(lang).marinasTitle} {city.title}</h2>
+            <p>{pageCopy(lang).marinasDescription}</p>
           </div>
 
           <div className="geo-grid">
@@ -173,7 +243,7 @@ export default async function CityPage({ params }: Props) {
                 <p className="kicker">{marina.region}</p>
                 <h3>{marina.title}</h3>
                 <p>{marina.description}</p>
-                <span>View marina</span>
+                <span>{pageCopy(lang).viewMarina}</span>
               </Link>
             ))}
           </div>
@@ -181,8 +251,8 @@ export default async function CityPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="city-rent-title">
           <div className="geo-section-head">
-            <h2 id="city-rent-title">Rent boats from {city.title}</h2>
-            <p>Explore core rental categories connected from this city page.</p>
+            <h2 id="city-rent-title">{pageCopy(lang).rentTitle} {city.title}</h2>
+            <p>{pageCopy(lang).rentDescription}</p>
           </div>
 
           <div className="rent-grid">
@@ -196,8 +266,8 @@ export default async function CityPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="city-faq-title">
           <div className="geo-section-head">
-            <h2 id="city-faq-title">FAQs about {city.title}</h2>
-            <p>Destination details based on Sharmar's published marina and rental pages.</p>
+            <h2 id="city-faq-title">{pageCopy(lang).faqTitle} {city.title}</h2>
+            <p>{pageCopy(lang).faqDescription}</p>
           </div>
 
           <div className="geo-faq-grid">
