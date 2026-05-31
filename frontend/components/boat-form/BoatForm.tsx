@@ -13,7 +13,7 @@ const translations = {
     receiveRequestsDesc: "Owners approve bookings before confirmation.",
     listingDetails: "Listing details",
     listingDetailsDesc: "Name the boat and describe what owners should know first.",
-    languageDetected: "Listing language is automatically detected from the current site language.",
+    languageDetected: "{ui.languageDetected}",
     title: "Title",
     description: "Description",
     boatBasics: "Boat basics",
@@ -26,9 +26,49 @@ const translations = {
     ownerContact: "Owner contact",
     ownerContactDesc: "Add the phone number for owner follow-up.",
     ownerPhone: "Owner phone",
-    reviewPending: "Listing saved for review. Visible after approval.",
+    reviewPending: "{ui.reviewPending}",
     boatPhotos: "Boat photos",
-    uploadPhotos: "Upload boat photos"
+    uploadPhotos: "Upload boat photos",
+    ownerListing: "Owner listing",
+    heroDescription: "Add the core details for review. Keep the information clear and accurate.",
+    createListing: "Create listing",
+    manualReview: "Manual review",
+    receiveRequests: "Receive requests",
+    rent: "Rent",
+    sale: "Sale",
+    motorBoat: "Motor boat",
+    sailBoat: "Sail boat",
+    placeholderBoatTitle: "Boat name or short listing title",
+    placeholderDescription: "Short description, condition, and useful details",
+    placeholderGuests: "Guests",
+    placeholderBuildYear: "Build year",
+    placeholderMeters: "Meters",
+    placeholderEnginePower: "Engine power",
+    addRentalPrice: "Add at least one rental price in EUR.",
+    pricePerHour: "Price per hour, EUR",
+    pricePerDay: "Price per day, EUR",
+    pricePerWeek: "Price per week, EUR",
+    placeholderHourlyPrice: "Hourly price",
+    placeholderDailyPrice: "Daily price",
+    placeholderWeeklyPrice: "Weekly price",
+    salePricing: "Sale pricing",
+    addSalePrice: "Add the asking price in EUR.",
+    priceEur: "Price, EUR",
+    currency: "Currency",
+    placeholderSalePrice: "Sale price",
+    placeholderPhone: "Phone number",
+    uploadHelp: "{ui.uploadHelp}",
+    uploadingPhotos: "Uploading photos...",
+    dragDrop: "{ui.dragDrop}",
+    selectImages: "{ui.selectImages}",
+    uploadMeta: "{ui.uploadMeta}",
+    cover: "Cover",
+    photo: "Photo",
+    remove: "{ui.remove}",
+    completeFields: "{ui.completeFields}",
+    submittedReview: "Submitted for review",
+    saving: "Saving...",
+    saveForReview: "Save for review"
   },
   ru: {
     createListingDesc: "Добавьте описание и фотографии яхты.",
@@ -51,7 +91,47 @@ const translations = {
     ownerPhone: "Телефон владельца",
     reviewPending: "Объявление отправлено на проверку. После одобрения станет видимым.",
     boatPhotos: "Фотографии яхты",
-    uploadPhotos: "Загрузить фотографии"
+    uploadPhotos: "Загрузить фотографии",
+    ownerListing: "Объявление владельца",
+    heroDescription: "Добавьте основную информацию для проверки. Указывайте данные точно и понятно.",
+    createListing: "Создание объявления",
+    manualReview: "Ручная проверка",
+    receiveRequests: "Получение заявок",
+    rent: "Аренда",
+    sale: "Продажа",
+    motorBoat: "Моторная лодка",
+    sailBoat: "Парусная лодка",
+    placeholderBoatTitle: "Название лодки или краткий заголовок",
+    placeholderDescription: "Краткое описание, состояние и важные детали",
+    placeholderGuests: "Количество гостей",
+    placeholderBuildYear: "Год постройки",
+    placeholderMeters: "Метры",
+    placeholderEnginePower: "Мощность двигателя",
+    addRentalPrice: "Добавьте хотя бы одну цену аренды в EUR.",
+    pricePerHour: "Цена за час, EUR",
+    pricePerDay: "Цена за день, EUR",
+    pricePerWeek: "Цена за неделю, EUR",
+    placeholderHourlyPrice: "Цена за час",
+    placeholderDailyPrice: "Цена за день",
+    placeholderWeeklyPrice: "Цена за неделю",
+    salePricing: "Стоимость продажи",
+    addSalePrice: "Укажите цену продажи в EUR.",
+    priceEur: "Цена, EUR",
+    currency: "Валюта",
+    placeholderSalePrice: "Цена продажи",
+    placeholderPhone: "Номер телефона",
+    uploadHelp: "Загрузите до 8 изображений JPG, PNG или WEBP. Первое изображение станет обложкой.",
+    uploadingPhotos: "Загрузка фотографий...",
+    dragDrop: "Перетащите изображения сюда или нажмите ниже",
+    selectImages: "Выбрать изображения",
+    uploadMeta: "JPG · PNG · WEBP · максимум 8MB · до 8 фото",
+    cover: "Обложка",
+    photo: "Фото",
+    remove: "Удалить",
+    completeFields: "Пожалуйста, заполните выделенные поля.",
+    submittedReview: "Отправлено на проверку",
+    saving: "Сохранение...",
+    saveForReview: "Сохранить на проверку"
   },
   me: {
     createListingDesc: "Dodajte podatke i fotografije jahte.",
@@ -74,7 +154,47 @@ const translations = {
     ownerPhone: "Telefon vlasnika",
     reviewPending: "Oglas je poslat na provjeru. Nakon odobrenja biće vidljiv.",
     boatPhotos: "Fotografije jahte",
-    uploadPhotos: "Otpremi fotografije"
+    uploadPhotos: "Otpremi fotografije",
+    ownerListing: "Oglas vlasnika",
+    heroDescription: "Dodajte osnovne informacije za provjeru. Unosite tačne podatke.",
+    createListing: "Kreiranje oglasa",
+    manualReview: "Ručna provjera",
+    receiveRequests: "Primanje zahtjeva",
+    rent: "Najam",
+    sale: "Prodaja",
+    motorBoat: "Motorni brod",
+    sailBoat: "Jedrilica",
+    placeholderBoatTitle: "Naziv broda ili kratki naslov",
+    placeholderDescription: "Kratak opis, stanje i važne informacije",
+    placeholderGuests: "Broj gostiju",
+    placeholderBuildYear: "Godina proizvodnje",
+    placeholderMeters: "Metri",
+    placeholderEnginePower: "Snaga motora",
+    addRentalPrice: "Dodajte barem jednu cijenu najma u EUR.",
+    pricePerHour: "Cijena po satu, EUR",
+    pricePerDay: "Cijena po danu, EUR",
+    pricePerWeek: "Cijena po sedmici, EUR",
+    placeholderHourlyPrice: "Cijena po satu",
+    placeholderDailyPrice: "Cijena po danu",
+    placeholderWeeklyPrice: "Cijena po sedmici",
+    salePricing: "Prodajna cijena",
+    addSalePrice: "Dodajte prodajnu cijenu u EUR.",
+    priceEur: "Cijena, EUR",
+    currency: "Valuta",
+    placeholderSalePrice: "Prodajna cijena",
+    placeholderPhone: "Broj telefona",
+    uploadHelp: "Otpremite do 8 JPG, PNG ili WEBP slika. Prva slika će biti naslovna.",
+    uploadingPhotos: "Otpremanje fotografija...",
+    dragDrop: "Prevucite slike ovdje ili kliknite ispod",
+    selectImages: "Izaberite slike",
+    uploadMeta: "JPG · PNG · WEBP · max 8MB · do 8 fotografija",
+    cover: "Naslovna",
+    photo: "Fotografija",
+    remove: "Ukloni",
+    completeFields: "Molimo popunite označena polja.",
+    submittedReview: "Poslato na provjeru",
+    saving: "Čuvanje...",
+    saveForReview: "Sačuvaj za provjeru"
   }
 };
 
@@ -385,25 +505,23 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
     <div className="boat-form-shell">
       <div className="boat-form-card">
         <div className="boat-form-hero">
-          <div className="boat-form-kicker">Owner listing</div>
+          <div className="boat-form-kicker">{ui.ownerListing}</div>
           <h1>{title}</h1>
-          <p>
-            Add the core details for review. Keep the information clear and accurate.
-          </p>
+          <p>{ui.heroDescription}</p>
 
           <div className="boat-form-owner-flow">
             <div className="boat-form-owner-flow-item">
-              <strong>1. Create listing</strong>
+              <strong>1. {ui.createListing}</strong>
               <span>{ui.createListingDesc}</span>
             </div>
 
             <div className="boat-form-owner-flow-item">
-              <strong>2. Manual review</strong>
+              <strong>2. {ui.manualReview}</strong>
               <span>{ui.manualReviewDesc}</span>
             </div>
 
             <div className="boat-form-owner-flow-item">
-              <strong>3. Receive requests</strong>
+              <strong>3. {ui.receiveRequests}</strong>
               <span>{ui.receiveRequestsDesc}</span>
             </div>
           </div>
@@ -422,10 +540,10 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               </div>
               <div className="boat-form-badges">
                 <span>
-                  {mode.kind === "rent" ? "Rent" : "Sale"}
+                  {mode.kind === "rent" ? ui.rent : ui.sale}
                 </span>
                 <span>
-                  {mode.boatType === "motor" ? "Motor boat" : "Sail boat"}
+                  {mode.boatType === "motor" ? ui.motorBoat : ui.sailBoat}
                 </span>
               </div>
             </div>
@@ -435,7 +553,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <div className={labelBase()}>{ui.title}</div>
                 <input
                   className={inputBase()}
-                  placeholder="Boat name or short listing title"
+                  placeholder={ui.placeholderBoatTitle}
                   value={values.title}
                   onChange={(e) => set("title", e.target.value)}
                 />
@@ -447,7 +565,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <textarea
                   className="boat-form-textarea"
                   rows={5}
-                  placeholder="Short description, condition, and useful details"
+                  placeholder={ui.placeholderDescription}
                   value={values.description}
                   onChange={(e) => set("description", e.target.value)}
                 />
@@ -467,7 +585,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <div className={labelBase()}>{ui.capacity}</div>
                 <input
                   className={inputBase()}
-                  placeholder="Guests"
+                  placeholder={ui.placeholderGuests}
                   value={values.capacityGuests}
                   onChange={(e) => set("capacityGuests", e.target.value)}
                 />
@@ -478,7 +596,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <div className={labelBase()}>{ui.year}</div>
                 <input
                   className={inputBase()}
-                  placeholder="Build year"
+                  placeholder={ui.placeholderBuildYear}
                   value={values.year}
                   onChange={(e) => set("year", e.target.value)}
                 />
@@ -489,7 +607,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <div className={labelBase()}>{ui.length}</div>
                 <input
                   className={inputBase()}
-                  placeholder="Meters"
+                  placeholder={ui.placeholderMeters}
                   value={values.lengthM}
                   onChange={(e) => set("lengthM", e.target.value)}
                 />
@@ -500,7 +618,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <div className={labelBase()}>{ui.horsepower}</div>
                 <input
                   className={inputBase()}
-                  placeholder="Engine power"
+                  placeholder={ui.placeholderEnginePower}
                   value={values.motorHorsePower}
                   onChange={(e) => set("motorHorsePower", e.target.value)}
                 />
@@ -513,15 +631,15 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
             <section className={sectionCard()}>
               <div className="boat-form-section-header">
                 <div className={sectionTitle()}>{ui.rentPricing}</div>
-                <p className={helpText()}>Add at least one rental price in EUR.</p>
+                <p className={helpText()}>{ui.addRentalPrice}</p>
               </div>
 
               <div className="boat-form-grid">
                 <div className={fieldGroup()}>
-                  <div className={labelBase()}>Price per hour, EUR</div>
+                  <div className={labelBase()}>{ui.pricePerHour}</div>
                   <input
                     className={inputBase()}
-                    placeholder="Hourly price"
+                    placeholder={ui.placeholderHourlyPrice}
                     value={values.rentPriceHour}
                     onChange={(e) => set("rentPriceHour", e.target.value)}
                   />
@@ -529,10 +647,10 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 </div>
 
                 <div className={fieldGroup()}>
-                  <div className={labelBase()}>Price per day, EUR</div>
+                  <div className={labelBase()}>{ui.pricePerDay}</div>
                   <input
                     className={inputBase()}
-                    placeholder="Daily price"
+                    placeholder={ui.placeholderDailyPrice}
                     value={values.rentPriceDay}
                     onChange={(e) => set("rentPriceDay", e.target.value)}
                   />
@@ -540,10 +658,10 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 </div>
 
                 <div className={fieldGroup()}>
-                  <div className={labelBase()}>Price per week, EUR</div>
+                  <div className={labelBase()}>{ui.pricePerWeek}</div>
                   <input
                     className={inputBase()}
-                    placeholder="Weekly price"
+                    placeholder={ui.placeholderWeeklyPrice}
                     value={values.rentPriceWeek}
                     onChange={(e) => set("rentPriceWeek", e.target.value)}
                   />
@@ -554,16 +672,16 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           ) : (
             <section className={sectionCard()}>
               <div className="boat-form-section-header">
-                <div className={sectionTitle()}>Sale pricing</div>
-                <p className={helpText()}>Add the asking price in EUR.</p>
+                <div className={sectionTitle()}>{ui.salePricing}</div>
+                <p className={helpText()}>{ui.addSalePrice}</p>
               </div>
 
               <div className="boat-form-grid">
                 <div className={fieldGroup()}>
-                  <div className={labelBase()}>Price, EUR</div>
+                  <div className={labelBase()}>{ui.priceEur}</div>
                   <input
                     className={inputBase()}
-                    placeholder="Sale price"
+                    placeholder={ui.placeholderSalePrice}
                     value={values.salePrice}
                     onChange={(e) => set("salePrice", e.target.value)}
                   />
@@ -571,7 +689,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 </div>
 
                 <div className={fieldGroup()}>
-                  <div className={labelBase()}>Currency</div>
+                  <div className={labelBase()}>{ui.currency}</div>
                   <input className={readonlyInput()} value="EUR" readOnly />
                 </div>
               </div>
@@ -589,7 +707,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <div className={labelBase()}>{ui.ownerPhone}</div>
                 <input
                   className={inputBase()}
-                  placeholder="Phone number"
+                  placeholder={ui.placeholderPhone}
                   value={values.ownerPhone}
                   onChange={(e) => set("ownerPhone", e.target.value)}
                 />
@@ -623,7 +741,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                 <span className="boat-form-upload-icon">+</span>
 
                 <span className="boat-form-upload-title">
-                  {uploadingImages ? "Uploading photos..." : "Upload boat photos"}
+                  {uploadingImages ? ui.uploadingPhotos : ui.uploadPhotos}
                 </span>
 
                 <span className="boat-form-upload-subtitle">
@@ -671,7 +789,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
                       <div className="boat-form-preview-footer">
                         <span className="boat-form-preview-label">
-                          {index === 0 ? "Cover" : `Photo ${index + 1}`}
+                          {index === 0 ? ui.cover : `${ui.photo} ${index + 1}`}
                         </span>
 
                         <button
@@ -702,23 +820,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               disabled={isSaving || listingSaved}
               className="boat-form-submit"
             >
-              {listingSaved
-                ? (lang === "ru"
-                    ? "Отправлено на проверку"
-                    : lang === "me"
-                      ? "Poslato na provjeru"
-                      : "Submitted for review")
-                : isSaving
-                  ? (lang === "ru"
-                      ? "Сохранение..."
-                      : lang === "me"
-                        ? "Čuvanje..."
-                        : "Saving...")
-                  : (lang === "ru"
-                      ? "Сохранить на проверку"
-                      : lang === "me"
-                        ? "Sačuvaj za provjeru"
-                        : "Save for review")}
+              {listingSaved ? ui.submittedReview : isSaving ? ui.saving : ui.saveForReview}
             </button>
           </div>
         </form>
