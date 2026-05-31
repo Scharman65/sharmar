@@ -13,6 +13,65 @@ const TITLE = "Mediterranean Marina Network | Sharmar";
 const DESCRIPTION =
   "Explore yacht charters, boat rentals, and boats for sale across Mediterranean marinas in Montenegro, Croatia, and beyond.";
 
+
+function pageCopy(lang: Lang) {
+  if (lang === "ru") {
+    return {
+      title: "Средиземноморская сеть марин | Sharmar",
+      description:
+        "Исследуйте яхтенные чартеры, аренду лодок и продажу яхт в маринах Черногории, Хорватии и Средиземноморья.",
+      eyebrow: "Сеть марин Средиземноморья",
+      heroTitle: "Исследуйте яхтенные чартеры в маринах Средиземноморья",
+      heroText:
+        "Открывайте лодки, яхтенные чартеры, морские путешествия и марины Черногории, Хорватии и побережья Средиземного моря.",
+      featuredTitle: "Популярные марины",
+      featuredText:
+        "SEO-страницы марин, объединённые в масштабируемую структуру маркетплейса Средиземноморья.",
+      exploreMarina: "Открыть марину",
+      geographyTitle: "Исследовать по географии",
+      geographyText:
+        "Просматривайте страницы стран и городов, связанные с сетью марин.",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      title: "Mreža marina Mediterana | Sharmar",
+      description:
+        "Istražite najam jahti, charter brodove i prodaju plovila širom marina Crne Gore, Hrvatske i Mediterana.",
+      eyebrow: "Mreža marina Mediterana",
+      heroTitle: "Istražite yacht charter širom marina Mediterana",
+      heroText:
+        "Pregledajte brodove, yacht charter ponudu, nautička iskustva i marine širom Crne Gore, Hrvatske i Mediterana.",
+      featuredTitle: "Istaknute marine",
+      featuredText:
+        "SEO stranice marina povezane u skalabilnu marketplace strukturu Mediterana.",
+      exploreMarina: "Otvori marinu",
+      geographyTitle: "Istraži po geografiji",
+      geographyText:
+        "Pregledajte stranice država i gradova povezane sa mrežom marina.",
+    };
+  }
+
+  return {
+    title: "Mediterranean Marina Network | Sharmar",
+    description:
+      "Explore yacht charters, boat rentals, and boats for sale across Mediterranean marinas in Montenegro, Croatia, and beyond.",
+    eyebrow: "Mediterranean marina network",
+    heroTitle: "Explore yacht charters across Mediterranean marinas",
+    heroText:
+      "Discover boats, yacht charters, sailing experiences, and marina destinations across Montenegro, Croatia, and the Mediterranean coastline.",
+    featuredTitle: "Featured marinas",
+    featuredText:
+      "SEO-ready marina landing pages connected into a scalable Mediterranean marketplace structure.",
+    exploreMarina: "Explore marina",
+    geographyTitle: "Explore by geography",
+    geographyText:
+      "Browse static country and city destination pages connected to the marina network.",
+  };
+}
+
+
 function marinaIndexPath(lang: Lang): string {
   return `/${lang}/marinas`;
 }
@@ -27,10 +86,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const canonical = `${SITE_URL}${marinaIndexPath(lang)}`;
+  const copy = pageCopy(lang);
 
   return {
-    title: TITLE,
-    description: DESCRIPTION,
+    title: copy.title,
+    description: copy.description,
     alternates: {
       canonical,
       languages: {
@@ -39,8 +99,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     },
     openGraph: {
-      title: TITLE,
-      description: DESCRIPTION,
+      title: copy.title,
+      description: copy.description,
       url: canonical,
       siteName: "Sharmar",
       type: "website",
@@ -49,7 +109,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function MarinasIndexPage({ params }: Props) {
-  const { lang } = await params;
+  const { lang: raw } = await params;
+  const lang: Lang = isLang(raw) ? raw : "en";
+  const copy = pageCopy(lang);
 
   return (
     <main className="main">
@@ -57,28 +119,25 @@ export default async function MarinasIndexPage({ params }: Props) {
         <div className="hero">
           <div className="hero-copy">
             <div className="eyebrow">
-              Mediterranean marina network
+              {copy.eyebrow}
             </div>
 
             <h1>
-              Explore yacht charters across Mediterranean marinas
+              {copy.heroTitle}
             </h1>
 
             <p>
-              Discover boats, yacht charters, sailing experiences,
-              and marina destinations across Montenegro, Croatia,
-              and the Mediterranean coastline.
+              {copy.heroText}
             </p>
           </div>
         </div>
 
         <section className="marina-section">
           <div className="section-head">
-            <h2>Featured marinas</h2>
+            <h2>{copy.featuredTitle}</h2>
 
             <p>
-              SEO-ready marina landing pages connected into a scalable
-              Mediterranean marketplace structure.
+              {copy.featuredText}
             </p>
           </div>
 
@@ -107,7 +166,7 @@ export default async function MarinasIndexPage({ params }: Props) {
 
                 <div className="card-footer">
                   <span>
-                    Explore marina
+                    {copy.exploreMarina}
                   </span>
 
                   <span>
@@ -121,11 +180,10 @@ export default async function MarinasIndexPage({ params }: Props) {
 
         <section className="marina-section">
           <div className="section-head">
-            <h2>Explore by geography</h2>
+            <h2>{copy.geographyTitle}</h2>
 
             <p>
-              Browse static country and city destination pages connected to
-              the marina network.
+              {copy.geographyText}
             </p>
           </div>
 
