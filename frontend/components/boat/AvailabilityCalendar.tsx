@@ -92,9 +92,75 @@ function formatDate(value: string, timeZone: string, lang: Lang): string {
   }).format(new Date(value));
 }
 
-function formatDuration(slotCount: number): string {
-  if (slotCount === 8) return "Full day";
-  return `${slotCount} ${slotCount === 1 ? "hour" : "hours"}`;
+
+function bookingCopy(lang: Lang) {
+  if (lang === "ru") {
+    return {
+      fullDay: "Весь день",
+      hour: "час",
+      hours: "часа",
+      until: "До",
+      duration: "Длительность",
+      yourTrip: "ВАША ПОЕЗДКА",
+      date: "Дата",
+      time: "Время",
+      noPayment: "Оплата пока не требуется. Отправьте заявку, и владелец подтвердит доступность.",
+      availableDates: "Доступные даты",
+      tripDuration: "Длительность поездки",
+      selectedBooking: "Выбранное бронирование",
+      slot: "слот",
+      slots: "слотов",
+      timeSingle: "время",
+      timePlural: "времени",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      fullDay: "Cijeli dan",
+      hour: "sat",
+      hours: "sata",
+      until: "Do",
+      duration: "Trajanje",
+      yourTrip: "VAŠE PUTOVANJE",
+      date: "Datum",
+      time: "Vrijeme",
+      noPayment: "Plaćanje još nije potrebno. Pošaljite zahtjev i vlasnik potvrđuje dostupnost.",
+      availableDates: "Dostupni datumi",
+      tripDuration: "Trajanje putovanja",
+      selectedBooking: "Odabrana rezervacija",
+      slot: "termin",
+      slots: "termina",
+      timeSingle: "vrijeme",
+      timePlural: "vremena",
+    };
+  }
+
+  return {
+    fullDay: "Full day",
+    hour: "hour",
+    hours: "hours",
+    until: "Until",
+    duration: "Duration",
+    yourTrip: "YOUR TRIP",
+    date: "Date",
+    time: "Time",
+    noPayment: "No payment yet. Send a request and the owner confirms availability.",
+    availableDates: "Available dates",
+    tripDuration: "Trip duration",
+    selectedBooking: "Selected booking request",
+    slot: "slot",
+    slots: "slots",
+    timeSingle: "time",
+    timePlural: "times",
+  };
+}
+
+function formatDuration(slotCount: number, lang: Lang): string {
+  const copy = bookingCopy(lang);
+
+  if (slotCount === 8) return copy.fullDay;
+  return `${slotCount} ${slotCount === 1 ? copy.hour : copy.hours}`;
 }
 
 function bookingCtaLabel(label: string): string {
@@ -248,6 +314,7 @@ export function AvailabilityCalendar({
         lang
       )}`
     : null;
+  const copy = bookingCopy(lang);
   const ctaLabel = bookingCtaLabel(requestSlotLabel) || "Request this booking";
 
   useEffect(() => {
@@ -282,7 +349,7 @@ export function AvailabilityCalendar({
         </p>
         {groups.length ? (
           <span style={{ fontSize: 13, opacity: 0.72 }}>
-            {totalSlots} slots
+            {totalSlots} {totalSlots === 1 ? copy.slot : copy.slots}
           </span>
         ) : null}
       </div>
@@ -315,7 +382,7 @@ export function AvailabilityCalendar({
               paddingBottom: 2,
               WebkitOverflowScrolling: "touch",
             }}
-            aria-label="Available dates"
+            aria-label={copy.availableDates}
           >
             {groups.map((group) => {
               const isActive = group.key === activeGroup?.key;
@@ -346,7 +413,7 @@ export function AvailabilityCalendar({
                     {group.dateLabel}
                   </div>
                   <div style={{ marginTop: 5, fontSize: 12, opacity: 0.76 }}>
-                    {group.slots.length} {group.slots.length === 1 ? "time" : "times"}
+                    {group.slots.length} {group.slots.length === 1 ? copy.timeSingle : copy.timePlural}
                   </div>
                 </button>
               );
@@ -406,7 +473,7 @@ export function AvailabilityCalendar({
                             {formatTime(slot.slot_start_utc, timeZone, lang)}
                           </span>
                           <span style={{ fontSize: 12, opacity: 0.74 }}>
-                            Until {formatTime(slot.slot_end_utc, timeZone, lang)}
+                            {copy.until} {formatTime(slot.slot_end_utc, timeZone, lang)}
                           </span>
                         </button>
                       );
@@ -416,7 +483,7 @@ export function AvailabilityCalendar({
 
                 {selectedSlot ? (
                   <div style={{ display: "grid", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>Duration</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>{copy.duration}</div>
                     <div
                       style={{
                         display: "flex",
@@ -426,7 +493,7 @@ export function AvailabilityCalendar({
                         borderRadius: 14,
                         background: "rgba(0,0,0,0.16)",
                       }}
-                      aria-label="Trip duration"
+                      aria-label={copy.tripDuration}
                     >
                       {durationOptions.map((option) => {
                         const isActive = option.slotCount === selectedDurationSlots && option.enabled;
@@ -473,24 +540,24 @@ export function AvailabilityCalendar({
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, opacity: 0.7, textTransform: "uppercase" }}>Your trip</div>
+                  <div style={{ fontSize: 12, opacity: 0.7, textTransform: "uppercase" }}>{copy.yourTrip}</div>
                   <div style={{ marginTop: 4, fontSize: 18, fontWeight: 850 }}>{boat.title ?? slug}</div>
                 </div>
 
                 <div style={{ display: "grid", gap: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ opacity: 0.68 }}>Date</span>
+                    <span style={{ opacity: 0.68 }}>{copy.date}</span>
                     <strong style={{ textAlign: "right" }}>{selectedDateLabel ?? activeGroup.dateLabel}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ opacity: 0.68 }}>Time</span>
+                    <span style={{ opacity: 0.68 }}>{copy.time}</span>
                     <strong style={{ textAlign: "right" }}>
                       {selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")}
                     </strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ opacity: 0.68 }}>Duration</span>
-                    <strong style={{ textAlign: "right" }}>{formatDuration(selectedDurationSlots)}</strong>
+                    <span style={{ opacity: 0.68 }}>{copy.duration}</span>
+                    <strong style={{ textAlign: "right" }}>{formatDuration(selectedDurationSlots, lang)}</strong>
                   </div>
                 </div>
 
@@ -503,7 +570,7 @@ export function AvailabilityCalendar({
                   }}
                 >
                   <div style={{ fontSize: 12, opacity: 0.68 }}>
-                    No payment yet. Send a request and the owner confirms availability.
+                    {copy.noPayment}
                   </div>
                   {requestSlotRange ? (
                     <Link
@@ -529,7 +596,7 @@ export function AvailabilityCalendar({
     </section>
 
     {requestSlotRange ? (
-      <div className="mobile-booking-bar" role="region" aria-label="Selected booking request">
+      <div className="mobile-booking-bar" role="region" aria-label={copy.selectedBooking}>
         <div className="mobile-booking-summary">
           <div className="mobile-booking-primary">{ctaLabel}</div>
           <div className="mobile-booking-meta">
@@ -537,7 +604,7 @@ export function AvailabilityCalendar({
             <span aria-hidden="true">·</span>
             <span>{selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")}</span>
             <span aria-hidden="true">·</span>
-            <span>{formatDuration(selectedDurationSlots)}</span>
+            <span>{formatDuration(selectedDurationSlots, lang)}</span>
           </div>
         </div>
         <Link
@@ -545,7 +612,7 @@ export function AvailabilityCalendar({
           href={buildRequestHref(lang, boat, slug, requestSlotRange)}
           aria-label={`${ctaLabel}: ${selectedDateLabel ?? activeGroup?.dateLabel}, ${
             selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")
-          }, ${formatDuration(selectedDurationSlots)}`}
+          }, ${formatDuration(selectedDurationSlots, lang)}`}
         >
           {ctaLabel}
         </Link>
