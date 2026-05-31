@@ -41,6 +41,164 @@ type RequestPayload = {
   client_ts?: number;
 };
 
+
+function requestCopy(lang: Lang) {
+  if (lang === "ru") {
+    return {
+      missingBoat: "Данные лодки отсутствуют в URL.",
+      requiredFields: "Пожалуйста, заполните обязательные поля.",
+      invalidDate: "Введите корректную дату в формате YYYY-MM-DD.",
+      invalidTimeRange: "Выберите корректное время: время окончания должно быть позже времени начала.",
+      requestNotCreated: "Заявка на бронирование не создана. Попробуйте ещё раз.",
+      missingToken: "Токен бронирования отсутствует.",
+      unknownError: "Неизвестная ошибка",
+      selectedSlotUnavailable: "Выбранный слот больше недоступен",
+      chooseAnotherSlot: "Пожалуйста, выберите другой слот.",
+      summaryBoat: "Лодка",
+      summaryDate: "Дата",
+      summaryTimeFrom: "Время с",
+      summaryTimeTo: "Время до",
+      summaryDuration: "Длительность",
+      summaryPeople: "Гости",
+      summarySkipper: "Шкипер",
+      summarySkipperRequested: "Запрошен",
+      reservationRequest: "Заявка на бронирование",
+      bookingSummary: "Сводка бронирования",
+      selectedTrip: "Выбранная поездка",
+      boatReservation: "Бронирование лодки",
+      estimatedTotal: "Ориентировочная сумма",
+      contactDetails: "Контактные данные",
+      contactDetailsText: "Эти данные будут переданы владельцу после отправки заявки.",
+      tripDetails: "Детали поездки",
+      tripDetailsText: "Проверьте выбранный слот и при необходимости измените данные гостей.",
+      timeFrom: "Время с",
+      timeTo: "Время до",
+      endAfterStart: "Время окончания должно быть позже времени начала.",
+      skipperHelp: "Добавьте этот запрос, чтобы владелец подтвердил его.",
+      pricingAndPayment: "Цена и оплата",
+      priceEstimate: "Предварительный расчёт",
+      priceEstimateText: "Расчёт обновляется по выбранному времени. Списание выполняется только после подтверждения владельцем.",
+      boatRate: "Тариф лодки",
+      hour: "час",
+      serviceFee: "Сервисный сбор Sharmar",
+      reservationProtection: "Защита бронирования",
+      secureAuthorization: "Безопасная авторизация Stripe",
+      secureAuthorizationText: "Авторизация карты выполняется безопасно через Stripe после отправки заявки.",
+      ownerConfirms: "Владелец подтверждает перед финальным бронированием",
+      ownerConfirmsText: "Владелец проверяет заявку до окончательного подтверждения бронирования.",
+      captureAfterApproval: "Списание только после одобрения владельцем",
+      captureAfterApprovalText: "Если владелец отклонит заявку, авторизация будет снята согласно срокам банка-эмитента карты.",
+      emailFallback: "Написать по email",
+      preparing: "Подготовка безопасной авторизации...",
+      continueAuthorization: "Перейти к безопасной авторизации",
+      dateAria: "Дата (YYYY-MM-DD)",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      missingBoat: "Podaci o brodu nedostaju u URL-u.",
+      requiredFields: "Molimo popunite obavezna polja.",
+      invalidDate: "Unesite ispravan datum u formatu YYYY-MM-DD.",
+      invalidTimeRange: "Izaberite ispravno vrijeme: vrijeme završetka mora biti poslije početka.",
+      requestNotCreated: "Zahtjev za rezervaciju nije kreiran. Pokušajte ponovo.",
+      missingToken: "Token rezervacije nedostaje.",
+      unknownError: "Nepoznata greška",
+      selectedSlotUnavailable: "Odabrani termin više nije dostupan",
+      chooseAnotherSlot: "Molimo izaberite drugi termin.",
+      summaryBoat: "Brod",
+      summaryDate: "Datum",
+      summaryTimeFrom: "Vrijeme od",
+      summaryTimeTo: "Vrijeme do",
+      summaryDuration: "Trajanje",
+      summaryPeople: "Gosti",
+      summarySkipper: "Skiper",
+      summarySkipperRequested: "Zatražen",
+      reservationRequest: "Zahtjev za rezervaciju",
+      bookingSummary: "Sažetak rezervacije",
+      selectedTrip: "Odabrano putovanje",
+      boatReservation: "Rezervacija broda",
+      estimatedTotal: "Procijenjeni ukupni iznos",
+      contactDetails: "Kontakt podaci",
+      contactDetailsText: "Ovi podaci se dijele sa vlasnikom nakon slanja zahtjeva.",
+      tripDetails: "Detalji putovanja",
+      tripDetailsText: "Provjerite odabrani termin i po potrebi prilagodite podatke o gostima.",
+      timeFrom: "Vrijeme od",
+      timeTo: "Vrijeme do",
+      endAfterStart: "Vrijeme završetka mora biti poslije vremena početka.",
+      skipperHelp: "Dodajte ovaj zahtjev kako bi ga vlasnik potvrdio.",
+      pricingAndPayment: "Cijena i plaćanje",
+      priceEstimate: "Procjena cijene",
+      priceEstimateText: "Procjena se ažurira prema odabranom vremenu. Naplata se vrši tek nakon odobrenja vlasnika.",
+      boatRate: "Cijena broda",
+      hour: "sat",
+      serviceFee: "Sharmar servisna naknada",
+      reservationProtection: "Zaštita rezervacije",
+      secureAuthorization: "Sigurna Stripe autorizacija",
+      secureAuthorizationText: "Autorizacija kartice se sigurno obrađuje putem Stripe-a nakon slanja zahtjeva.",
+      ownerConfirms: "Vlasnik potvrđuje prije finalne rezervacije",
+      ownerConfirmsText: "Vlasnik pregledava zahtjev prije konačne potvrde rezervacije.",
+      captureAfterApproval: "Naplata tek nakon odobrenja vlasnika",
+      captureAfterApprovalText: "Ako vlasnik odbije zahtjev, autorizacija se oslobađa prema rokovima banke izdavaoca kartice.",
+      emailFallback: "Pošalji email",
+      preparing: "Priprema sigurne autorizacije...",
+      continueAuthorization: "Nastavi na sigurnu autorizaciju",
+      dateAria: "Datum (YYYY-MM-DD)",
+    };
+  }
+
+  return {
+    missingBoat: "Missing boat data in URL.",
+    requiredFields: "Please fill required fields.",
+    invalidDate: "Please enter a valid date in YYYY-MM-DD format.",
+    invalidTimeRange: "Please choose a valid time range (end time must be after start time).",
+    requestNotCreated: "Booking request was not created. Please try again.",
+    missingToken: "Missing booking token.",
+    unknownError: "Unknown error",
+    selectedSlotUnavailable: "Selected slot is no longer available",
+    chooseAnotherSlot: "Please choose another slot.",
+    summaryBoat: "Boat",
+    summaryDate: "Date",
+    summaryTimeFrom: "Time from",
+    summaryTimeTo: "Time to",
+    summaryDuration: "Duration",
+    summaryPeople: "People",
+    summarySkipper: "Skipper",
+    summarySkipperRequested: "Requested",
+    reservationRequest: "Reservation request",
+    bookingSummary: "Booking summary",
+    selectedTrip: "Your selected trip",
+    boatReservation: "Boat reservation",
+    estimatedTotal: "Estimated total",
+    contactDetails: "Contact details",
+    contactDetailsText: "These details are shared with the owner after you submit the request.",
+    tripDetails: "Trip details",
+    tripDetailsText: "Review the selected slot and adjust passenger details if needed.",
+    timeFrom: "Time from",
+    timeTo: "Time to",
+    endAfterStart: "End time must be after start time.",
+    skipperHelp: "Add this request for the owner to confirm.",
+    pricingAndPayment: "Pricing and payment",
+    priceEstimate: "Price estimate",
+    priceEstimateText: "The estimate updates from the selected time range. Final capture happens only after owner approval.",
+    boatRate: "Boat rate",
+    hour: "hour",
+    serviceFee: "Sharmar service fee",
+    reservationProtection: "Reservation protection",
+    secureAuthorization: "Secure Stripe authorization",
+    secureAuthorizationText: "Your card authorization is handled securely with Stripe after you submit this request.",
+    ownerConfirms: "Owner confirms before final booking",
+    ownerConfirmsText: "The owner reviews the request before the booking is final.",
+    captureAfterApproval: "Capture only after owner approval",
+    captureAfterApprovalText: "If the owner declines, the authorization is released by your card issuer timing.",
+    emailFallback: "Email fallback",
+    preparing: "Preparing secure authorization...",
+    continueAuthorization: "Continue to secure authorization",
+    dateAria: "Date (YYYY-MM-DD)",
+  };
+}
+
+
 function isValidIsoDate(v: string): boolean {
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)) return false;
   const [ys, ms, ds] = v.split("-");
@@ -141,6 +299,7 @@ export default function RequestPage() {
   }, [params]);
 
   const tr = t(lang);
+  const copy = requestCopy(lang);
 
   const boatSlug = sp.get("slug") ?? "";
   const boatTitle = sp.get("title") ?? boatSlug;
@@ -223,19 +382,19 @@ export default function RequestPage() {
     };
 
     if (!boatSlug || !boatTitle) {
-      return fail("Missing boat data in URL.");
+      return fail(copy.missingBoat);
     }
 
     if (!name.trim() || !phone.trim() || !date) {
-      return fail("Please fill required fields.");
+      return fail(copy.requiredFields);
     }
 
     if (!isValidIsoDate(date)) {
-      return fail("Please enter a valid date in YYYY-MM-DD format.");
+      return fail(copy.invalidDate);
     }
 
     if (!timeFrom || !timeTo || !timeOk) {
-      setError("Please choose a valid time range (end time must be after start time).");
+      setError(copy.invalidTimeRange);
       inFlight.current = false;
       return;
     }
@@ -295,7 +454,7 @@ export default function RequestPage() {
             holdFailure && typeof holdFailure === "object"
               ? String(holdFailure.code || holdFailure.error || "slot_not_available")
               : "slot_not_available";
-          setError(`Selected slot is no longer available (${holdError}). Please choose another slot.`);
+          setError(`${copy.selectedSlotUnavailable} (${holdError}). ${copy.chooseAnotherSlot}`);
           return;
         }
       }
@@ -313,14 +472,14 @@ export default function RequestPage() {
         const createdId = typeof json.id === "number" ? json.id : 0;
 
         if (createdId <= 0) {
-          setError("Booking request was not created. Please try again.");
+          setError(copy.requestNotCreated);
           inFlight.current = false;
           setBusy(false);
           return;
         }
 
         if (!token) {
-          setError("Missing booking token.");
+          setError(copy.missingToken);
           inFlight.current = false;
           setBusy(false);
           return;
@@ -330,7 +489,7 @@ export default function RequestPage() {
         return;
       }
 
-      const msg = json && "error" in json ? json.error : "Unknown error";
+      const msg = json && "error" in json ? json.error : copy.unknownError;
       setError(msg);
       const fm = json && "fallbackMailto" in json ? json.fallbackMailto : undefined;
       setFallbackMailto(fm ?? null);
@@ -353,13 +512,13 @@ export default function RequestPage() {
     timeOk;
 
   const summaryRows = [
-    { label: "Boat", value: boatTitle || boatSlug || "—" },
-    { label: "Date", value: date || "—" },
-    { label: "Time from", value: timeFrom || "—" },
-    { label: "Time to", value: timeTo || "—" },
-    { label: "Duration", value: hours ? formatDuration(hours) : "—" },
-    { label: "People", value: Number.isFinite(peopleCount) && peopleCount > 0 ? String(peopleCount) : "—" },
-    ...(needSkipper ? [{ label: "Skipper", value: "Requested" }] : []),
+    { label: copy.summaryBoat, value: boatTitle || boatSlug || "—" },
+    { label: copy.summaryDate, value: date || "—" },
+    { label: copy.summaryTimeFrom, value: timeFrom || "—" },
+    { label: copy.summaryTimeTo, value: timeTo || "—" },
+    { label: copy.summaryDuration, value: hours ? formatDuration(hours) : "—" },
+    { label: copy.summaryPeople, value: Number.isFinite(peopleCount) && peopleCount > 0 ? String(peopleCount) : "—" },
+    ...(needSkipper ? [{ label: copy.summarySkipper, value: copy.summarySkipperRequested }] : []),
   ];
 
   return (
@@ -367,7 +526,7 @@ export default function RequestPage() {
       <div className="container request-container">
         <div className="detail-top request-top">
           <div>
-            <p className="kicker request-eyebrow">Reservation request</p>
+            <p className="kicker request-eyebrow">{copy.reservationRequest}</p>
             <h1 className="h1 request-title">{tr.booking.title}</h1>
           </div>
           <Link className="backlink" href={`/${lang}/boats/${encodeURIComponent(boatSlug || "")}`}>
@@ -375,14 +534,14 @@ export default function RequestPage() {
           </Link>
         </div>
 
-        <section className="request-summary" aria-label="Booking summary">
+        <section className="request-summary" aria-label={copy.bookingSummary}>
           <div className="summary-head">
             <div>
-              <div className="kicker">Your selected trip</div>
-              <h2>{boatTitle || boatSlug || "Boat reservation"}</h2>
+              <div className="kicker">{copy.selectedTrip}</div>
+              <h2>{boatTitle || boatSlug || copy.boatReservation}</h2>
             </div>
             <div className="summary-total">
-              <span>Estimated total</span>
+              <span>{copy.estimatedTotal}</span>
               <b>{customerTotalAmount ? money(customerTotalAmount, currency) : "—"}</b>
             </div>
           </div>
@@ -401,8 +560,8 @@ export default function RequestPage() {
           <div className="request-layout">
             <section className="request-card">
               <div className="section-heading">
-                <h2>Contact details</h2>
-                <p>These details are shared with the owner after you submit the request.</p>
+                <h2>{copy.contactDetails}</h2>
+                <p>{copy.contactDetailsText}</p>
               </div>
 
               <div className="field-grid">
@@ -430,8 +589,8 @@ export default function RequestPage() {
 
             <section className="request-card">
               <div className="section-heading">
-                <h2>Trip details</h2>
-                <p>Review the selected slot and adjust passenger details if needed.</p>
+                <h2>{copy.tripDetails}</h2>
+                <p>{copy.tripDetailsText}</p>
               </div>
 
               <div className="trip-grid">
@@ -448,7 +607,7 @@ export default function RequestPage() {
                     type="text"
                     inputMode="numeric"
                     placeholder="YYYY-MM-DD"
-                    aria-label="Date (YYYY-MM-DD)"
+                    aria-label={copy.dateAria}
                     title="YYYY-MM-DD"
                     pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
                     required
@@ -456,7 +615,7 @@ export default function RequestPage() {
                 </label>
 
                 <label>
-                  <div className="kicker">Time from *</div>
+                  <div className="kicker">{copy.timeFrom} *</div>
                   <input
                     className={`request-input ${timeOk ? "" : "request-input-error"}`}
                     value={timeFrom}
@@ -468,7 +627,7 @@ export default function RequestPage() {
                 </label>
 
                 <label>
-                  <div className="kicker">Time to *</div>
+                  <div className="kicker">{copy.timeTo} *</div>
                   <input
                     className={`request-input ${timeOk ? "" : "request-input-error"}`}
                     value={timeTo}
@@ -482,7 +641,7 @@ export default function RequestPage() {
 
               {!timeOk ? (
                 <div className="kicker field-note">
-                  End time must be after start time.
+                  {copy.endAfterStart}
                 </div>
               ) : null}
 
@@ -502,7 +661,7 @@ export default function RequestPage() {
                   <input checked={needSkipper} onChange={(e) => setNeedSkipper(e.target.checked)} type="checkbox" />
                   <span>
                     <b>{tr.booking.needSkipper}</b>
-                    <small>Add this request for the owner to confirm.</small>
+                    <small>{copy.skipperHelp}</small>
                   </span>
                 </label>
               </div>
@@ -518,44 +677,44 @@ export default function RequestPage() {
               </label>
             </section>
 
-            <section className="request-card pricing-card" aria-label="Pricing and payment">
+            <section className="request-card pricing-card" aria-label={copy.pricingAndPayment}>
               <div className="section-heading">
-                <h2>Price estimate</h2>
-                <p>The estimate updates from the selected time range. Final capture happens only after owner approval.</p>
+                <h2>{copy.priceEstimate}</h2>
+                <p>{copy.priceEstimateText}</p>
               </div>
 
               <div className="price-lines">
                 <div>
-                  <span>Boat rate</span>
-                  <b>{money(PRICE_PER_HOUR, currency)} / hour</b>
+                  <span>{copy.boatRate}</span>
+                  <b>{money(PRICE_PER_HOUR, currency)} / {copy.hour}</b>
                 </div>
                 <div>
-                  <span>Duration</span>
+                  <span>{copy.summaryDuration}</span>
                   <b>{hours ? formatDuration(hours) : "—"}</b>
                 </div>
                 <div>
-                  <span>Sharmar service fee ({Math.round(MARKETPLACE_FEE_RATE * 100)}%)</span>
+                  <span>{copy.serviceFee} ({Math.round(MARKETPLACE_FEE_RATE * 100)}%)</span>
                   <b>{marketplaceFeeAmount ? money(marketplaceFeeAmount, currency) : "—"}</b>
                 </div>
                 <div className="price-total">
-                  <span>Estimated total</span>
+                  <span>{copy.estimatedTotal}</span>
                   <b>{customerTotalAmount ? money(customerTotalAmount, currency) : "—"}</b>
                 </div>
               </div>
             </section>
 
-            <section className="trust-card" aria-label="Reservation protection">
+            <section className="trust-card" aria-label={copy.reservationProtection}>
               <div>
-                <b>Secure Stripe authorization</b>
-                <span>Your card authorization is handled securely with Stripe after you submit this request.</span>
+                <b>{copy.secureAuthorization}</b>
+                <span>{copy.secureAuthorizationText}</span>
               </div>
               <div>
-                <b>Owner confirms before final booking</b>
-                <span>The owner reviews the request before the booking is final.</span>
+                <b>{copy.ownerConfirms}</b>
+                <span>{copy.ownerConfirmsText}</span>
               </div>
               <div>
-                <b>Capture only after owner approval</b>
-                <span>If the owner declines, the authorization is released by your card issuer timing.</span>
+                <b>{copy.captureAfterApproval}</b>
+                <span>{copy.captureAfterApprovalText}</span>
               </div>
             </section>
 
@@ -568,7 +727,7 @@ export default function RequestPage() {
                 <div className="kicker" style={{ marginTop: 6 }}>{error}</div>
                 {fallbackMailto ? (
                   <a className="button secondary" style={{ marginTop: 10 }} href={fallbackMailto}>
-                    Email fallback
+                    {copy.emailFallback}
                   </a>
                 ) : null}
               </div>
@@ -581,7 +740,7 @@ export default function RequestPage() {
                 disabled={!canSubmit}
                 style={{ cursor: canSubmit ? "pointer" : "not-allowed" }}
               >
-                {busy ? "Preparing secure authorization..." : "Continue to secure authorization"}
+                {busy ? copy.preparing : copy.continueAuthorization}
               </button>
 
               <Link className="backlink" href={`/${lang}/boats`}>
