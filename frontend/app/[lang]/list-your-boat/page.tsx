@@ -9,45 +9,222 @@ type Props = {
   }>;
 };
 
-const pageTitle = "List your boat on Sharmar";
-const pageDescription =
-  "Start a Sharmar boat listing by adding photos, boat details, location, and structured request information.";
+type StepCopy = {
+  title: string;
+  text: string;
+};
 
-const steps = [
-  {
-    title: "Upload photos",
-    text: "Add clear boat photos so visitors can review the vessel before sending a request.",
-  },
-  {
-    title: "Add boat details",
-    text: "Enter the vessel type, description, pricing fields, and relevant listing information.",
-  },
-  {
-    title: "Choose country / city / marina",
-    text: "Place the boat in the Mediterranean geography layer that best matches its home base.",
-  },
-  {
-    title: "Receive structured booking requests",
-    text: "Use Sharmar request infrastructure to receive organized inquiry details from potential guests.",
-  },
-];
+type FaqCopy = {
+  question: string;
+  answer: string;
+};
 
-const faqItems = [
-  {
-    question: "What should I prepare before listing a boat?",
-    answer:
-      "Prepare boat photos, vessel details, location information, and the listing intent: rental or sale.",
+type PageCopy = {
+  pageTitle: string;
+  pageDescription: string;
+  homeBreadcrumb: string;
+  pageBreadcrumb: string;
+  backToOwners: string;
+  ownerOnboarding: string;
+  ownerDashboard: string;
+  flowTitle: string;
+  flowDescription: string;
+  stepLabel: string;
+  startKicker: string;
+  startTitle: string;
+  startDescription: string;
+  faqTitle: string;
+  faqDescription: string;
+  addLinks: {
+    rentMotor: string;
+    rentSail: string;
+    saleMotor: string;
+    saleSail: string;
+  };
+  steps: StepCopy[];
+  faqItems: FaqCopy[];
+};
+
+const COPY: Record<Lang, PageCopy> = {
+  en: {
+    pageTitle: "List your boat on Sharmar",
+    pageDescription:
+      "Start a Sharmar boat listing by adding photos, boat details, location, and structured request information.",
+    homeBreadcrumb: "Home",
+    pageBreadcrumb: "List your boat",
+    backToOwners: "Back to owners",
+    ownerOnboarding: "Owner onboarding",
+    ownerDashboard: "Owner dashboard",
+    flowTitle: "Simple onboarding flow",
+    flowDescription: "Four practical steps for creating a boat listing without changing marketplace operations.",
+    stepLabel: "Step",
+    startKicker: "Start a listing",
+    startTitle: "Choose the page that matches your boat",
+    startDescription:
+      "Sharmar separates rental and sale listing paths so owners can submit the right information from the start.",
+    faqTitle: "FAQ",
+    faqDescription: "Owner onboarding details and expectations.",
+    addLinks: {
+      rentMotor: "Motor boat rental",
+      rentSail: "Sail boat rental",
+      saleMotor: "Motor boat sale",
+      saleSail: "Sail boat sale",
+    },
+    steps: [
+      {
+        title: "Upload photos",
+        text: "Add clear boat photos so visitors can review the vessel before sending a request.",
+      },
+      {
+        title: "Add boat details",
+        text: "Enter the vessel type, description, pricing fields, and relevant listing information.",
+      },
+      {
+        title: "Choose country / city / marina",
+        text: "Place the boat in the Mediterranean geography layer that best matches its home base.",
+      },
+      {
+        title: "Receive structured booking requests",
+        text: "Use Sharmar request infrastructure to receive organized inquiry details from potential guests.",
+      },
+    ],
+    faqItems: [
+      {
+        question: "What should I prepare before listing a boat?",
+        answer: "Prepare boat photos, vessel details, location information, and the listing intent: rental or sale.",
+      },
+      {
+        question: "Where do I manage submitted boats?",
+        answer: "Owners can use the owner dashboard to access owner tools that already exist in Sharmar.",
+      },
+      {
+        question: "Does this page change booking or payment behavior?",
+        answer:
+          "No. This onboarding page links to existing listing and dashboard pages without changing booking, payment, or backend behavior.",
+      },
+    ],
   },
-  {
-    question: "Where do I manage submitted boats?",
-    answer: "Owners can use the owner dashboard to access owner tools that already exist in Sharmar.",
+  ru: {
+    pageTitle: "Добавить лодку на Sharmar",
+    pageDescription:
+      "Создайте объявление на Sharmar: добавьте фотографии, характеристики лодки, локацию и данные для структурированных запросов.",
+    homeBreadcrumb: "Главная",
+    pageBreadcrumb: "Добавить лодку",
+    backToOwners: "Назад к владельцам",
+    ownerOnboarding: "Подключение владельца",
+    ownerDashboard: "Кабинет владельца",
+    flowTitle: "Простой процесс добавления",
+    flowDescription: "Четыре практических шага для создания объявления без изменения работы marketplace.",
+    stepLabel: "Шаг",
+    startKicker: "Начать объявление",
+    startTitle: "Выберите страницу под вашу лодку",
+    startDescription:
+      "Sharmar разделяет аренду и продажу, чтобы владелец сразу отправлял правильную информацию.",
+    faqTitle: "Вопросы и ответы",
+    faqDescription: "Детали подключения владельца и ожидания перед публикацией.",
+    addLinks: {
+      rentMotor: "Аренда моторной лодки",
+      rentSail: "Аренда парусной лодки",
+      saleMotor: "Продажа моторной лодки",
+      saleSail: "Продажа парусной лодки",
+    },
+    steps: [
+      {
+        title: "Загрузите фотографии",
+        text: "Добавьте чёткие фотографии лодки, чтобы гости могли оценить судно перед отправкой запроса.",
+      },
+      {
+        title: "Добавьте детали лодки",
+        text: "Укажите тип судна, описание, цены и важные данные для объявления.",
+      },
+      {
+        title: "Выберите страну / город / марину",
+        text: "Разместите лодку в географии Средиземноморья, которая лучше всего соответствует её базе.",
+      },
+      {
+        title: "Получайте структурированные запросы",
+        text: "Используйте инфраструктуру Sharmar, чтобы получать организованные заявки от потенциальных гостей.",
+      },
+    ],
+    faqItems: [
+      {
+        question: "Что подготовить перед добавлением лодки?",
+        answer: "Подготовьте фотографии, характеристики судна, локацию и тип объявления: аренда или продажа.",
+      },
+      {
+        question: "Где управлять отправленными объявлениями?",
+        answer: "Владельцы могут использовать кабинет владельца для доступа к уже существующим инструментам Sharmar.",
+      },
+      {
+        question: "Эта страница меняет бронирование или оплату?",
+        answer:
+          "Нет. Эта страница ведёт на существующие страницы добавления и кабинета, не меняя бронирование, оплату или backend.",
+      },
+    ],
   },
-  {
-    question: "Does this page change booking or payment behavior?",
-    answer:
-      "No. This onboarding page links to existing listing and dashboard pages without changing booking, payment, or backend behavior.",
+  me: {
+    pageTitle: "Dodajte brod na Sharmar",
+    pageDescription:
+      "Započnite Sharmar oglas dodavanjem fotografija, detalja o brodu, lokacije i strukturiranih podataka za upite.",
+    homeBreadcrumb: "Početna",
+    pageBreadcrumb: "Dodajte brod",
+    backToOwners: "Nazad na vlasnike",
+    ownerOnboarding: "Uključivanje vlasnika",
+    ownerDashboard: "Panel vlasnika",
+    flowTitle: "Jednostavan proces dodavanja",
+    flowDescription: "Četiri praktična koraka za kreiranje oglasa bez mijenjanja rada marketplace sistema.",
+    stepLabel: "Korak",
+    startKicker: "Započnite oglas",
+    startTitle: "Izaberite stranicu koja odgovara vašem brodu",
+    startDescription:
+      "Sharmar odvaja najam i prodaju kako bi vlasnici odmah poslali prave informacije.",
+    faqTitle: "FAQ",
+    faqDescription: "Detalji uključivanja vlasnika i očekivanja prije objave.",
+    addLinks: {
+      rentMotor: "Najam motornog broda",
+      rentSail: "Najam jedrilice",
+      saleMotor: "Prodaja motornog broda",
+      saleSail: "Prodaja jedrilice",
+    },
+    steps: [
+      {
+        title: "Dodajte fotografije",
+        text: "Dodajte jasne fotografije broda kako bi posjetioci mogli pregledati plovilo prije slanja upita.",
+      },
+      {
+        title: "Dodajte detalje broda",
+        text: "Unesite tip plovila, opis, cijene i važne informacije za oglas.",
+      },
+      {
+        title: "Izaberite državu / grad / marinu",
+        text: "Postavite brod u mediteranski geografski sloj koji najbolje odgovara njegovoj bazi.",
+      },
+      {
+        title: "Primajte strukturirane upite",
+        text: "Koristite Sharmar infrastrukturu za organizovane zahtjeve potencijalnih gostiju.",
+      },
+    ],
+    faqItems: [
+      {
+        question: "Šta treba pripremiti prije dodavanja broda?",
+        answer: "Pripremite fotografije, detalje plovila, lokaciju i namjenu oglasa: najam ili prodaja.",
+      },
+      {
+        question: "Gdje upravljam poslatim oglasima?",
+        answer: "Vlasnici mogu koristiti panel vlasnika za pristup postojećim Sharmar alatima.",
+      },
+      {
+        question: "Da li ova stranica mijenja rezervacije ili plaćanja?",
+        answer:
+          "Ne. Ova stranica vodi ka postojećim stranicama za dodavanje i panelu, bez promjene rezervacija, plaćanja ili backend logike.",
+      },
+    ],
   },
-];
+};
+
+function getCopy(lang: Lang): PageCopy {
+  return COPY[lang] ?? COPY.en;
+}
 
 function listBoatPath(lang: Lang): string {
   return `/${lang}/list-your-boat`;
@@ -60,11 +237,12 @@ function languageAlternates() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: rawLang } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
+  const copy = getCopy(lang);
   const canonical = `${SITE_URL}${listBoatPath(lang)}`;
 
   return {
-    title: `${pageTitle} | Sharmar`,
-    description: pageDescription,
+    title: `${copy.pageTitle} | Sharmar`,
+    description: copy.pageDescription,
     alternates: {
       canonical,
       languages: {
@@ -73,8 +251,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     },
     openGraph: {
-      title: `${pageTitle} | Sharmar`,
-      description: pageDescription,
+      title: `${copy.pageTitle} | Sharmar`,
+      description: copy.pageDescription,
       url: canonical,
       siteName: "Sharmar",
       type: "website",
@@ -85,24 +263,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ListYourBoatPage({ params }: Props) {
   const { lang: rawLang } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
+  const copy = getCopy(lang);
   const pageUrl = absoluteSiteUrl(listBoatPath(lang));
   const addLinks = [
-    { href: `/${lang}/add/rent/motor`, label: "Motor boat rental" },
-    { href: `/${lang}/add/rent/sail`, label: "Sail boat rental" },
-    { href: `/${lang}/add/sale/motor`, label: "Motor boat sale" },
-    { href: `/${lang}/add/sale/sail`, label: "Sail boat sale" },
+    { href: `/${lang}/add/rent/motor`, label: copy.addLinks.rentMotor },
+    { href: `/${lang}/add/rent/sail`, label: copy.addLinks.rentSail },
+    { href: `/${lang}/add/sale/motor`, label: copy.addLinks.saleMotor },
+    { href: `/${lang}/add/sale/sail`, label: copy.addLinks.saleSail },
   ];
   const jsonLd = [
     webPageJsonLd({
       url: pageUrl,
-      name: `${pageTitle} | Sharmar`,
-      description: pageDescription,
+      name: `${copy.pageTitle} | Sharmar`,
+      description: copy.pageDescription,
     }),
     breadcrumbJsonLd([
-      { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
-      { name: "List your boat", url: pageUrl },
+      { name: copy.homeBreadcrumb, url: absoluteSiteUrl(`/${lang}`) },
+      { name: copy.pageBreadcrumb, url: pageUrl },
     ]),
-    faqJsonLd(faqItems),
+    faqJsonLd(copy.faqItems),
   ];
 
   return (
@@ -117,33 +296,35 @@ export default async function ListYourBoatPage({ params }: Props) {
 
       <div className="container list-boat-page">
         <Link className="backlink" href={`/${lang}/owners`}>
-          Back to owners
+          {copy.backToOwners}
         </Link>
 
         <section className="list-hero">
-          <p className="kicker">Owner onboarding</p>
-          <h1>{pageTitle}</h1>
-          <p>{pageDescription}</p>
+          <p className="kicker">{copy.ownerOnboarding}</p>
+          <h1>{copy.pageTitle}</h1>
+          <p>{copy.pageDescription}</p>
           <div className="list-actions">
             {addLinks.map((item) => (
               <Link key={item.href} href={item.href}>
                 {item.label}
               </Link>
             ))}
-            <Link href={`/${lang}/owner-dashboard`}>Owner dashboard</Link>
+            <Link href={`/${lang}/owner-dashboard`}>{copy.ownerDashboard}</Link>
           </div>
         </section>
 
         <section className="list-section" aria-labelledby="flow-title">
           <div className="list-section-head">
-            <h2 id="flow-title">Simple onboarding flow</h2>
-            <p>Four practical steps for creating a boat listing without changing marketplace operations.</p>
+            <h2 id="flow-title">{copy.flowTitle}</h2>
+            <p>{copy.flowDescription}</p>
           </div>
 
           <div className="step-grid">
-            {steps.map((step, index) => (
+            {copy.steps.map((step, index) => (
               <article key={step.title} className="step-card">
-                <p className="kicker">Step {index + 1}</p>
+                <p className="kicker">
+                  {copy.stepLabel} {index + 1}
+                </p>
                 <h3>{step.title}</h3>
                 <p>{step.text}</p>
               </article>
@@ -153,12 +334,9 @@ export default async function ListYourBoatPage({ params }: Props) {
 
         <section className="list-section cta-band" aria-labelledby="start-title">
           <div>
-            <p className="kicker">Start a listing</p>
-            <h2 id="start-title">Choose the page that matches your boat</h2>
-            <p>
-              Sharmar separates rental and sale listing paths so owners can submit the right information from the
-              start.
-            </p>
+            <p className="kicker">{copy.startKicker}</p>
+            <h2 id="start-title">{copy.startTitle}</h2>
+            <p>{copy.startDescription}</p>
           </div>
           <div className="cta-links">
             {addLinks.map((item) => (
@@ -171,11 +349,11 @@ export default async function ListYourBoatPage({ params }: Props) {
 
         <section className="list-section" aria-labelledby="faq-title">
           <div className="list-section-head">
-            <h2 id="faq-title">FAQ</h2>
-            <p>Owner onboarding details and expectations.</p>
+            <h2 id="faq-title">{copy.faqTitle}</h2>
+            <p>{copy.faqDescription}</p>
           </div>
           <div className="faq-grid">
-            {faqItems.map((item) => (
+            {copy.faqItems.map((item) => (
               <article key={item.question} className="step-card">
                 <h3>{item.question}</h3>
                 <p>{item.answer}</p>
