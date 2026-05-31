@@ -40,7 +40,11 @@ export default function OwnerLoginForm() {
         return;
       }
 
-      localStorage.setItem("owner_jwt", json.jwt);
+      await fetch("/api/auth/owner-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: json.jwt }),
+      });
       router.push(`/${lang}/owner-dashboard`);
     } catch {
       setError("Не удалось войти. Попробуйте ещё раз.");

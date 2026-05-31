@@ -66,9 +66,14 @@ function isRecord(v: unknown): v is JsonObject {
 
 function getBearerToken(req: NextRequest): string | null {
   const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!h) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m?.[1]?.trim() || null;
+  if (h) {
+    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
+    const headerToken = m?.[1]?.trim();
+    if (headerToken) return headerToken;
+  }
+
+  const cookieToken = req.cookies.get("sharmar_owner_session")?.value?.trim();
+  return cookieToken || null;
 }
 
 

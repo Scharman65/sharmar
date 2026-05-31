@@ -229,13 +229,6 @@ export default function OwnerDashboardClient() {
   ).length;
 
   useEffect(() => {
-    const token = localStorage.getItem("owner_jwt")?.trim();
-
-    if (!token) {
-      router.replace(`/${lang}/owner-login`);
-      return;
-    }
-
     let alive = true;
 
     async function load() {
@@ -245,9 +238,6 @@ export default function OwnerDashboardClient() {
       try {
         const res = await fetch("/api/owner/dashboard", {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           cache: "no-store",
         });
 
@@ -275,20 +265,14 @@ export default function OwnerDashboardClient() {
     };
   }, [lang, router]);
 
-  function logout() {
-    localStorage.removeItem("owner_jwt");
+  async function logout() {
+    await fetch("/api/auth/owner-session", { method: "DELETE" });
     router.replace(`/${lang}/owner-login`);
   }
 
   async function refreshDashboard() {
-    const token = localStorage.getItem("owner_jwt")?.trim();
-    if (!token) return;
-
     const res = await fetch("/api/owner/dashboard", {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       cache: "no-store",
     });
 
