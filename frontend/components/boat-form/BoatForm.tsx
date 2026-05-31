@@ -274,7 +274,13 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       const json: unknown = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setSaveError(getApiError(json) ?? "Could not save this listing.");
+        const apiError = getApiError(json);
+        const details =
+          json && typeof json === "object" && "details" in json
+            ? JSON.stringify((json as { details?: unknown }).details)
+            : null;
+
+        setSaveError(apiError || details || "Could not save this listing.");
         return;
       }
 

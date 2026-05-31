@@ -57,7 +57,7 @@ function getStrapiBase(): string {
 }
 
 function getServerToken(): string {
-  return (process.env.STRAPI_TOKEN || "").trim();
+  return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
 }
 
 function isRecord(v: unknown): v is JsonObject {
@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
       price_per_week: p.rentPriceWeek ?? null,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
-      owner_email: p.ownerEmail ?? "",
+      owner_email: p.ownerEmail || me.email || "owner@sharmar.me",
       owner_user_email: me.email ?? p.ownerEmail ?? "",
       currency: p.currency ?? "EUR",
       booking_enabled: false,
