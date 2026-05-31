@@ -1,7 +1,83 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { BoatFormMode, BoatFormValues } from "./types";
+
+
+
+const translations = {
+  en: {
+    createListingDesc: "Add yacht details and photos.",
+    manualReviewDesc: "Sharmar verifies listings before publication.",
+    receiveRequestsDesc: "Owners approve bookings before confirmation.",
+    listingDetails: "Listing details",
+    listingDetailsDesc: "Name the boat and describe what owners should know first.",
+    languageDetected: "Listing language is automatically detected from the current site language.",
+    title: "Title",
+    description: "Description",
+    boatBasics: "Boat basics",
+    boatBasicsDesc: "Use numbers only where possible.",
+    capacity: "Capacity",
+    year: "Year",
+    length: "Length, m",
+    horsepower: "Horsepower",
+    rentPricing: "Rent pricing",
+    ownerContact: "Owner contact",
+    ownerContactDesc: "Add the phone number for owner follow-up.",
+    ownerPhone: "Owner phone",
+    reviewPending: "Listing saved for review. Visible after approval.",
+    boatPhotos: "Boat photos",
+    uploadPhotos: "Upload boat photos"
+  },
+  ru: {
+    createListingDesc: "Добавьте описание и фотографии яхты.",
+    manualReviewDesc: "Sharmar проверяет объявления перед публикацией.",
+    receiveRequestsDesc: "Владелец подтверждает бронирование вручную.",
+    listingDetails: "Информация о яхте",
+    listingDetailsDesc: "Укажите основные данные о яхте.",
+    languageDetected: "Язык объявления определяется автоматически по языку сайта.",
+    title: "Название",
+    description: "Описание",
+    boatBasics: "Основные параметры",
+    boatBasicsDesc: "Используйте цифры там, где возможно.",
+    capacity: "Вместимость",
+    year: "Год",
+    length: "Длина, м",
+    horsepower: "Мощность",
+    rentPricing: "Стоимость аренды",
+    ownerContact: "Контакты владельца",
+    ownerContactDesc: "Укажите номер телефона владельца.",
+    ownerPhone: "Телефон владельца",
+    reviewPending: "Объявление отправлено на проверку. После одобрения станет видимым.",
+    boatPhotos: "Фотографии яхты",
+    uploadPhotos: "Загрузить фотографии"
+  },
+  me: {
+    createListingDesc: "Dodajte podatke i fotografije jahte.",
+    manualReviewDesc: "Sharmar provjerava oglase prije objave.",
+    receiveRequestsDesc: "Vlasnik potvrđuje rezervacije prije potvrde.",
+    listingDetails: "Detalji jahte",
+    listingDetailsDesc: "Dodajte osnovne informacije o jahti.",
+    languageDetected: "Jezik oglasa se automatski određuje prema jeziku sajta.",
+    title: "Naziv",
+    description: "Opis",
+    boatBasics: "Osnovni podaci",
+    boatBasicsDesc: "Koristite brojeve gdje god je moguće.",
+    capacity: "Kapacitet",
+    year: "Godina",
+    length: "Dužina, m",
+    horsepower: "Snaga motora",
+    rentPricing: "Cijena najma",
+    ownerContact: "Kontakt vlasnika",
+    ownerContactDesc: "Dodajte broj telefona vlasnika.",
+    ownerPhone: "Telefon vlasnika",
+    reviewPending: "Oglas je poslat na provjeru. Nakon odobrenja biće vidljiv.",
+    boatPhotos: "Fotografije jahte",
+    uploadPhotos: "Otpremi fotografije"
+  }
+};
+
 
 type UploadedImage = {
   id: number;
@@ -138,6 +214,11 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const pathname = usePathname();
+  const lang = pathname.split("/")[1] || "en";
+  const ui = translations[lang as keyof typeof translations] || translations.en;
+  const listingLanguage = lang;
+
   const title = useMemo(() => buildTitle(mode), [mode]);
 
   const errors = useMemo(() => validate(values, mode), [values, mode]);
@@ -163,6 +244,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
       currency: "EUR",
       ownerPhone: values.ownerPhone.trim(),
+      locale: listingLanguage,
       imageIds: uploadedImages.map((image) => image.id),
     }),
     [values, mode]
@@ -308,14 +390,35 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           <p>
             Add the core details for review. Keep the information clear and accurate.
           </p>
+
+          <div className="boat-form-owner-flow">
+            <div className="boat-form-owner-flow-item">
+              <strong>1. Create listing</strong>
+              <span>{ui.createListingDesc}</span>
+            </div>
+
+            <div className="boat-form-owner-flow-item">
+              <strong>2. Manual review</strong>
+              <span>{ui.manualReviewDesc}</span>
+            </div>
+
+            <div className="boat-form-owner-flow-item">
+              <strong>3. Receive requests</strong>
+              <span>{ui.receiveRequestsDesc}</span>
+            </div>
+          </div>
         </div>
 
         <form className="boat-form-body" onSubmit={onSubmit}>
           <section className={sectionCard()}>
             <div className="boat-form-section-header boat-form-section-header-split">
               <div>
-                <div className={sectionTitle()}>Listing details</div>
-                <p className={helpText()}>Name the boat and describe what owners should know first.</p>
+                <div className={sectionTitle()}>{ui.listingDetails}</div>
+                <p className={helpText()}>{ui.listingDetailsDesc}</p>
+
+                <div className="boat-form-language-note">
+                  Listing language is automatically detected from the current site language.
+                </div>
               </div>
               <div className="boat-form-badges">
                 <span>
@@ -329,7 +432,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
             <div className="boat-form-stack">
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Title</div>
+                <div className={labelBase()}>{ui.title}</div>
                 <input
                   className={inputBase()}
                   placeholder="Boat name or short listing title"
@@ -340,7 +443,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               </div>
 
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Description</div>
+                <div className={labelBase()}>{ui.description}</div>
                 <textarea
                   className="boat-form-textarea"
                   rows={5}
@@ -355,13 +458,13 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
           <section className={sectionCard()}>
             <div className="boat-form-section-header">
-              <div className={sectionTitle()}>Boat basics</div>
-              <p className={helpText()}>Use numbers only where possible.</p>
+              <div className={sectionTitle()}>{ui.boatBasics}</div>
+              <p className={helpText()}>{ui.boatBasicsDesc}</p>
             </div>
 
             <div className="boat-form-grid">
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Capacity</div>
+                <div className={labelBase()}>{ui.capacity}</div>
                 <input
                   className={inputBase()}
                   placeholder="Guests"
@@ -372,7 +475,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               </div>
 
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Year</div>
+                <div className={labelBase()}>{ui.year}</div>
                 <input
                   className={inputBase()}
                   placeholder="Build year"
@@ -383,7 +486,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               </div>
 
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Length, m</div>
+                <div className={labelBase()}>{ui.length}</div>
                 <input
                   className={inputBase()}
                   placeholder="Meters"
@@ -394,7 +497,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
               </div>
 
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Horsepower</div>
+                <div className={labelBase()}>{ui.horsepower}</div>
                 <input
                   className={inputBase()}
                   placeholder="Engine power"
@@ -409,7 +512,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           {mode.kind === "rent" ? (
             <section className={sectionCard()}>
               <div className="boat-form-section-header">
-                <div className={sectionTitle()}>Rent pricing</div>
+                <div className={sectionTitle()}>{ui.rentPricing}</div>
                 <p className={helpText()}>Add at least one rental price in EUR.</p>
               </div>
 
@@ -477,13 +580,13 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
           <section className={sectionCard()}>
             <div className="boat-form-section-header">
-              <div className={sectionTitle()}>Owner contact</div>
-              <p className={helpText()}>Add the phone number for owner follow-up.</p>
+              <div className={sectionTitle()}>{ui.ownerContact}</div>
+              <p className={helpText()}>{ui.ownerContactDesc}</p>
             </div>
 
             <div className="boat-form-grid">
               <div className={fieldGroup()}>
-                <div className={labelBase()}>Owner phone</div>
+                <div className={labelBase()}>{ui.ownerPhone}</div>
                 <input
                   className={inputBase()}
                   placeholder="Phone number"
@@ -501,7 +604,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
             <section className={sectionCard()}>
               <div>
-                <h2 className={sectionTitle()}>Boat photos</h2>
+                <h2 className={sectionTitle()}>{ui.boatPhotos}</h2>
                 <p className={helpText()}>
                   Upload up to 8 JPG, PNG or WEBP images. The first image will become the cover later.
                 </p>
@@ -590,16 +693,32 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
             <div className="boat-form-status">
               {submitted && hasErrors ? <div className="boat-form-error">Please complete the highlighted fields.</div> : null}
               {saveError ? <div className="boat-form-error">{saveError}</div> : null}
-              {listingSaved ? <div className="boat-form-success">Listing saved for review. Visible after approval.</div> : null}
+              {listingSaved ? <div className="boat-form-success">{ui.reviewPending}</div> : null}
             </div>
 
 
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || listingSaved}
               className="boat-form-submit"
             >
-              {isSaving ? "Saving..." : "Save for review"}
+              {listingSaved
+                ? (lang === "ru"
+                    ? "Отправлено на проверку"
+                    : lang === "me"
+                      ? "Poslato na provjeru"
+                      : "Submitted for review")
+                : isSaving
+                  ? (lang === "ru"
+                      ? "Сохранение..."
+                      : lang === "me"
+                        ? "Čuvanje..."
+                        : "Saving...")
+                  : (lang === "ru"
+                      ? "Сохранить на проверку"
+                      : lang === "me"
+                        ? "Sačuvaj za provjeru"
+                        : "Save for review")}
             </button>
           </div>
         </form>
@@ -647,7 +766,51 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
           letter-spacing: 0;
         }
 
-        .boat-form-hero p {
+        
+.boat-form-owner-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.boat-form-owner-flow-item {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.boat-form-owner-flow-item strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.boat-form-owner-flow-item span {
+  color: rgba(255,255,255,0.72);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.boat-form-language-note {
+  margin-top: 10px;
+  border-left: 3px solid rgba(255,255,255,0.22);
+  padding-left: 12px;
+  color: rgba(255,255,255,0.72);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .boat-form-owner-flow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.boat-form-hero p {
           max-width: 640px;
           margin: 14px 0 0;
           color: rgba(255, 255, 255, 0.66);
