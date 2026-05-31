@@ -40,6 +40,65 @@ function getCountryMarinas(countrySlug: string) {
   return MARINAS.filter((marina) => marinaSlugs.has(marina.slug));
 }
 
+
+function pageCopy(lang: Lang) {
+  if (lang === "ru") {
+    return {
+      back: "Назад ко всем маринам",
+      kicker: "Направление страны",
+      exploreAll: "Открыть все марины",
+      listBoat: "Разместить лодку в",
+      citiesTitle: "Города в",
+      citiesText: "Статические страницы городов, связанные с направлениями марин Sharmar.",
+      viewCity: "Открыть город",
+      marinasTitle: "Марины в",
+      marinasText: "Премиальные страницы марин, связанные с этим уровнем страны.",
+      viewMarina: "Открыть марину",
+      rentalsTitle: "Страницы категорий аренды в",
+      rentalsText: "Изучите категории аренды, связанные с этим направлением.",
+      faqTitle: "Частые вопросы о",
+      faqText: "Информация о направлениях на основе опубликованных страниц городов и марин Sharmar.",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      back: "Nazad na sve marine",
+      kicker: "Destinacija države",
+      exploreAll: "Istraži sve marine",
+      listBoat: "Dodaj plovilo u",
+      citiesTitle: "Gradovi u",
+      citiesText: "Statične stranice gradova povezane sa marina destinacijama Sharmar-a.",
+      viewCity: "Otvori grad",
+      marinasTitle: "Marine u",
+      marinasText: "Premium stranice marina povezane sa ovom državnom destinacijom.",
+      viewMarina: "Otvori marinu",
+      rentalsTitle: "Stranice kategorija najma u",
+      rentalsText: "Istražite kategorije najma povezane sa ovom destinacijom.",
+      faqTitle: "Česta pitanja o",
+      faqText: "Informacije o destinacijama zasnovane na objavljenim stranicama gradova i marina Sharmar-a.",
+    };
+  }
+
+  return {
+    back: "{copy.back}",
+    kicker: "{copy.kicker}",
+    exploreAll: "{copy.exploreAll}",
+    listBoat: "List a boat in",
+    citiesTitle: "Cities in",
+    citiesText: "{copy.citiesText}",
+    viewCity: "{copy.viewCity}",
+    marinasTitle: "Marinas in",
+    marinasText: "{copy.marinasText}",
+    viewMarina: "{copy.viewMarina}",
+    rentalsTitle: "Rental category pages in",
+    rentalsText: "{copy.rentalsText}",
+    faqTitle: "FAQs about",
+    faqText: "{copy.faqText}",
+  };
+}
+
+
 function formatTitleList(items: string[], emptyText: string): string {
   if (items.length === 0) return emptyText;
   if (items.length === 1) return items[0];
@@ -61,6 +120,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: rawLang, slug } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
   const country = getCountry(slug);
+  const copy = pageCopy(lang);
 
   if (!country) {
     return {
@@ -94,6 +154,7 @@ export default async function CountryPage({ params }: Props) {
   const { lang: rawLang, slug } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
   const country = getCountry(slug);
+  const copy = pageCopy(lang);
 
   if (!country) notFound();
 
@@ -152,23 +213,23 @@ export default async function CountryPage({ params }: Props) {
       ))}
       <div className="container geo-page">
         <Link className="backlink" href={`/${lang}/marinas`}>
-          Back to all marinas
+          {copy.back}
         </Link>
 
         <section className="geo-hero">
-          <p className="kicker">Country destination</p>
+          <p className="kicker">{copy.kicker}</p>
           <h1>{country.title} yacht rentals and marinas</h1>
           <p>{country.description}</p>
           <div className="geo-actions">
-            <Link href={`/${lang}/marinas`}>Explore all marinas</Link>
-            <Link href={`/${lang}/owners/${country.slug}`}>List a boat in {country.title}</Link>
+            <Link href={`/${lang}/marinas`}>{copy.exploreAll}</Link>
+            <Link href={`/${lang}/owners/${country.slug}`}>{copy.listBoat} {country.title}</Link>
           </div>
         </section>
 
         <section className="geo-section" aria-labelledby="country-cities-title">
           <div className="geo-section-head">
-            <h2 id="country-cities-title">Cities in {country.title}</h2>
-            <p>Static city pages connected to Sharmar marina destinations.</p>
+            <h2 id="country-cities-title">{copy.citiesTitle} {country.title}</h2>
+            <p>{copy.citiesText}</p>
           </div>
 
           <div className="geo-grid">
@@ -177,7 +238,7 @@ export default async function CountryPage({ params }: Props) {
                 <p className="kicker">{country.title}</p>
                 <h3>{city.title}</h3>
                 <p>{city.description}</p>
-                <span>View city</span>
+                <span>{copy.viewCity}</span>
               </Link>
             ))}
           </div>
@@ -185,8 +246,8 @@ export default async function CountryPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="country-marinas-title">
           <div className="geo-section-head">
-            <h2 id="country-marinas-title">Marinas in {country.title}</h2>
-            <p>Premium marina pages linked from this static country layer.</p>
+            <h2 id="country-marinas-title">{copy.marinasTitle} {country.title}</h2>
+            <p>{copy.marinasText}</p>
           </div>
 
           <div className="geo-grid">
@@ -195,7 +256,7 @@ export default async function CountryPage({ params }: Props) {
                 <p className="kicker">{marina.city}</p>
                 <h3>{marina.title}</h3>
                 <p>{marina.description}</p>
-                <span>View marina</span>
+                <span>{copy.viewMarina}</span>
               </Link>
             ))}
           </div>
@@ -203,8 +264,8 @@ export default async function CountryPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="country-rent-title">
           <div className="geo-section-head">
-            <h2 id="country-rent-title">Rental category pages in {country.title}</h2>
-            <p>Explore rental category pages connected to this country destination.</p>
+            <h2 id="country-rent-title">{copy.rentalsTitle} {country.title}</h2>
+            <p>{copy.rentalsText}</p>
           </div>
 
           <div className="rent-grid">
@@ -218,8 +279,8 @@ export default async function CountryPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="country-faq-title">
           <div className="geo-section-head">
-            <h2 id="country-faq-title">FAQs about {country.title}</h2>
-            <p>Destination details based on Sharmar's published city and marina pages.</p>
+            <h2 id="country-faq-title">{copy.faqTitle} {country.title}</h2>
+            <p>{copy.faqText}</p>
           </div>
 
           <div className="geo-faq-grid">
