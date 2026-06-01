@@ -8,6 +8,128 @@ import { fetchBoats, type Boat } from "@/lib/strapi";
 import { getBoatCardImage } from "@/lib/media";
 import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
+type PageCopy = {
+  marinaNotFound: string;
+  home: string;
+  marinas: string;
+  backToBoats: string;
+  mediterraneanMarketplace: string;
+  marinaMarketplaceSections: string;
+  rentBoats: string;
+  charterFrom: string;
+  rentDescription: string;
+  buyBoats: string;
+  boatsForSaleNear: string;
+  saleDescription: string;
+  forOwners: string;
+  listYourYachtIn: string;
+  ownersDescription: string;
+  listYourBoat: string;
+  exploreBoatRentals: string;
+  availableBoats: string;
+  availableCount: string;
+  noBoatsListed: string;
+  noBoatsLinked: string;
+  typeLabel: string;
+  viewDetails: string;
+  exploreNearbyMarinas: string;
+  viewMarina: string;
+  yachtRentalsAndBoatsIn: string;
+};
+
+function pageCopy(lang: Lang): PageCopy {
+  if (lang === "ru") {
+    return {
+      marinaNotFound: "Марина не найдена | Sharmar",
+      home: "Главная",
+      marinas: "Марины",
+      backToBoats: "← Назад к лодкам",
+      mediterraneanMarketplace: "Средиземноморский маркетплейс",
+      marinaMarketplaceSections: "Разделы маркетплейса марин",
+      rentBoats: "Аренда лодок",
+      charterFrom: "Аренда из",
+      rentDescription: "Изучите доступные моторные яхты, катамараны и парусные лодки, связанные с этой мариной.",
+      buyBoats: "Покупка лодок",
+      boatsForSaleNear: "Лодки на продажу рядом с",
+      saleDescription: "Просматривайте премиальные предложения продажи и будущие возможности для владельцев рядом с этой мариной.",
+      forOwners: "Для владельцев",
+      listYourYachtIn: "Разместите яхту в",
+      ownersDescription: "Sharmar помогает владельцам получать структурированные запросы на бронирование и связывать объявления с поиском марин.",
+      listYourBoat: "Разместить лодку",
+      exploreBoatRentals: "Изучите аренду лодок из этой марины",
+      availableBoats: "Доступные лодки в этой марине",
+      availableCount: "доступно",
+      noBoatsListed: "Сейчас лодки не размещены",
+      noBoatsLinked: "Сейчас к этой марине не привязано ни одной лодки.",
+      typeLabel: "Тип",
+      viewDetails: "Подробнее →",
+      exploreNearbyMarinas: "Изучите ближайшие марины",
+      viewMarina: "Открыть марину →",
+      yachtRentalsAndBoatsIn: "Аренда яхт и лодок в",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      marinaNotFound: "Marina nije pronađena | Sharmar",
+      home: "Početna",
+      marinas: "Marine",
+      backToBoats: "← Nazad na plovila",
+      mediterraneanMarketplace: "Mediteranski marketplace",
+      marinaMarketplaceSections: "Sekcije marketplace-a marina",
+      rentBoats: "Iznajmljivanje plovila",
+      charterFrom: "Najam iz",
+      rentDescription: "Istražite dostupne motorne jahte, katamarane i jedrilice povezane sa ovom marinom.",
+      buyBoats: "Kupovina plovila",
+      boatsForSaleNear: "Plovila na prodaju blizu",
+      saleDescription: "Pregledajte premium oglase prodaje i buduće mogućnosti za vlasnike oko ove marine.",
+      forOwners: "Za vlasnike",
+      listYourYachtIn: "Objavite svoju jahtu u",
+      ownersDescription: "Sharmar pomaže vlasnicima da dobijaju strukturirane zahtjeve za rezervaciju i povežu oglase sa otkrivanjem marina.",
+      listYourBoat: "Objavi plovilo",
+      exploreBoatRentals: "Istražite najam plovila iz ove marine",
+      availableBoats: "Dostupna plovila u ovoj marini",
+      availableCount: "dostupno",
+      noBoatsListed: "Trenutno nema objavljenih plovila",
+      noBoatsLinked: "Trenutno nema plovila povezanih sa ovom marinom.",
+      typeLabel: "Tip",
+      viewDetails: "Detalji →",
+      exploreNearbyMarinas: "Istražite obližnje marine",
+      viewMarina: "Otvori marinu →",
+      yachtRentalsAndBoatsIn: "Najam jahti i plovila u",
+    };
+  }
+
+  return {
+    marinaNotFound: "Marina not found | Sharmar",
+    home: "Home",
+    marinas: "Marinas",
+    backToBoats: "← Back to boats",
+    mediterraneanMarketplace: "Mediterranean marketplace",
+    marinaMarketplaceSections: "Marina marketplace sections",
+    rentBoats: "Rent boats",
+    charterFrom: "Charter from",
+    rentDescription: "Discover available motor yachts, catamarans, and sailing boats connected to this marina.",
+    buyBoats: "Buy boats",
+    boatsForSaleNear: "Boats for sale near",
+    saleDescription: "Browse premium sale listings and future owner opportunities around this marina.",
+    forOwners: "For owners",
+    listYourYachtIn: "List your yacht in",
+    ownersDescription: "Sharmar helps owners receive structured booking requests and connect listings with marina discovery.",
+    listYourBoat: "List your boat",
+    exploreBoatRentals: "Explore boat rentals from this marina",
+    availableBoats: "Available boats in this marina",
+    availableCount: "available",
+    noBoatsListed: "No boats currently listed",
+    noBoatsLinked: "No boats currently linked to this marina.",
+    typeLabel: "Type",
+    viewDetails: "View details →",
+    exploreNearbyMarinas: "Explore nearby marinas",
+    viewMarina: "View marina →",
+    yachtRentalsAndBoatsIn: "Yacht rentals and boats in",
+  };
+}
+
 type PageProps = {
   params: Promise<{
     lang: Lang;
@@ -130,7 +252,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!marina) {
     return {
-      title: "Marina not found | Sharmar",
+      title: pageCopy(lang).marinaNotFound,
     };
   }
 
@@ -176,8 +298,8 @@ export default async function MarinaPage({ params }: PageProps) {
       description: marina.seoDescription,
     }),
     breadcrumbJsonLd([
-      { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
-      { name: "Marinas", url: absoluteSiteUrl(`/${lang}/marinas`) },
+      { name: pageCopy(lang).home, url: absoluteSiteUrl(`/${lang}`) },
+      { name: pageCopy(lang).marinas, url: absoluteSiteUrl(`/${lang}/marinas`) },
       { name: marina.title, url: marinaUrl },
     ]),
     ...(boats.length
@@ -233,7 +355,7 @@ export default async function MarinaPage({ params }: PageProps) {
       ))}
       <div className="container">
         <Link className="backlink" href={`/${lang}/boats`}>
-          ← Back to boats
+          {pageCopy(lang).backToBoats}
         </Link>
 
         <section className="marina-hero">
@@ -244,16 +366,16 @@ export default async function MarinaPage({ params }: PageProps) {
           <div className="marina-meta">
             <span>{marina.city}</span>
             <span>{marina.country}</span>
-            <span>Mediterranean marketplace</span>
+            <span>{pageCopy(lang).mediterraneanMarketplace}</span>
           </div>
         </section>
 
-        <section className="marina-grid" aria-label="Marina marketplace sections">
+        <section className="marina-grid" aria-label={pageCopy(lang).marinaMarketplaceSections}>
           <article className="marina-card">
-            <p className="kicker">Rent boats</p>
-            <h2>Charter from {marina.title}</h2>
+            <p className="kicker">{pageCopy(lang).rentBoats}</p>
+            <h2>{pageCopy(lang).charterFrom} {marina.title}</h2>
             <p>
-              Discover available motor yachts, catamarans, and sailing boats connected to this marina.
+              {pageCopy(lang).rentDescription}
             </p>
             <div className="link-list">
               {rentLinks.map((item) => (
@@ -265,10 +387,10 @@ export default async function MarinaPage({ params }: PageProps) {
           </article>
 
           <article className="marina-card">
-            <p className="kicker">Buy boats</p>
-            <h2>Boats for sale near {marina.city}</h2>
+            <p className="kicker">{pageCopy(lang).buyBoats}</p>
+            <h2>{pageCopy(lang).boatsForSaleNear} {marina.city}</h2>
             <p>
-              Browse premium sale listings and future owner opportunities around this marina.
+              {pageCopy(lang).saleDescription}
             </p>
             <div className="link-list">
               {saleLinks.map((item) => (
@@ -280,20 +402,20 @@ export default async function MarinaPage({ params }: PageProps) {
           </article>
 
           <article className="marina-card">
-            <p className="kicker">For owners</p>
-            <h2>List your yacht in {marina.city}</h2>
+            <p className="kicker">{pageCopy(lang).forOwners}</p>
+            <h2>{pageCopy(lang).listYourYachtIn} {marina.city}</h2>
             <p>
-              Sharmar helps owners receive structured booking requests and connect listings with marina discovery.
+              {pageCopy(lang).ownersDescription}
             </p>
             <Link className="button" href={`/${lang}/list-your-boat`}>
-              List your boat
+              {pageCopy(lang).listYourBoat}
             </Link>
           </article>
         </section>
 
         <section className="marina-category-links" aria-labelledby="marina-category-links-title">
           <div className="marina-section-top">
-            <h2 id="marina-category-links-title">Explore boat rentals from this marina</h2>
+            <h2 id="marina-category-links-title">{pageCopy(lang).exploreBoatRentals}</h2>
           </div>
 
           <div className="marina-discovery-links">
@@ -307,12 +429,12 @@ export default async function MarinaPage({ params }: PageProps) {
 
         <section className="marina-boats" aria-labelledby="marina-boats-title">
           <div className="marina-section-top">
-            <h2 id="marina-boats-title">Available boats in this marina</h2>
-            <p className="kicker">{boats.length ? `${boats.length} available` : "No boats currently listed"}</p>
+            <h2 id="marina-boats-title">{pageCopy(lang).availableBoats}</h2>
+            <p className="kicker">{boats.length ? `${boats.length} ${pageCopy(lang).availableCount}` : pageCopy(lang).noBoatsListed}</p>
           </div>
 
           {boats.length === 0 ? (
-            <p className="marina-empty">No boats currently linked to this marina.</p>
+            <p className="marina-empty">{pageCopy(lang).noBoatsLinked}</p>
           ) : (
             <ul className="grid" style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {boats.map((boat) => {
@@ -339,7 +461,7 @@ export default async function MarinaPage({ params }: PageProps) {
                       <div className="card-body">
                         <h3 className="card-title">{boat.title ?? `Boat #${boat.id}`}</h3>
                         <p className="card-sub">
-                          <span>Type: {boat.boat_type ?? boat.vesselType ?? "—"}</span>
+                          <span>{pageCopy(lang).typeLabel}: {boat.boat_type ?? boat.vesselType ?? "—"}</span>
                         </p>
                         {price ? (
                           <p className="card-sub">
@@ -347,7 +469,7 @@ export default async function MarinaPage({ params }: PageProps) {
                           </p>
                         ) : null}
                         <div className="card-bottom">
-                          <span className="pill">View details →</span>
+                          <span className="pill">{pageCopy(lang).viewDetails}</span>
                         </div>
                       </div>
                     </Link>
@@ -361,7 +483,7 @@ export default async function MarinaPage({ params }: PageProps) {
         {relatedMarinas.length > 0 ? (
           <section className="related-marinas" aria-labelledby="related-marinas-title">
             <div className="marina-section-top">
-              <h2 id="related-marinas-title">Explore nearby marinas</h2>
+              <h2 id="related-marinas-title">{pageCopy(lang).exploreNearbyMarinas}</h2>
             </div>
 
             <ul className="related-marina-grid">
@@ -373,7 +495,7 @@ export default async function MarinaPage({ params }: PageProps) {
                     </p>
                     <h3>{relatedMarina.title}</h3>
                     <p>{relatedMarina.seoDescription}</p>
-                    <span>View marina →</span>
+                    <span>{pageCopy(lang).viewMarina}</span>
                   </Link>
                 </li>
               ))}
@@ -382,7 +504,7 @@ export default async function MarinaPage({ params }: PageProps) {
         ) : null}
 
         <section className="marina-seo">
-          <h2>Yacht rentals and boats in {marina.title}</h2>
+          <h2>{pageCopy(lang).yachtRentalsAndBoatsIn} {marina.title}</h2>
           <p>
             {marina.title} is part of Sharmar&apos;s Mediterranean marina network, designed for premium yacht
             discovery, structured booking requests, and owner-confirmed reservations.
