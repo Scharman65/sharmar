@@ -1,4 +1,5 @@
 type BookingEmail = {
+  locale?: string | null;
   id: number;
   boatTitle: string;
   boatSlug: string;
@@ -13,6 +14,7 @@ type BookingEmail = {
 };
 
 type OwnerDecisionEmail = {
+  locale?: string | null;
   boatTitle: string;
   boatSlug: string;
   ownerUrl: string;
@@ -27,6 +29,7 @@ type OwnerDecisionEmail = {
 };
 
 type BookingCustomerRequestEmail = {
+  locale?: string | null;
   boatTitle: string;
   customerName: string;
   start?: string | null;
@@ -37,6 +40,7 @@ type BookingCustomerRequestEmail = {
 };
 
 type BookingCustomerDecisionEmail = {
+  locale?: string | null;
   boatTitle: string;
   customerName: string;
   publicToken?: string | null;
