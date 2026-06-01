@@ -144,6 +144,7 @@ async function sendCustomerDecisionEmail(
   if (!template) return;
 
   const mail = template({
+    locale: emailLocale,
     boatTitle: payload.boatTitle,
     customerName: payload.customerName,
     publicToken: payload.publicToken,
@@ -172,6 +173,8 @@ function getActionPath(action: string, token: string): string | null {
 
   return null;
 }
+
+const emailLocale = "en";
 
 export async function POST(_req: Request, ctx: RouteCtx) {
   const { token, action } = await ctx.params;

@@ -453,6 +453,8 @@ async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null>
   return { owner_email, owner_phone, owner_whatsapp, owner_viber };
 }
 
+const emailLocale = "en";
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
   const t0 = Date.now();
@@ -607,6 +609,7 @@ export async function POST(req: Request) {
     if (id > 0 && BOOKING_TO && resend) {
       try {
         const mail = bookingAdminEmail({
+          locale: emailLocale,
           id,
           boatTitle: p.boatTitle || p.boatSlug,
           boatSlug: p.boatSlug,
@@ -634,6 +637,7 @@ export async function POST(req: Request) {
     if (id > 0 && ownerContact?.owner_email && resend) {
       try {
         const mail = ownerDecisionEmail({
+          locale: emailLocale,
           boatTitle: p.boatTitle || p.boatSlug,
           boatSlug: p.boatSlug,
           ownerUrl,
@@ -663,6 +667,7 @@ export async function POST(req: Request) {
     if (id > 0 && p.email && resend) {
       try {
         const mail = bookingCustomerRequestEmail({
+          locale: emailLocale,
           boatTitle: p.boatTitle || p.boatSlug,
           customerName: p.name,
           start,
