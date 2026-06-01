@@ -453,10 +453,20 @@ async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null>
   return { owner_email, owner_phone, owner_whatsapp, owner_viber };
 }
 
-const emailLocale = "en";
+function emailLocaleFromRequest(req: Request): string {
+  try {
+    const first = new URL(req.url).pathname.split("/").filter(Boolean)[0] || "";
+    if (first === "ru") return "ru";
+    if (first === "me") return "me";
+    return "en";
+  } catch {
+    return "en";
+  }
+}
 
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
+  const emailLocale = emailLocaleFromRequest(req);
   const t0 = Date.now();
 
   let body: unknown;
