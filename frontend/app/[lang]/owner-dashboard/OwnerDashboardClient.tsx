@@ -4,6 +4,169 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+type DashboardCopy = {
+  ownerDashboard: string;
+  signedInAs: string;
+  manageBoatListings: string;
+  logout: string;
+  addMotorBoatRent: string;
+  addSailBoatRent: string;
+  addMotorBoatSale: string;
+  addSailBoatSale: string;
+  loading: string;
+  activeBookings: string;
+  activeHolds: string;
+  recentActivity: string;
+  published: string;
+  listingSavedForReview: string;
+  ready: string;
+  notReady: string;
+  dateNotSet: string;
+
+  myBoats: string;
+  bookingEnabled: string;
+  bookingDisabled: string;
+  noBoatsYet: string;
+
+  recentBookingActivity: string;
+  noRecentBookingActivity: string;
+
+  confirm: string;
+  confirming: string;
+  decline: string;
+  declining: string;
+
+  bookingCalendar: string;
+  noBookingCalendarEntries: string;
+
+  occupancyOverview: string;
+  noActiveOccupancy: string;
+};
+
+function pageCopy(lang: string): DashboardCopy {
+  if (lang === "ru") {
+    return {
+      ownerDashboard: "Кабинет владельца",
+      signedInAs: "Вход выполнен как",
+      manageBoatListings: "Управляйте своими объявлениями лодок",
+      logout: "Выйти",
+      addMotorBoatRent: "Добавить моторную лодку в аренду",
+      addSailBoatRent: "Добавить парусную лодку в аренду",
+      addMotorBoatSale: "Добавить моторную лодку на продажу",
+      addSailBoatSale: "Добавить парусную лодку на продажу",
+      loading: "Загрузка...",
+      activeBookings: "Активные бронирования",
+      activeHolds: "Активные удержания",
+      recentActivity: "Недавняя активность",
+      published: "Опубликовано",
+      listingSavedForReview: "Сохранено для проверки",
+      ready: "Готово",
+      notReady: "Не готово",
+      dateNotSet: "Дата не указана",
+
+      myBoats: "Мои лодки",
+      bookingEnabled: "Бронирование включено",
+      bookingDisabled: "Бронирование выключено",
+      noBoatsYet: "У вас пока нет лодок.",
+
+      recentBookingActivity: "Недавняя активность бронирований",
+      noRecentBookingActivity: "Пока нет активности бронирований.",
+
+      confirm: "Подтвердить",
+      confirming: "Подтверждение...",
+      decline: "Отклонить",
+      declining: "Отклонение...",
+
+      bookingCalendar: "Календарь бронирований",
+      noBookingCalendarEntries: "Пока нет записей календаря.",
+
+      occupancyOverview: "Обзор загрузки",
+      noActiveOccupancy: "Пока нет активной загрузки.",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      ownerDashboard: "Kontrolna tabla vlasnika",
+      signedInAs: "Prijavljen kao",
+      manageBoatListings: "Upravljajte svojim oglasima plovila",
+      logout: "Odjava",
+      addMotorBoatRent: "Dodaj motorno plovilo za najam",
+      addSailBoatRent: "Dodaj jedrilicu za najam",
+      addMotorBoatSale: "Dodaj motorno plovilo za prodaju",
+      addSailBoatSale: "Dodaj jedrilicu za prodaju",
+      loading: "Učitavanje...",
+      activeBookings: "Aktivne rezervacije",
+      activeHolds: "Aktivna zadržavanja",
+      recentActivity: "Nedavne aktivnosti",
+      published: "Objavljeno",
+      listingSavedForReview: "Sačuvano za pregled",
+      ready: "Spremno",
+      notReady: "Nije spremno",
+      dateNotSet: "Datum nije postavljen",
+
+      myBoats: "Moja plovila",
+      bookingEnabled: "Rezervacije omogućene",
+      bookingDisabled: "Rezervacije onemogućene",
+      noBoatsYet: "Još nemate plovila.",
+
+      recentBookingActivity: "Nedavne aktivnosti rezervacija",
+      noRecentBookingActivity: "Još nema aktivnosti rezervacija.",
+
+      confirm: "Potvrdi",
+      confirming: "Potvrđivanje...",
+      decline: "Odbij",
+      declining: "Odbijanje...",
+
+      bookingCalendar: "Kalendar rezervacija",
+      noBookingCalendarEntries: "Još nema unosa u kalendaru.",
+
+      occupancyOverview: "Pregled zauzetosti",
+      noActiveOccupancy: "Još nema aktivne zauzetosti.",
+    };
+  }
+
+  return {
+    ownerDashboard: "Owner dashboard",
+    signedInAs: "Signed in as",
+    manageBoatListings: "Manage your boat listings",
+    logout: "Log out",
+    addMotorBoatRent: "Add motor boat for rent",
+    addSailBoatRent: "Add sail boat for rent",
+    addMotorBoatSale: "Add motor boat for sale",
+    addSailBoatSale: "Add sail boat for sale",
+    loading: "Loading...",
+    activeBookings: "Active bookings",
+    activeHolds: "Active holds",
+    recentActivity: "Recent activity",
+    published: "Published",
+    listingSavedForReview: "Listing saved for review",
+    ready: "Ready",
+    notReady: "Not ready",
+    dateNotSet: "Date not set",
+
+    myBoats: "My boats",
+    bookingEnabled: "Booking enabled",
+    bookingDisabled: "Booking disabled",
+    noBoatsYet: "You have no boats yet.",
+
+    recentBookingActivity: "Recent booking activity",
+    noRecentBookingActivity: "No recent booking activity yet.",
+
+    confirm: "Confirm",
+    confirming: "Confirming...",
+    decline: "Decline",
+    declining: "Declining...",
+
+    bookingCalendar: "Booking Calendar",
+    noBookingCalendarEntries: "No booking calendar entries yet.",
+
+    occupancyOverview: "Occupancy overview",
+    noActiveOccupancy: "No active occupancy yet.",
+  };
+}
+
+
 type OwnerBoat = {
   id?: number;
   documentId?: string;
@@ -112,8 +275,8 @@ type ApiPayload = {
 };
 
 function statusLabel(boat: OwnerBoat) {
-  if (boat.booking_enabled === true) return "Published";
-  return "Listing saved for review";
+  if (boat.booking_enabled === true) return pageCopy("en").published;
+  return pageCopy("en").listingSavedForReview;
 }
 
 function statusColor(boat: OwnerBoat) {
@@ -126,7 +289,7 @@ function bookingActionKey(booking: BookingActivity, index: number) {
 }
 
 function readinessLabel(value?: boolean) {
-  return value ? "Ready" : "Not ready";
+  return value ? pageCopy("en").ready : pageCopy("en").notReady;
 }
 
 function getCalendarTimeMs(event: OwnerCalendarEvent): number {
@@ -143,7 +306,7 @@ function getCalendarDateKey(event: OwnerCalendarEvent): string {
 }
 
 function formatCalendarDateLabel(dateKey: string): string {
-  if (dateKey === "unscheduled") return "Date not set";
+  if (dateKey === "unscheduled") return pageCopy("en").dateNotSet;
 
   const ms = Date.parse(`${dateKey}T00:00:00.000Z`);
   if (!Number.isFinite(ms)) return dateKey;
@@ -246,13 +409,13 @@ export default function OwnerDashboardClient() {
         if (!alive) return;
 
         if (!res.ok || !json?.ok) {
-          setError(json?.error || "Could not load owner boats.");
+          setError(json?.error || pageCopy(lang).manageBoatListings);
           return;
         }
 
         setData(json);
       } catch {
-        if (alive) setError("Could not load owner boats.");
+        if (alive) setError(pageCopy(lang).manageBoatListings);
       } finally {
         if (alive) setIsLoading(false);
       }
@@ -279,7 +442,7 @@ export default function OwnerDashboardClient() {
     const json = (await res.json().catch(() => null)) as ApiPayload | null;
 
     if (!res.ok || !json?.ok) {
-      throw new Error(json?.error || "Could not refresh owner dashboard.");
+      throw new Error(json?.error || pageCopy(lang).manageBoatListings);
     }
 
     setData(json);
@@ -317,7 +480,7 @@ export default function OwnerDashboardClient() {
 
       setActionSuccess((prev) => ({
         ...prev,
-        [key]: action === "confirm" ? "Booking confirmed." : "Booking declined.",
+        [key]: action === "confirm" ? pageCopy(lang).activeBookings : pageCopy(lang).activeHolds,
       }));
       await refreshDashboard();
     } catch (err) {
@@ -339,34 +502,34 @@ export default function OwnerDashboardClient() {
       <div className="container">
         <div className="detail-top">
           <div>
-            <h1 className="h1">Owner dashboard</h1>
+            <h1 className="h1">{pageCopy(lang).ownerDashboard}</h1>
             <p className="kicker" style={{ marginTop: 8 }}>
-              {data?.owner?.email ? `Signed in as ${data.owner.email}` : "Manage your boat listings"}
+              {data?.owner?.email ? `${pageCopy(lang).signedInAs} ${data.owner.email}` : pageCopy(lang).manageBoatListings}
             </p>
           </div>
 
           <button className="button secondary" type="button" onClick={logout}>
-            Log out
+            {pageCopy(lang).logout}
           </button>
         </div>
 
         <div className="actions" style={{ marginTop: 18 }}>
           <Link className="button" href={`/${lang}/add/rent/motor`}>
-            Add motor boat for rent
+            {pageCopy(lang).addMotorBoatRent}
           </Link>
           <Link className="button secondary" href={`/${lang}/add/rent/sail`}>
-            Add sail boat for rent
+            {pageCopy(lang).addSailBoatRent}
           </Link>
           <Link className="button secondary" href={`/${lang}/add/sale/motor`}>
-            Add motor boat for sale
+            {pageCopy(lang).addMotorBoatSale}
           </Link>
           <Link className="button secondary" href={`/${lang}/add/sale/sail`}>
-            Add sail boat for sale
+            {pageCopy(lang).addSailBoatSale}
           </Link>
         </div>
 
         {isLoading ? (
-          <p className="kicker" style={{ marginTop: 24 }}>Loading...</p>
+          <p className="kicker" style={{ marginTop: 24 }}>{pageCopy(lang).loading}</p>
         ) : null}
 
         {error ? (
@@ -386,21 +549,21 @@ export default function OwnerDashboardClient() {
               }}
             >
               <div className="card" style={{ padding: 18 }}>
-                <p className="kicker" style={{ margin: 0 }}>Active bookings</p>
+                <p className="kicker" style={{ margin: 0 }}>{pageCopy(lang).activeBookings}</p>
                 <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800 }}>
                   {activeBookingsCount}
                 </div>
               </div>
 
               <div className="card" style={{ padding: 18 }}>
-                <p className="kicker" style={{ margin: 0 }}>Active holds</p>
+                <p className="kicker" style={{ margin: 0 }}>{pageCopy(lang).activeHolds}</p>
                 <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800 }}>
                   {activeHoldsCount}
                 </div>
               </div>
 
               <div className="card" style={{ padding: 18 }}>
-                <p className="kicker" style={{ margin: 0 }}>Recent activity</p>
+                <p className="kicker" style={{ margin: 0 }}>{pageCopy(lang).recentActivity}</p>
                 <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800 }}>
                   {recentActivityCount}
                 </div>
@@ -615,7 +778,7 @@ export default function OwnerDashboardClient() {
               </div>
             </section>
 
-            <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>My boats</h2>
+            <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>{pageCopy(lang).myBoats}</h2>
 
             {boats.length ? (
               <div style={{ display: "grid", gap: 14 }}>
@@ -655,7 +818,7 @@ export default function OwnerDashboardClient() {
                       <span>·</span>
                       <span>Slug: {boat.slug ?? "—"}</span>
                       <span>·</span>
-                      <span>Booking: {boat.booking_enabled ? "enabled" : "disabled"}</span>
+                      <span>Booking: {boat.booking_enabled ? pageCopy(lang).bookingEnabled : pageCopy(lang).bookingDisabled}</span>
                     </div>
 
                     {boat.booking_enabled && boat.slug ? (
@@ -674,12 +837,12 @@ export default function OwnerDashboardClient() {
               </div>
             ) : (
               <div className="card" style={{ padding: 18 }}>
-                <p style={{ margin: 0 }}>You have no boats yet.</p>
+                <p style={{ margin: 0 }}>{pageCopy(lang).noBoatsYet}</p>
               </div>
             )}
 
             <section style={{ marginTop: 28 }}>
-              <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>Recent booking activity</h2>
+              <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>{pageCopy(lang).recentBookingActivity}</h2>
 
               {recentActivity.length ? (
                 <div style={{ display: "grid", gap: 14 }}>
@@ -735,7 +898,7 @@ export default function OwnerDashboardClient() {
                                 disabled={!canAct}
                                 onClick={() => runOwnerAction(booking, index, "confirm")}
                               >
-                                {processingAction[key] === "confirm" ? "Confirming..." : "Confirm"}
+                                {processingAction[key] === "confirm" ? pageCopy(lang).confirming : pageCopy(lang).confirm}
                               </button>
                               <button
                                 className="button secondary"
@@ -743,7 +906,7 @@ export default function OwnerDashboardClient() {
                                 disabled={!canAct}
                                 onClick={() => runOwnerAction(booking, index, "decline")}
                               >
-                                {processingAction[key] === "decline" ? "Declining..." : "Decline"}
+                                {processingAction[key] === "decline" ? pageCopy(lang).declining : pageCopy(lang).decline}
                               </button>
                             </div>
 
@@ -772,13 +935,13 @@ export default function OwnerDashboardClient() {
                 </div>
               ) : (
                 <div className="card" style={{ padding: 18 }}>
-                  <p style={{ margin: 0 }}>No recent booking activity yet.</p>
+                  <p style={{ margin: 0 }}>{pageCopy(lang).noRecentBookingActivity}</p>
                 </div>
               )}
             </section>
 
             <section style={{ marginTop: 28 }}>
-              <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>Booking Calendar</h2>
+              <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>{pageCopy(lang).bookingCalendar}</h2>
 
               <div
                 className="card"
@@ -885,13 +1048,13 @@ export default function OwnerDashboardClient() {
                 </div>
               ) : (
                 <div className="card" style={{ padding: 18 }}>
-                  <p style={{ margin: 0 }}>No booking calendar entries yet.</p>
+                  <p style={{ margin: 0 }}>{pageCopy(lang).noBookingCalendarEntries}</p>
                 </div>
               )}
             </section>
 
             <section style={{ marginTop: 28 }}>
-              <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>Occupancy overview</h2>
+              <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>{pageCopy(lang).occupancyOverview}</h2>
 
               {occupancyItems.length ? (
                 <div
@@ -948,7 +1111,7 @@ export default function OwnerDashboardClient() {
                 </div>
               ) : (
                 <div className="card" style={{ padding: 18 }}>
-                  <p style={{ margin: 0 }}>No active occupancy yet.</p>
+                  <p style={{ margin: 0 }}>{pageCopy(lang).noActiveOccupancy}</p>
                 </div>
               )}
             </section>
