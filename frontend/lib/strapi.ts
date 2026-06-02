@@ -172,6 +172,21 @@ function normalizeBoat(item: any): Boat | null {
   };
 }
 
+
+function sortBoatsByMarketplaceRank(boats: Boat[]): Boat[] {
+  return [...boats].sort((a, b) => {
+    const aFeatured = a.featured_listing ? 1 : 0;
+    const bFeatured = b.featured_listing ? 1 : 0;
+    if (aFeatured !== bFeatured) return bFeatured - aFeatured;
+
+    const aVerified = a.verified_listing ? 1 : 0;
+    const bVerified = b.verified_listing ? 1 : 0;
+    if (aVerified !== bVerified) return bVerified - aVerified;
+
+    return a.id - b.id;
+  });
+}
+
 export type BoatFilters = {
   listingType?: "rent" | "sale";
   homeMarinaSlug?: string;
@@ -189,7 +204,7 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
   if (filters?.boatType) qs.push(`filters[boat_type][$eq]=${encodeURIComponent(filters.boatType)}`);
   const path = `/api/boats?${qs.join("&")}`;
   const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
-  return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
+  return sortBoatsByMarketplaceRank((json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[]);
 }
 
 export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
@@ -249,7 +264,7 @@ export async function fetchBoatsAdvanced(
   const path = `/api/boats?${qs.join("&")}`;
   const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
 
-  return (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[];
+  return sortBoatsByMarketplaceRank((json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[]);
 }
 
 export type StrapiLocation = {
