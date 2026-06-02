@@ -267,6 +267,28 @@ export async function fetchBoatsAdvanced(
   return sortBoatsByMarketplaceRank((json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[]);
 }
 
+
+export async function fetchFeaturedBoats(
+  locale?: string,
+  limit: number = 6
+): Promise<Boat[]> {
+  const qs: string[] = [
+    "populate=*",
+    "pagination[pageSize]=" + String(limit),
+    "filters[featured_listing][$eq]=true",
+    "filters[booking_enabled][$eq]=true",
+    "sort=documentId:asc"
+  ];
+
+  const path = `/api/boats?${qs.join("&")}`;
+  const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);
+
+  return sortBoatsByMarketplaceRank(
+    (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[]
+  );
+}
+
+
 export type StrapiLocation = {
   id: number;
   documentId?: string | null;
