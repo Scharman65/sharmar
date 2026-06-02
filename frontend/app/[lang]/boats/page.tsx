@@ -67,9 +67,17 @@ export default async function BoatsPage({ params }: Props) {
 
                     <BoatCardSpecs boat={b} />
 
-                    {b.purposes?.length ? (
+                    {b.verified_listing || b.featured_listing || b.purposes?.length ? (
                       <div className="badges">
-                        {b.purposes.map((p) => (
+                        {b.verified_listing ? (
+                          <span className="badge">✓ Verified listing</span>
+                        ) : null}
+
+                        {b.featured_listing ? (
+                          <span className="badge">★ Featured yacht</span>
+                        ) : null}
+
+                        {b.purposes?.map((p) => (
                           <span className="badge" key={p.id}>
                             {p.title ?? `Purpose #${p.id}`}
                           </span>

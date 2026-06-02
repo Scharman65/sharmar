@@ -424,13 +424,21 @@ export default async function BoatPage({ params }: Props) {
           availabilityUnavailable={availabilityUnavailable}
         />
 
-        {boat.purposes?.length ? (
+        {boat.verified_listing || boat.featured_listing || boat.purposes?.length ? (
           <div style={{ marginTop: 18 }}>
             <p className="kicker" style={{ marginBottom: 10 }}>
               {tr.boat.purposes}
             </p>
             <div className="badges">
-              {boat.purposes.map((p) => (
+              {boat.verified_listing ? (
+                <span className="badge">✓ Verified listing</span>
+              ) : null}
+
+              {boat.featured_listing ? (
+                <span className="badge">★ Featured yacht</span>
+              ) : null}
+
+              {boat.purposes?.map((p) => (
                 <span className="badge" key={p.id}>
                   {p.title ?? `Purpose #${p.id}`}
                 </span>
