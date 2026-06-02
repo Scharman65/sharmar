@@ -197,7 +197,6 @@ export type BoatFilters = {
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
   const qs: string[] = ["populate=*"];
   qs.push("sort=documentId:asc");
-  qs.push("filters[booking_enabled][$eq]=true");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
   if (filters?.homeMarinaSlug) qs.push(`filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`);
   if (filters?.vesselType) qs.push(`filters[vesselType][$eq]=${encodeURIComponent(filters.vesselType)}`);
