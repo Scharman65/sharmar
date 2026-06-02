@@ -41,6 +41,9 @@ export type Boat = {
   cover?: { url: string; alternativeText?: string | null } | null;
   images?: { id: number; url: string; alternativeText?: string | null }[];
   purposes?: { id: number; title?: string | null }[];
+  verified_listing?: boolean | null;
+  featured_listing?: boolean | null;
+  reviewed_at?: string | null;
   isDemo?: boolean;
 };
 
@@ -145,6 +148,9 @@ function normalizeBoat(item: any): Boat | null {
     price_per_week: item.price_per_week ?? null,
     sale_price: item.sale_price ?? null,
     deposit: item.deposit ?? null,
+    verified_listing: item.verified_listing ?? false,
+    featured_listing: item.featured_listing ?? false,
+    reviewed_at: item.reviewed_at ?? null,
     home_marina: item.home_marina
       ? {
           id: item.home_marina.id,
