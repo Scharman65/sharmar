@@ -276,7 +276,6 @@ export async function fetchFeaturedBoats(
     "populate=*",
     "pagination[pageSize]=" + String(limit),
     "filters[featured_listing][$eq]=true",
-    "filters[booking_enabled][$eq]=true",
     "sort=documentId:asc"
   ];
 
