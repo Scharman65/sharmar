@@ -4,15 +4,80 @@ import { COUNTRIES } from "@/data/geography";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
+
+
+type FaqCopy = {
+  question: string;
+  answer: string;
+};
+
+type PageCopy = {
+  pageTitle: string;
+  pageDescription: string;
+  backToBoats: string;
+  ownerKicker: string;
+  ownerDashboard: string;
+  whyTitle: string;
+  howTitle: string;
+  benefitsTitle: string;
+  onboardingTitle: string;
+  countriesTitle: string;
+  faqTitle: string;
+};
+
+const COPY: Record<Lang, PageCopy> = {
+  en: {
+    pageTitle: "List your boat on Sharmar",
+    pageDescription: "Sharmar helps boat owners receive structured booking requests and gain visibility across Mediterranean marina pages.",
+    backToBoats: "Back to boats",
+    ownerKicker: "For boat owners",
+    ownerDashboard: "Open owner dashboard",
+    whyTitle: "Why list with Sharmar",
+    howTitle: "How it works",
+    benefitsTitle: "Owner benefits",
+    onboardingTitle: "Simple onboarding",
+    countriesTitle: "Supported countries",
+    faqTitle: "FAQ",
+  },
+  ru: {
+    pageTitle: "Добавьте лодку на Sharmar",
+    pageDescription: "Sharmar помогает владельцам лодок получать структурированные заявки и повышать видимость на страницах марин Средиземноморья.",
+    backToBoats: "Назад к лодкам",
+    ownerKicker: "Для владельцев лодок",
+    ownerDashboard: "Открыть кабинет владельца",
+    whyTitle: "Почему размещать на Sharmar",
+    howTitle: "Как это работает",
+    benefitsTitle: "Преимущества для владельцев",
+    onboardingTitle: "Простое подключение",
+    countriesTitle: "Поддерживаемые страны",
+    faqTitle: "Вопросы и ответы",
+  },
+  me: {
+    pageTitle: "Dodajte brod na Sharmar",
+    pageDescription: "Sharmar pomaže vlasnicima brodova da dobijaju strukturirane zahtjeve i veću vidljivost kroz mediteranske marine.",
+    backToBoats: "Nazad na brodove",
+    ownerKicker: "Za vlasnike brodova",
+    ownerDashboard: "Otvorite panel vlasnika",
+    whyTitle: "Zašto objaviti na Sharmar",
+    howTitle: "Kako funkcioniše",
+    benefitsTitle: "Prednosti za vlasnike",
+    onboardingTitle: "Jednostavno uključivanje",
+    countriesTitle: "Podržane države",
+    faqTitle: "FAQ",
+  },
+};
+
+function getCopy(lang: Lang): PageCopy {
+  return COPY[lang] ?? COPY.en;
+}
+
+
 type Props = {
   params: Promise<{
     lang: string;
   }>;
 };
 
-const pageTitle = "List your boat on Sharmar";
-const pageDescription =
-  "Sharmar helps boat owners receive structured booking requests and gain visibility across Mediterranean marina pages.";
 
 const faqItems = [
   {
@@ -43,11 +108,12 @@ function languageAlternates() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: rawLang } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
+  const copy = getCopy(lang);
   const canonical = `${SITE_URL}${ownersPath(lang)}`;
 
   return {
-    title: `${pageTitle} | Sharmar`,
-    description: pageDescription,
+    title: `${copy.pageTitle} | Sharmar`,
+    description: copy.pageDescription,
     alternates: {
       canonical,
       languages: {
@@ -56,8 +122,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     },
     openGraph: {
-      title: `${pageTitle} | Sharmar`,
-      description: pageDescription,
+      title: `${copy.pageTitle} | Sharmar`,
+      description: copy.pageDescription,
       url: canonical,
       siteName: "Sharmar",
       type: "website",
@@ -68,12 +134,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function OwnersPage({ params }: Props) {
   const { lang: rawLang } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
+  const copy = getCopy(lang);
   const pageUrl = absoluteSiteUrl(ownersPath(lang));
   const addLinks = [
-    { href: `/${lang}/add/rent/motor`, label: "List motor boat for rent" },
-    { href: `/${lang}/add/rent/sail`, label: "List sail boat for rent" },
-    { href: `/${lang}/add/sale/motor`, label: "List motor boat for sale" },
-    { href: `/${lang}/add/sale/sail`, label: "List sail boat for sale" },
+    { href: `/${lang}/add/rent/motor`, label: lang === "ru" ? "Сдать моторную лодку" : lang === "me" ? "Dodajte motorni brod za najam" : "List motor boat for rent" },
+    { href: `/${lang}/add/rent/sail`, label: lang === "ru" ? "Сдать парусную лодку" : lang === "me" ? "Dodajte jedrilicu za najam" : "List sail boat for rent" },
+    { href: `/${lang}/add/sale/motor`, label: lang === "ru" ? "Продать моторную лодку" : lang === "me" ? "Prodajte motorni brod" : "List motor boat for sale" },
+    { href: `/${lang}/add/sale/sail`, label: lang === "ru" ? "Продать парусную лодку" : lang === "me" ? "Prodajte jedrilicu" : "List sail boat for sale" },
   ];
   const benefits = [
     "Structured request details from potential guests",
@@ -84,8 +151,8 @@ export default async function OwnersPage({ params }: Props) {
   const jsonLd = [
     webPageJsonLd({
       url: pageUrl,
-      name: `${pageTitle} | Sharmar`,
-      description: pageDescription,
+      name: `${copy.pageTitle} | Sharmar`,
+      description: copy.pageDescription,
     }),
     breadcrumbJsonLd([
       { name: "Home", url: absoluteSiteUrl(`/${lang}`) },
@@ -106,26 +173,26 @@ export default async function OwnersPage({ params }: Props) {
 
       <div className="container owner-page">
         <Link className="backlink" href={`/${lang}/boats`}>
-          Back to boats
+          {copy.backToBoats}
         </Link>
 
         <section className="owner-hero">
-          <p className="kicker">For boat owners</p>
-          <h1>{pageTitle}</h1>
-          <p>{pageDescription}</p>
+          <p className="kicker">{copy.ownerKicker}</p>
+          <h1>{copy.pageTitle}</h1>
+          <p>{copy.pageDescription}</p>
           <div className="owner-actions">
             {addLinks.map((item) => (
               <Link key={item.href} href={item.href}>
                 {item.label}
               </Link>
             ))}
-            <Link href={`/${lang}/owner-dashboard`}>Open owner dashboard</Link>
+            <Link href={`/${lang}/owner-dashboard`}>{copy.ownerDashboard}</Link>
           </div>
         </section>
 
         <section className="owner-section" aria-labelledby="why-list-title">
           <div className="owner-section-head">
-            <h2 id="why-list-title">Why list with Sharmar</h2>
+            <h2 id="why-list-title">{copy.whyTitle}</h2>
             <p>
               Sharmar is built around boat discovery, marina context, and clear request collection for owners.
             </p>
@@ -145,7 +212,7 @@ export default async function OwnersPage({ params }: Props) {
 
         <section className="owner-section" aria-labelledby="how-title">
           <div className="owner-section-head">
-            <h2 id="how-title">How it works</h2>
+            <h2 id="how-title">{copy.howTitle}</h2>
             <p>Owners choose a listing path, add boat details, and receive structured requests through Sharmar.</p>
           </div>
           <div className="owner-grid">
@@ -160,7 +227,7 @@ export default async function OwnersPage({ params }: Props) {
 
         <section className="owner-section" aria-labelledby="benefits-title">
           <div className="owner-section-head">
-            <h2 id="benefits-title">Owner benefits</h2>
+            <h2 id="benefits-title">{copy.benefitsTitle}</h2>
             <p>Practical marketplace infrastructure without promises of earnings, bookings, or traffic.</p>
           </div>
           <div className="owner-grid">
@@ -174,7 +241,7 @@ export default async function OwnersPage({ params }: Props) {
 
         <section className="owner-section owner-band" aria-labelledby="onboarding-title">
           <div>
-            <p className="kicker">Simple onboarding</p>
+            <p className="kicker">{copy.onboardingTitle}</p>
             <h2 id="onboarding-title">Start with the boat you want to list</h2>
             <p>
               Use the listing form that matches the boat and intent. You can return to the owner dashboard after
@@ -186,7 +253,7 @@ export default async function OwnersPage({ params }: Props) {
 
         <section className="owner-section" aria-labelledby="countries-title">
           <div className="owner-section-head">
-            <h2 id="countries-title">Supported countries</h2>
+            <h2 id="countries-title">{copy.countriesTitle}</h2>
             <p>Owner pages are available for Sharmar's current Mediterranean country layer.</p>
           </div>
           <div className="owner-grid">
@@ -202,7 +269,7 @@ export default async function OwnersPage({ params }: Props) {
 
         <section className="owner-section" aria-labelledby="faq-title">
           <div className="owner-section-head">
-            <h2 id="faq-title">FAQ</h2>
+            <h2 id="faq-title">{copy.faqTitle}</h2>
             <p>Clear owner expectations before starting a listing.</p>
           </div>
           <div className="owner-faq-grid">
