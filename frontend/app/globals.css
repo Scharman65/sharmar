@@ -280,13 +280,33 @@ a { color: inherit; }
   color: rgba(255, 255, 255, 0.55);
 }
 
-.footer > span {
-  display: block;
+.footer-inner {
   max-width: var(--maxw);
   margin: 0 auto;
   padding: 18px 22px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
   font-size: 13px;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.64);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 @media (max-width: 720px) {
