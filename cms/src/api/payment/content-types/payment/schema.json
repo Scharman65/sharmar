@@ -1,0 +1,12 @@
+{
+  "kind": "collectionType",
+  "collectionName": "payments",
+  "info": {
+    "singularName": "payment",
+    "pluralName": "payments",
+    "displayName": "payment",
+    "description": "Read-only in admin for MVP; controlled by backend endpoints"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {}
+}

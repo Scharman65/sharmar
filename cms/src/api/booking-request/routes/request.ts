@@ -10,6 +10,14 @@ export default {
       },
     },
     {
+      method: "GET",
+      path: "/request/:token/status",
+      handler: "booking-request.statusByToken",
+      config: {
+        auth: false,
+      },
+    },
+    {
       method: "POST",
       path: "/request/:token/approve",
       handler: "booking-request.requestApprove",
