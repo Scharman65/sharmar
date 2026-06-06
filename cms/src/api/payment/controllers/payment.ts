@@ -13,6 +13,13 @@ export default {
       return;
     }
 
+    const paymentProvider = String(cfg?.provider || "stripe").trim().toLowerCase();
+    if (paymentProvider !== "stripe" && paymentProvider !== "dodo") {
+      ctx.status = 503;
+      ctx.body = { error: "unsupported_payment_provider", provider: paymentProvider };
+      return;
+    }
+
     const idk = String(
       ctx.request.headers["idempotency-key"] ||
         ctx.request.headers["x-idempotency-key"] ||
@@ -428,6 +435,12 @@ export default {
         status: active0.status,
         booking_request_id: active0.booking_request_id,
       };
+      return;
+    }
+
+    if (paymentProvider === "dodo") {
+      ctx.status = 503;
+      ctx.body = { error: "dodo_provider_not_implemented" };
       return;
     }
 
