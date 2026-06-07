@@ -338,10 +338,18 @@ function extractIdFromStrapiResponse(json: unknown): number {
   return 0;
 }
 
-async function getBoatIdBySlug(slug: string): Promise<number | null> {
+type BoatPricing = {
+  id: number;
+  currency: string;
+  pricePerHour: number | null;
+};
+
+async function getBoatPricingBySlug(slug: string): Promise<BoatPricing | null> {
   const qs = new URLSearchParams();
   qs.set("filters[slug][$eq]", slug);
   qs.append("fields[0]", "id");
+  qs.append("fields[1]", "currency");
+  qs.append("fields[2]", "price_per_hour");
 
   const json = await strapiFetch(`/api/boats?${qs.toString()}`);
 
@@ -352,8 +360,25 @@ async function getBoatIdBySlug(slug: string): Promise<number | null> {
   const first = data[0];
 
   if (!isRecord(first)) return null;
+
   const id = getNum((first as any).id);
-  return id ?? null;
+  if (!id) return null;
+
+  return {
+    id,
+    currency: getStr((first as any).currency) || "EUR",
+    pricePerHour: getNum((first as any).price_per_hour),
+  };
+}
+
+function diffHoursIso(startIso: string, endIso: string): number {
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return ms / 3600000;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function isDuplicatePublicTokenError(err: unknown): boolean {
@@ -546,15 +571,34 @@ export async function POST(req: Request) {
   }
 
   try {
-    const boatId = await getBoatIdBySlug(p.boatSlug);
+    const boatPricing = await getBoatPricingBySlug(p.boatSlug);
 
-    if (!boatId) {
+    if (!boatPricing) {
       logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "not_found", http_status: 404, latency_ms: Date.now() - t0, error_class: "BoatNotFound" });
       return NextResponse.json(
         { ok: false, error: `Boat not found by slug: ${p.boatSlug}`, fallbackMailto: buildFallbackMailto(p) },
         { status: 404, headers: { "cache-control": "no-store" } }
       );
     }
+
+    const hours = diffHoursIso(start, end);
+    if (hours <= 0) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid rental duration.", fallbackMailto: buildFallbackMailto(p) },
+        { status: 400, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    if (!boatPricing.pricePerHour || boatPricing.pricePerHour <= 0) {
+      return NextResponse.json(
+        { ok: false, error: "Boat hourly price is not configured.", fallbackMailto: buildFallbackMailto(p) },
+        { status: 409, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    const ownerAmount = roundMoney(hours * boatPricing.pricePerHour);
+    const marketplaceFeeAmount = roundMoney(ownerAmount * 0.15);
+    const customerTotalAmount = roundMoney(ownerAmount + marketplaceFeeAmount);
 
     const people = p.peopleCount && p.peopleCount >= 1 ? Math.floor(p.peopleCount) : 1;
 
@@ -568,14 +612,14 @@ export async function POST(req: Request) {
         people_count: people,
         need_skipper: Boolean(p.needSkipper),
         notes: p.message && p.message.trim().length ? p.message.trim() : null,
-        boat: boatId,
+        boat: boatPricing.id,
 
         status: "new",
         public_token: publicToken,
-        owner_amount: p.ownerAmount ?? null,
-        marketplace_fee_amount: p.marketplaceFeeAmount ?? null,
-        customer_total_amount: p.customerTotalAmount ?? null,
-        currency: p.currency ?? null,
+        owner_amount: ownerAmount,
+        marketplace_fee_amount: marketplaceFeeAmount,
+        customer_total_amount: customerTotalAmount,
+        currency: boatPricing.currency,
 
         contact_method: "phone",
 
