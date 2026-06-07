@@ -14,6 +14,7 @@ type PaymentsConfig = {
     webhookSecret: string;
     returnUrl: string;
     cancelUrl: string;
+    productId: string;
   };
 };
 
@@ -34,6 +35,7 @@ export default () => ({
         webhookSecret: String(cfg?.dodo?.webhookSecret || ""),
         returnUrl: String(cfg?.dodo?.returnUrl || ""),
         cancelUrl: String(cfg?.dodo?.cancelUrl || ""),
+        productId: String(cfg?.dodo?.productId || ""),
       },
     };
   },

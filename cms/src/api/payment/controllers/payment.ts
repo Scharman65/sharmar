@@ -439,10 +439,144 @@ export default {
     }
 
     if (paymentProvider === "dodo") {
-      ctx.status = 503;
-      ctx.body = { error: "dodo_provider_not_implemented" };
+      const cfg = strapi.service("api::payment.payment").getConfig();
+
+      if (!cfg.dodo.apiKey) {
+        ctx.status = 503;
+        ctx.body = { error: "dodo_api_key_missing" };
+        return;
+      }
+
+      const dodoBase =
+        cfg.dodo.env === "live"
+          ? "https://live.dodopayments.com"
+          : "https://test.dodopayments.com";
+
+      const dodoProductId = cfg.dodo.productId || "";
+
+      if (!dodoProductId) {
+        ctx.status = 503;
+        ctx.body = { error: "dodo_product_id_missing" };
+        return;
+      }
+
+      const checkoutPayload = {
+        product_cart: [
+          {
+            product_id: dodoProductId,
+            quantity: 1,
+            amount: amountCents,
+          },
+        ],
+        metadata: {
+          booking_request_id: String(br.id),
+          boat_id: String(boatId),
+          public_token: String(br.public_token || publicToken),
+          amount_source: amountSource,
+          owner_amount: ownerAmount != null && Number.isFinite(ownerAmount) ? String(ownerAmount) : "",
+          marketplace_fee_amount: marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) ? String(marketplaceFeeAmount) : "",
+          customer_total_amount: customerTotalAmount != null && Number.isFinite(customerTotalAmount) ? String(customerTotalAmount) : "",
+        },
+        return_url: cfg.dodo.returnUrl,
+        cancel_url: cfg.dodo.cancelUrl,
+      };
+
+      const res = await fetch(dodoBase + "/checkouts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + cfg.dodo.apiKey,
+        },
+        body: JSON.stringify(checkoutPayload),
+      });
+
+      const data = (await res.json()) as any;
+
+      if (!res.ok) {
+        ctx.status = 502;
+        ctx.body = {
+          error: "dodo_checkout_failed",
+          status: res.status,
+          response: data,
+        };
+        return;
+      }
+
+      const dodoSessionId = String(data.session_id || data.id || "");
+      const dodoCheckoutUrl = String(data.checkout_url || data.payment_link || data.url || "");
+
+      if (!dodoSessionId) {
+        ctx.status = 502;
+        ctx.body = { error: "dodo_session_id_missing", response: data };
+        return;
+      }
+
+      if (!dodoCheckoutUrl || !dodoCheckoutUrl.startsWith("http")) {
+        ctx.status = 502;
+        ctx.body = { error: "dodo_checkout_url_missing", response: data };
+        return;
+      }
+
+      const dodoMetadata = {
+        provider_status: "checkout_created",
+        session_id: dodoSessionId,
+        checkout_url: dodoCheckoutUrl,
+        booking_request_id: String(br.id),
+        boat_id: String(boatId),
+        public_token: String(br.public_token || publicToken),
+        amount_source: amountSource,
+        owner_amount: ownerAmount != null && Number.isFinite(ownerAmount) ? String(ownerAmount) : "",
+        marketplace_fee_amount: marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) ? String(marketplaceFeeAmount) : "",
+        customer_total_amount: customerTotalAmount != null && Number.isFinite(customerTotalAmount) ? String(customerTotalAmount) : "",
+      };
+
+      const insertedDodo = await strapi.db.connection.raw(
+        `
+        insert into public.payments
+          (provider, provider_intent_id, amount_cents, currency, status, booking_request_id, metadata, idempotency_key, created_at, updated_at)
+        values
+          (?, ?, ?, ?, ?, ?, ?::jsonb, ?, now(), now())
+        on conflict (idempotency_key) where idempotency_key is not null
+        do update set
+          provider_intent_id = excluded.provider_intent_id,
+          amount_cents = excluded.amount_cents,
+          currency = excluded.currency,
+          status = excluded.status,
+          booking_request_id = excluded.booking_request_id,
+          metadata = public.payments.metadata || excluded.metadata,
+          updated_at = now()
+        returning id, provider, provider_intent_id, amount_cents, currency, status, booking_request_id, metadata
+        `,
+        [
+          "dodo",
+          dodoSessionId,
+          amountCents,
+          currency.toLowerCase(),
+          "pending",
+          br.id,
+          JSON.stringify(dodoMetadata),
+          idk,
+        ]
+      );
+
+      const dodoPayment = insertedDodo?.rows?.[0] || null;
+
+      ctx.status = 200;
+      ctx.body = {
+        payment_id: dodoPayment?.id || null,
+        provider: "dodo",
+        provider_intent_id: dodoSessionId,
+        session_id: dodoSessionId,
+        checkout_url: dodoCheckoutUrl,
+        amount_cents: amountCents,
+        currency: currency.toLowerCase(),
+        status: "pending",
+        booking_request_id: br.id,
+      };
+
       return;
     }
+
 
     const stripe = strapi.service("api::payment.payment").getStripeClient();
 
@@ -573,10 +707,24 @@ export default {
         }
 
         const h_req = (ctx.req && ctx.req.headers) ? ctx.req.headers : {};
-        const sig = String(h_req["stripe-signature"] || h_req["Stripe-Signature"] || "").trim();
-        if (!sig) {
+
+        const stripeSig = String(
+          h_req["stripe-signature"] || h_req["Stripe-Signature"] || ""
+        ).trim();
+
+        const dodoSig = String(
+          h_req["x-dodo-signature"] ||
+          h_req["X-Dodo-Signature"] ||
+          h_req["dodo-signature"] ||
+          ""
+        ).trim();
+
+        const isStripeWebhook = !!stripeSig;
+        const isDodoWebhook = !!dodoSig;
+
+        if (!isStripeWebhook && !isDodoWebhook) {
             ctx.status = 400;
-            ctx.body = { error: "stripe_signature_missing" };
+            ctx.body = { error: "webhook_signature_missing" };
             return;
         }
 
@@ -605,11 +753,66 @@ export default {
         }
 
 
+        if (isDodoWebhook) {
+          let dodoEvent: any = null;
+
+          try {
+            const rawText = Buffer.isBuffer(raw) ? raw.toString("utf8") : String(raw);
+            dodoEvent = JSON.parse(rawText);
+          } catch (e) {
+            ctx.status = 400;
+            ctx.body = { error: "dodo_payload_invalid_json" };
+            return;
+          }
+
+          const dodoEventType = String(
+            dodoEvent?.type ||
+            dodoEvent?.event_type ||
+            dodoEvent?.event ||
+            ""
+          );
+
+          const dodoData = dodoEvent?.data || dodoEvent?.payload || dodoEvent?.object || dodoEvent || {};
+
+          const dodoSessionId = String(
+            dodoData?.session_id ||
+            dodoData?.checkout_session_id ||
+            dodoData?.checkout_id ||
+            dodoEvent?.session_id ||
+            ""
+          );
+
+          const dodoPaymentId = String(
+            dodoData?.payment_id ||
+            dodoData?.id ||
+            dodoEvent?.payment_id ||
+            ""
+          );
+
+          const dodoStatus = String(
+            dodoData?.status ||
+            dodoEvent?.status ||
+            ""
+          );
+
+          ctx.status = 200;
+          ctx.body = {
+            ok: true,
+            provider: "dodo",
+            mode: "diagnostic_only",
+            event_type: dodoEventType,
+            session_id: dodoSessionId || null,
+            payment_id: dodoPaymentId || null,
+            status: dodoStatus || null,
+          };
+          return;
+        }
+
         const Stripe = require("stripe");
         const stripe = new Stripe(cfg.stripe.secretKey);
         let event;
         try {
-            event = stripe.webhooks.constructEvent(raw, sig, cfg.stripe.webhookSecret);
+            event = stripe.webhooks.constructEvent(raw, stripeSig, cfg.stripe.webhookSecret);
         } catch (e) {
             ctx.status = 400;
             ctx.body = { error: "stripe_signature_invalid" };

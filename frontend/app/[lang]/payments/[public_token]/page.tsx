@@ -1,149 +1,43 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
-import {
-  Elements,
-  PaymentElement,
-  useElements,
-  useStripe,
-} from '@stripe/react-stripe-js';
-
-
-function errorToText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value instanceof Error) return value.message;
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
-);
 
 type IntentResp =
   | {
-      client_secret: string;
-      payment_id: number | string;
-      booking_request_id: number | string;
-      status: string;
-      provider: string;
-      provider_intent_id: string;
+      provider?: string;
+      payment_id?: number | string | null;
+      provider_intent_id?: string | null;
+      session_id?: string | null;
+      checkout_url?: string | null;
+      amount_cents?: number;
+      currency?: string;
+      status?: string;
+      booking_request_id?: number | string;
     }
   | {
       error: string;
       message?: string;
     };
 
-function CheckoutForm({
-  lang,
-  publicToken,
-}: {
-  lang: string;
-  publicToken: string;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-
-  const [submitError, setSubmitError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    if (!stripe || !elements) {
-      setSubmitError('Payment form is not ready yet.');
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmitError('');
-
-    const returnUrl = `${window.location.origin}/${lang}/thanks?payment=success&token=${encodeURIComponent(publicToken)}`;
-
-    const result = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: returnUrl,
-      },
-    });
-
-    if (result.error) {
-      setSubmitError(result.error.message || 'Payment confirmation failed.');
-      setSubmitting(false);
-      return;
-    }
-
-    setSubmitting(false);
-  }
-
-  return (
-    <form onSubmit={onSubmit}>
-      <div style={{ padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-        <PaymentElement />
-
-        {submitError ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: 12,
-              border: '1px solid #f2b8b8',
-              borderRadius: 8,
-            }}
-          >
-            <b>Payment failed</b>
-            <div style={{ marginTop: 6 }}>{submitError}</div>
-          </div>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={!stripe || !elements || submitting}
-          style={{
-            marginTop: 16,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '46px',
-            padding: '0 18px',
-            borderRadius: '12px',
-            border: 'none',
-            background: !stripe || !elements || submitting ? '#9ca3af' : '#111827',
-            color: '#ffffff',
-            fontSize: '15px',
-            fontWeight: 600,
-            cursor: !stripe || !elements || submitting ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {submitting ? 'Processing…' : 'Pay now'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 export default function PaymentPage() {
   const params = useParams<{ lang?: string; public_token?: string }>();
 
-  const lang = typeof params?.lang === 'string' ? params.lang : 'en';
   const publicToken =
     typeof params?.public_token === 'string' ? params.public_token : '';
 
-  const [clientSecret, setClientSecret] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [checkoutUrl, setCheckoutUrl] = useState('');
 
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    async function startPayment() {
       try {
         setLoading(true);
         setErr('');
+        setCheckoutUrl('');
 
         if (!publicToken) {
           throw new Error('missing_public_token');
@@ -163,41 +57,35 @@ export default function PaymentPage() {
             (j as any)?.error ||
             `HTTP ${r.status}`;
           const msg =
-            typeof rawMsg === "string"
+            typeof rawMsg === 'string'
               ? rawMsg
               : JSON.stringify(rawMsg, null, 2);
           throw new Error(msg);
         }
 
-        const cs = (j as any)?.client_secret;
-        if (typeof cs !== 'string' || cs.length < 10) {
-          throw new Error('invalid_client_secret');
+        const url = (j as any)?.checkout_url;
+
+        if (typeof url !== 'string' || !url.startsWith('http')) {
+          throw new Error('missing_checkout_url');
         }
 
-        if (!cancelled) setClientSecret(cs);
+        if (!cancelled) {
+          setCheckoutUrl(url);
+          window.location.assign(url);
+        }
       } catch (e: any) {
         if (!cancelled) setErr(String(e?.message || e));
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    }
+
+    startPayment();
 
     return () => {
       cancelled = true;
     };
   }, [publicToken]);
-
-  const elementsOptions = useMemo(() => {
-    if (!clientSecret) return undefined;
-
-    return {
-      clientSecret,
-      locale: 'en' as const,
-      appearance: {
-        theme: 'stripe' as const,
-      },
-    };
-  }, [clientSecret]);
 
   return (
     <main style={{ padding: 24, maxWidth: 560 }}>
@@ -209,7 +97,7 @@ export default function PaymentPage() {
 
       {loading && (
         <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-          Loading payment…
+          Preparing secure payment…
         </div>
       )}
 
@@ -220,17 +108,13 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {!loading && !err && !clientSecret && (
-        <div style={{ padding: 12, border: '1px solid #f2b8b8', borderRadius: 8 }}>
-          <b>Payment init failed</b>
-          <div style={{ marginTop: 6 }}>missing_client_secret</div>
+      {!loading && !err && checkoutUrl && (
+        <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+          Redirecting to secure payment page…
+          <div style={{ marginTop: 12 }}>
+            <a href={checkoutUrl}>Continue to payment</a>
+          </div>
         </div>
-      )}
-
-      {!loading && !err && clientSecret && elementsOptions && (
-        <Elements stripe={stripePromise} options={elementsOptions}>
-          <CheckoutForm lang={lang} publicToken={publicToken} />
-        </Elements>
       )}
     </main>
   );

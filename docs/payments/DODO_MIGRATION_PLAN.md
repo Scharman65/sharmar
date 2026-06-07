@@ -80,3 +80,18 @@ Production testing
 - Dodo webhook должен переводить booking в confirmed
 - Только после confirmed разрешается выдача owner contacts
 
+
+---
+
+# Dodo Checkout Requirements
+
+- Correct Dodo endpoint: POST /checkouts
+- Backend must return checkout_url to frontend
+- Checkout requires product_cart
+- product_cart requires product_id from Dodo Dashboard
+- For Sharmar variable booking commission, use one Dodo one-time product with Pay What You Want enabled
+- Send marketplace fee as product_cart amount in minor units, for example 1500 = 15.00 EUR
+- Store Dodo session_id/payment_id in public.payments.provider_intent_id or metadata
+- Store public_token, booking_request_id, boat_id, marketplace_fee_amount in metadata
+- Frontend redirects customer to checkout_url
+- Dodo webhook later confirms payment and changes booking to confirmed

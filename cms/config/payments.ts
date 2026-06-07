@@ -13,5 +13,6 @@ export default ({ env }) => ({
     webhookSecret: env("DODO_WEBHOOK_SECRET", ""),
     returnUrl: env("DODO_RETURN_URL", ""),
     cancelUrl: env("DODO_CANCEL_URL", ""),
+    productId: env("DODO_PRODUCT_ID", ""),
   },
 });
