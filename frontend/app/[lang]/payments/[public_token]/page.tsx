@@ -243,7 +243,7 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {!loading && !err && !clientSecret && (
+      {!loading && !err && !clientSecret && !checkoutUrl && (
         <div style={{ padding: 12, border: '1px solid #f2b8b8', borderRadius: 8 }}>
           <b>{lang === 'ru' ? 'Не удалось подготовить оплату' : lang === 'me' ? 'Plaćanje nije pripremljeno' : 'Payment init failed'}</b>
           <div style={{ marginTop: 6 }}>missing_client_secret</div>
