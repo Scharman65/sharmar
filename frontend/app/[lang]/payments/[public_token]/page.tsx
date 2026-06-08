@@ -27,12 +27,14 @@ const stripePromise = loadStripe(
 
 type IntentResp =
   | {
-      client_secret: string;
+      client_secret?: string | null;
+      checkout_url?: string | null;
       payment_id: number | string;
-      booking_request_id: number | string;
-      status: string;
+      booking_request_id?: number | string | null;
+      status?: string | null;
       provider: string;
-      provider_intent_id: string;
+      provider_intent_id?: string | null;
+      session_id?: string | null;
     }
   | {
       error: string;
@@ -134,6 +136,8 @@ export default function PaymentPage() {
     typeof params?.public_token === 'string' ? params.public_token : '';
 
   const [clientSecret, setClientSecret] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
+  const [provider, setProvider] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -169,12 +173,29 @@ export default function PaymentPage() {
           throw new Error(msg);
         }
 
-        const cs = (j as any)?.client_secret;
-        if (typeof cs !== 'string' || cs.length < 10) {
-          throw new Error('invalid_client_secret');
+        const detectedProvider =
+          typeof (j as any)?.provider === 'string'
+            ? String((j as any).provider).toLowerCase()
+            : '';
+
+        const dodoUrl = (j as any)?.checkout_url;
+        if (typeof dodoUrl === 'string' && dodoUrl.startsWith('http')) {
+          if (!cancelled) {
+            setProvider(detectedProvider || 'dodo');
+            setCheckoutUrl(dodoUrl);
+          }
+          return;
         }
 
-        if (!cancelled) setClientSecret(cs);
+        const cs = (j as any)?.client_secret;
+        if (typeof cs !== 'string' || cs.length < 10) {
+          throw new Error('missing_payment_redirect_or_client_secret');
+        }
+
+        if (!cancelled) {
+          setProvider(detectedProvider || 'stripe');
+          setClientSecret(cs);
+        }
       } catch (e: any) {
         if (!cancelled) setErr(String(e?.message || e));
       } finally {
@@ -201,29 +222,63 @@ export default function PaymentPage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 560 }}>
-      <h1 style={{ fontSize: 22, marginBottom: 12 }}>Payment</h1>
+      <h1 style={{ fontSize: 22, marginBottom: 12 }}>
+        {lang === 'ru' ? 'Оплата бронирования' : lang === 'me' ? 'Plaćanje rezervacije' : 'Booking payment'}
+      </h1>
 
       <p style={{ marginBottom: 12 }}>
-        Booking reference: <b>{publicToken || '—'}</b>
+        {lang === 'ru' ? 'Номер бронирования' : lang === 'me' ? 'Referenca rezervacije' : 'Booking reference'}: <b>{publicToken || '—'}</b>
       </p>
 
       {loading && (
         <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-          Loading payment…
+          {lang === 'ru' ? 'Подготовка оплаты…' : lang === 'me' ? 'Priprema plaćanja…' : 'Preparing payment…'}
         </div>
       )}
 
       {!loading && err && (
         <div style={{ padding: 12, border: '1px solid #f2b8b8', borderRadius: 8 }}>
-          <b>Payment init failed</b>
+          <b>{lang === 'ru' ? 'Не удалось подготовить оплату' : lang === 'me' ? 'Plaćanje nije pripremljeno' : 'Payment init failed'}</b>
           <div style={{ marginTop: 6 }}>{err}</div>
         </div>
       )}
 
       {!loading && !err && !clientSecret && (
         <div style={{ padding: 12, border: '1px solid #f2b8b8', borderRadius: 8 }}>
-          <b>Payment init failed</b>
+          <b>{lang === 'ru' ? 'Не удалось подготовить оплату' : lang === 'me' ? 'Plaćanje nije pripremljeno' : 'Payment init failed'}</b>
           <div style={{ marginTop: 6 }}>missing_client_secret</div>
+        </div>
+      )}
+
+      {!loading && !err && checkoutUrl && (
+        <div style={{ padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
+          <p style={{ marginTop: 0 }}>
+            {lang === 'ru'
+              ? 'Оплата будет открыта на защищённой странице платёжного провайдера.'
+              : lang === 'me'
+                ? 'Plaćanje će se otvoriti na sigurnoj stranici platnog provajdera.'
+                : 'Payment will open on the secure payment provider page.'}
+          </p>
+          <a
+            href={checkoutUrl}
+            style={{
+              marginTop: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '46px',
+              padding: '0 18px',
+              borderRadius: '12px',
+              border: 'none',
+              background: '#111827',
+              color: '#ffffff',
+              fontSize: '15px',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            {lang === 'ru' ? 'Перейти к оплате' : lang === 'me' ? 'Idi na plaćanje' : 'Continue to payment'}
+          </a>
         </div>
       )}
 
