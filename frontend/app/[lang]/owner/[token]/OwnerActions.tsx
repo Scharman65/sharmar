@@ -139,9 +139,11 @@ export default function OwnerActions({ lang, token, requestStatus, paymentStatus
           {busy === "decline" ? tr.working : tr.decline}
         </button>
 
-        <button type="button" style={buttonStyle} onClick={() => run("refund")} disabled={busy !== null || !canRefund}>
-          {busy === "refund" ? tr.working : tr.refund}
-        </button>
+        {false ? (
+          <button type="button" style={buttonStyle} onClick={() => run("refund")} disabled={busy !== null || !canRefund}>
+            {busy === "refund" ? tr.working : tr.refund}
+          </button>
+        ) : null}
 
         <button type="button" style={buttonStyle} onClick={() => window.location.reload()} disabled={busy !== null}>
           {tr.refresh}
