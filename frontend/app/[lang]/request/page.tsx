@@ -80,17 +80,17 @@ function requestCopy(lang: Lang) {
       priceEstimateText: "Расчёт обновляется по выбранному времени. Списание выполняется только после подтверждения владельцем.",
       boatRate: "Тариф лодки",
       hour: "час",
-      serviceFee: "Сервисный сбор Sharmar",
+      serviceFee: "Онлайн-бронирование",
       reservationProtection: "Защита бронирования",
-      secureAuthorization: "Безопасная авторизация Stripe",
-      secureAuthorizationText: "Авторизация карты выполняется безопасно через Stripe после отправки заявки.",
+      secureAuthorization: "Безопасное онлайн-бронирование",
+      secureAuthorizationText: "Бронирование выполняется через защищённую онлайн-оплату после отправки заявки.",
       ownerConfirms: "Владелец подтверждает перед финальным бронированием",
       ownerConfirmsText: "Владелец проверяет заявку до окончательного подтверждения бронирования.",
-      captureAfterApproval: "Списание только после одобрения владельцем",
-      captureAfterApprovalText: "Если владелец отклонит заявку, авторизация будет снята согласно срокам банка-эмитента карты.",
+      captureAfterApproval: "Онлайн-подтверждение бронирования",
+      captureAfterApprovalText: "После оплаты заявка передаётся владельцу для подтверждения бронирования.",
       emailFallback: "Написать по email",
-      preparing: "Подготовка безопасной авторизации...",
-      continueAuthorization: "Перейти к безопасной авторизации",
+      preparing: "Подготовка безопасной оплаты...",
+      continueAuthorization: "Перейти к бронированию",
       dateAria: "Дата (YYYY-MM-DD)",
     };
   }
@@ -132,17 +132,17 @@ function requestCopy(lang: Lang) {
       priceEstimateText: "Procjena se ažurira prema odabranom vremenu. Naplata se vrši tek nakon odobrenja vlasnika.",
       boatRate: "Cijena broda",
       hour: "sat",
-      serviceFee: "Sharmar servisna naknada",
+      serviceFee: "Online rezervacija",
       reservationProtection: "Zaštita rezervacije",
-      secureAuthorization: "Sigurna Stripe autorizacija",
-      secureAuthorizationText: "Autorizacija kartice se sigurno obrađuje putem Stripe-a nakon slanja zahtjeva.",
+      secureAuthorization: "Sigurna online rezervacija",
+      secureAuthorizationText: "Rezervacija se obrađuje kroz sigurnu online uplatu nakon slanja zahtjeva.",
       ownerConfirms: "Vlasnik potvrđuje prije finalne rezervacije",
       ownerConfirmsText: "Vlasnik pregledava zahtjev prije konačne potvrde rezervacije.",
-      captureAfterApproval: "Naplata tek nakon odobrenja vlasnika",
-      captureAfterApprovalText: "Ako vlasnik odbije zahtjev, autorizacija se oslobađa prema rokovima banke izdavaoca kartice.",
+      captureAfterApproval: "Online potvrda rezervacije",
+      captureAfterApprovalText: "Nakon uplate zahtjev se šalje vlasniku na potvrdu rezervacije.",
       emailFallback: "Pošalji email",
-      preparing: "Priprema sigurne autorizacije...",
-      continueAuthorization: "Nastavi na sigurnu autorizaciju",
+      preparing: "Priprema sigurnog plaćanja...",
+      continueAuthorization: "Idi na rezervaciju",
       dateAria: "Datum (YYYY-MM-DD)",
     };
   }
@@ -183,17 +183,17 @@ function requestCopy(lang: Lang) {
     priceEstimateText: "The estimate updates from the selected time range. Final capture happens only after owner approval.",
     boatRate: "Boat rate",
     hour: "hour",
-    serviceFee: "Sharmar service fee",
+    serviceFee: "Online booking",
     reservationProtection: "Reservation protection",
-    secureAuthorization: "Secure Stripe authorization",
-    secureAuthorizationText: "Your card authorization is handled securely with Stripe after you submit this request.",
+    secureAuthorization: "Secure online booking",
+    secureAuthorizationText: "Your booking is processed through a secure online payment after you submit this request.",
     ownerConfirms: "Owner confirms before final booking",
     ownerConfirmsText: "The owner reviews the request before the booking is final.",
-    captureAfterApproval: "Capture only after owner approval",
-    captureAfterApprovalText: "If the owner declines, the authorization is released by your card issuer timing.",
+    captureAfterApproval: "Online booking confirmation",
+    captureAfterApprovalText: "After payment, the request is sent to the owner for booking confirmation.",
     emailFallback: "Email fallback",
-    preparing: "Preparing secure authorization...",
-    continueAuthorization: "Continue to secure authorization",
+    preparing: "Preparing secure payment...",
+    continueAuthorization: "Continue to booking",
     dateAria: "Date (YYYY-MM-DD)",
   };
 }
@@ -318,14 +318,11 @@ export default function RequestPage() {
     isIsoUtcTimestamp(slotStartUtc) &&
     isIsoUtcTimestamp(slotEndUtc);
 
-  const pricePerHourFromUrl = Number(sp.get("pph"));
   const pricePerHourFromEnv = Number(process.env.NEXT_PUBLIC_PRICE_PER_HOUR);
   const PRICE_PER_HOUR =
-    Number.isFinite(pricePerHourFromUrl) && pricePerHourFromUrl > 0
-      ? pricePerHourFromUrl
-      : Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
-        ? pricePerHourFromEnv
-        : 100;
+    Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
+      ? pricePerHourFromEnv
+      : 100;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
