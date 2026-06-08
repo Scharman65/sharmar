@@ -473,7 +473,7 @@ export function AvailabilityCalendar({
                             {formatTime(slot.slot_start_utc, timeZone, lang)}
                           </span>
                           <span style={{ fontSize: 12, opacity: 0.74 }}>
-                            {copy.until} {formatTime(slot.slot_end_utc, timeZone, lang)}
+                            {formatTime(slot.slot_start_utc, timeZone, lang)}–{formatTime(slot.slot_end_utc, timeZone, lang)}
                           </span>
                         </button>
                       );
