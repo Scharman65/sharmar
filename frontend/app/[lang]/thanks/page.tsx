@@ -130,18 +130,18 @@ export default async function ThanksPage({ params, searchParams }: Props) {
 
   const title = isPaymentSuccess
     ? lang === "ru"
-      ? "Платёж авторизован"
+      ? "Оплата прошла успешно"
       : lang === "me"
-        ? "Plaćanje je autorizovano"
-        : "Payment authorized"
+        ? "Plaćanje je uspješno"
+        : "Payment successful"
     : tr.booking.sentTitle;
 
   const text = isPaymentSuccess
     ? lang === "ru"
-      ? "Сбор за бронирование оплачен Sharmar. Остаток оплачивается напрямую владельцу. Мы отправили запрос владельцу лодки; после подтверждения бронирование будет подтверждено."
+      ? "Оплата сбора за бронирование прошла успешно. Сбор получен Sharmar. Остаток оплачивается напрямую владельцу. Мы отправили запрос владельцу лодки; после подтверждения бронирование будет окончательно подтверждено."
       : lang === "me"
-        ? "Naknada za rezervaciju plaćena je Sharmaru. Preostali iznos plaća se direktno vlasniku. Poslali smo zahtjev vlasniku broda; nakon potvrde rezervacija će biti potvrđena."
-        : "Booking fee paid to Sharmar. Remaining amount paid directly to owner. We have sent the request to the boat owner; after the owner confirms, the booking will be confirmed."
+        ? "Naknada za rezervaciju je uspješno plaćena Sharmaru. Preostali iznos plaća se direktno vlasniku. Poslali smo zahtjev vlasniku broda; nakon potvrde rezervacija će biti konačno potvrđena."
+        : "Booking fee payment was successful. The booking fee has been received by Sharmar. The remaining amount is paid directly to the owner. We have sent the request to the boat owner; after the owner confirms, the booking will be fully confirmed."
     : tr.booking.sentText;
 
   const referenceLabel =
