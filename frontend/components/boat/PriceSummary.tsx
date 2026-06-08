@@ -106,32 +106,6 @@ export function PriceSummary({
           </div>
         ))}
       </div>
-    
-      <div style={{ marginTop: 16 }}>
-        <a href={
-            slug
-              ? `/${lang}/request?slug=${encodeURIComponent(String(slug))}&title=${encodeURIComponent(String(title ?? slug))}&currency=${encodeURIComponent(String(currency ?? "EUR"))}&pph=${encodeURIComponent(String(applyMarketplaceFee(pricePerHour) ?? ""))}&ppd=${encodeURIComponent(String(applyMarketplaceFee(pricePerDay) ?? ""))}&ppw=${encodeURIComponent(String(applyMarketplaceFee(pricePerWeek) ?? ""))}&sale=${encodeURIComponent(String(applyMarketplaceFee(salePrice) ?? ""))}`
-              : `/${lang}/request`
-          }
-          style={{
-            width: "100%",
-            padding: "14px 16px",
-            borderRadius: 12,
-            border: "none",
-            display: "block",
-            textAlign: "center",
-            textDecoration: "none",
-            fontWeight: 700,
-            fontSize: 16,
-            cursor: "pointer",
-            background: "#2563eb",
-            color: "#fff",
-          }}
-        >
-          Request booking
-        </a>
-      </div>
-
     </section>
   );
 }

@@ -448,15 +448,6 @@ export default async function BoatPage({ params }: Props) {
         ) : null}
 
         <div className="actions">
-          <Link
-            className="button"
-            href={`/${lang}/request?slug=${encodeURIComponent(slug)}&title=${encodeURIComponent(
-              boat.title ?? slug
-            )}`}
-          >
-            {tr.booking.requestThisBoat}
-          </Link>
-
           <Link className="button secondary" href={`/${lang}/boats`}>
             {tr.boat.back_to_list}
           </Link>

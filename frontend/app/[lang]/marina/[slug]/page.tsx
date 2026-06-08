@@ -35,6 +35,17 @@ type PageCopy = {
   exploreNearbyMarinas: string;
   viewMarina: string;
   yachtRentalsAndBoatsIn: string;
+  rentMotorBoats: string;
+  rentCatamarans: string;
+  rentSailingBoats: string;
+  saleMotorBoats: string;
+  saleCatamarans: string;
+  saleSailingBoats: string;
+  rentMotorBoatsCta: string;
+  rentSailingYachtsCta: string;
+  catamaransForCharterCta: string;
+  seoParagraph1: string;
+  seoParagraph2: string;
 };
 
 function pageCopy(lang: Lang): PageCopy {
@@ -66,6 +77,17 @@ function pageCopy(lang: Lang): PageCopy {
       exploreNearbyMarinas: "Изучите ближайшие марины",
       viewMarina: "Открыть марину →",
       yachtRentalsAndBoatsIn: "Аренда яхт и лодок в",
+      rentMotorBoats: "Моторные яхты",
+      rentCatamarans: "Катамараны",
+      rentSailingBoats: "Парусные яхты",
+      saleMotorBoats: "Моторные лодки на продажу",
+      saleCatamarans: "Катамараны на продажу",
+      saleSailingBoats: "Парусные яхты на продажу",
+      rentMotorBoatsCta: "Аренда моторных лодок",
+      rentSailingYachtsCta: "Аренда парусных яхт",
+      catamaransForCharterCta: "Катамараны в аренду",
+      seoParagraph1: "{marina} входит в средиземноморскую сеть марин Sharmar для премиального поиска яхт, структурированных заявок на бронирование и подтверждённых владельцем резерваций.",
+      seoParagraph2: "Эта страница связывает марину с арендой лодок, продажей яхт и локальным marketplace-контентом для {city}, {country}.",
     };
   }
 
@@ -97,6 +119,17 @@ function pageCopy(lang: Lang): PageCopy {
       exploreNearbyMarinas: "Istražite obližnje marine",
       viewMarina: "Otvori marinu →",
       yachtRentalsAndBoatsIn: "Najam jahti i plovila u",
+      rentMotorBoats: "Motorne jahte",
+      rentCatamarans: "Katamarani",
+      rentSailingBoats: "Jedrilice",
+      saleMotorBoats: "Motorni brodovi na prodaju",
+      saleCatamarans: "Katamarani na prodaju",
+      saleSailingBoats: "Jedrilice na prodaju",
+      rentMotorBoatsCta: "Iznajmi motorne brodove",
+      rentSailingYachtsCta: "Iznajmi jedrilice",
+      catamaransForCharterCta: "Katamarani za najam",
+      seoParagraph1: "{marina} je dio Sharmar mediteranske mreže marina, kreirane za premium pretragu jahti, strukturirane zahtjeve za rezervaciju i rezervacije koje potvrđuje vlasnik.",
+      seoParagraph2: "Ova stranica povezuje marine sa najmom plovila, prodajom jahti i lokalizovanim marketplace sadržajem za {city}, {country}.",
     };
   }
 
@@ -127,6 +160,17 @@ function pageCopy(lang: Lang): PageCopy {
     exploreNearbyMarinas: "Explore nearby marinas",
     viewMarina: "View marina →",
     yachtRentalsAndBoatsIn: "Yacht rentals and boats in",
+    rentMotorBoats: "Motor yachts",
+    rentCatamarans: "Catamarans",
+    rentSailingBoats: "Sailing boats",
+    saleMotorBoats: "Motor boats for sale",
+    saleCatamarans: "Catamarans for sale",
+    saleSailingBoats: "Sailing boats for sale",
+    rentMotorBoatsCta: "Rent motor boats",
+    rentSailingYachtsCta: "Rent sailing yachts",
+    catamaransForCharterCta: "Catamarans for charter",
+    seoParagraph1: "{marina} is part of Sharmar's Mediterranean marina network, designed for premium yacht discovery, structured booking requests, and owner-confirmed reservations.",
+    seoParagraph2: "This page connects marina discovery with boat rentals, yacht sales, and future localized marketplace content for {city}, {country}.",
   };
 }
 
@@ -326,22 +370,24 @@ export default async function MarinaPage({ params }: PageProps) {
       : []),
   ];
 
+  const pc = pageCopy(lang);
+
   const rentLinks = [
-    { href: `/${lang}/rent/motor`, label: "Motor yachts" },
-    { href: `/${lang}/rent/catamaran`, label: "Catamarans" },
-    { href: `/${lang}/rent/sail`, label: "Sailing boats" },
+    { href: `/${lang}/rent/motor`, label: pc.rentMotorBoats },
+    { href: `/${lang}/rent/catamaran`, label: pc.rentCatamarans },
+    { href: `/${lang}/rent/sail`, label: pc.rentSailingBoats },
   ];
 
   const saleLinks = [
-    { href: `/${lang}/sale/motor`, label: "Motor boats for sale" },
-    { href: `/${lang}/sale/catamaran`, label: "Catamarans for sale" },
-    { href: `/${lang}/sale/sail`, label: "Sailing boats for sale" },
+    { href: `/${lang}/sale/motor`, label: pc.saleMotorBoats },
+    { href: `/${lang}/sale/catamaran`, label: pc.saleCatamarans },
+    { href: `/${lang}/sale/sail`, label: pc.saleSailingBoats },
   ];
 
   const marinaCategoryLinks = [
-    { href: `/${lang}/rent/motor`, label: "Rent motor boats" },
-    { href: `/${lang}/rent/sail`, label: "Rent sailing yachts" },
-    { href: `/${lang}/rent/catamaran`, label: "Catamarans for charter" },
+    { href: `/${lang}/rent/motor`, label: pc.rentMotorBoatsCta },
+    { href: `/${lang}/rent/sail`, label: pc.rentSailingYachtsCta },
+    { href: `/${lang}/rent/catamaran`, label: pc.catamaransForCharterCta },
   ];
 
   return (
@@ -506,12 +552,16 @@ export default async function MarinaPage({ params }: PageProps) {
         <section className="marina-seo">
           <h2>{pageCopy(lang).yachtRentalsAndBoatsIn} {marina.title}</h2>
           <p>
-            {marina.title} is part of Sharmar&apos;s Mediterranean marina network, designed for premium yacht
-            discovery, structured booking requests, and owner-confirmed reservations.
+            {pc.seoParagraph1
+              .replace("{marina}", marina.title)
+              .replace("{city}", marina.city)
+              .replace("{country}", marina.country)}
           </p>
           <p>
-            This page connects marina discovery with boat rentals, yacht sales, and future localized marketplace
-            content for {marina.city}, {marina.country}.
+            {pc.seoParagraph2
+              .replace("{marina}", marina.title)
+              .replace("{city}", marina.city)
+              .replace("{country}", marina.country)}
           </p>
         </section>
       </div>
