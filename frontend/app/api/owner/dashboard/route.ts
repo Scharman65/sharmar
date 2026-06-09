@@ -392,34 +392,26 @@ export async function GET(req: NextRequest) {
   }
 
   const boats = await strapiJson(
-    `/api/boats?populate=cover&sort=createdAt:desc&pagination[pageSize]=100`,
+    `/api/owner/boats-by-user?user_id=${ownerId}`,
     serverToken
   );
 
   if (!boats.ok) {
-    console.error("OWNER_DASHBOARD_STRAPI_ERROR", {
+    console.error("OWNER_BOATS_BY_USER_API_ERROR", {
       status: boats.status,
       details: boats.json,
     });
 
     return NextResponse.json(
-      { ok: false, error: "Could not load owner dashboard", status: boats.status, details: boats.json },
+      { ok: false, error: "Could not load owner boats", status: boats.status, details: boats.json },
       { status: 502, headers: { "cache-control": "no-store" } }
     );
   }
 
-  const allBoats = isRecord(boats.json) && Array.isArray(boats.json.data) ? boats.json.data : [];
-
-  const ownerBoats = allBoats.filter((boat) => {
-    if (!isRecord(boat)) return false;
-
-    const createdById =
-      typeof boat.created_by_id === "number"
-        ? boat.created_by_id
-        : Number(boat.created_by_id || 0);
-
-    return createdById === ownerId;
-  });
+  const ownerBoats =
+    isRecord(boats.json) && Array.isArray(boats.json.boats)
+      ? boats.json.boats
+      : [];
 
   const ownerBoatIds = ownerBoats
     .map((boat) => (isRecord(boat) ? getNumber(boat.id) : null))
