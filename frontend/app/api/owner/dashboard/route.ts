@@ -377,7 +377,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const ownerEmail = me.json.email.trim();
+  const ownerId =
+    typeof me.json.id === "number"
+      ? me.json.id
+      : Number(me.json.id || 0);
 
   const serverToken = getServerToken();
 
@@ -409,8 +412,13 @@ export async function GET(req: NextRequest) {
 
   const ownerBoats = allBoats.filter((boat) => {
     if (!isRecord(boat)) return false;
-    const value = boat.owner_user_email;
-    return typeof value === "string" && value.trim().toLowerCase() === ownerEmail.toLowerCase();
+
+    const createdById =
+      typeof boat.created_by_id === "number"
+        ? boat.created_by_id
+        : Number(boat.created_by_id || 0);
+
+    return createdById === ownerId;
   });
 
   const ownerBoatIds = ownerBoats
@@ -432,7 +440,7 @@ export async function GET(req: NextRequest) {
       owner: {
         id: typeof me.json.id === "number" ? me.json.id : null,
         username: typeof me.json.username === "string" ? me.json.username : null,
-        email: ownerEmail,
+        email: typeof me.json.email === "string" ? me.json.email : null,
       },
       boats: ownerBoats,
       activeBookings,
