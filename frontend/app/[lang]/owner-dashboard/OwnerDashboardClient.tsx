@@ -199,6 +199,16 @@ type OccupancyItem = {
   slot_end_utc?: string | null;
 };
 
+
+type OwnerBlackout = {
+  id: number;
+  boat_id: number;
+  start_utc: string;
+  end_utc: string;
+  reason?: string;
+  created_at?: string;
+};
+
 type OwnerCalendarDisplayType = "hold" | "confirmed" | "declined" | "expired" | "unknown";
 
 type OwnerCalendarEvent = {
@@ -370,7 +380,53 @@ export default function OwnerDashboardClient() {
   const [actionSuccess, setActionSuccess] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<Record<string, string>>({});
 
-  const boats = useMemo(() => data?.boats ?? [], [data]);
+  const [boatBlackouts, setBoatBlackouts] = useState<Record<number, OwnerBlackout[]>>({});
+  const [blackoutLoading, setBlackoutLoading] = useState<Record<number, boolean>>({});
+  const [blackoutError, setBlackoutError] = useState<Record<number, string>>({});
+
+
+
+  
+  async function loadBlackoutsForBoat(boatId: number) {
+    try {
+      setBlackoutLoading((prev) => ({
+        ...prev,
+        [boatId]: true,
+      }));
+
+      const res = await fetch(`/api/owner/blackouts?boat_id=${boatId}`, {
+        cache: "no-store",
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "blackout_load_failed");
+      }
+
+      setBoatBlackouts((prev) => ({
+        ...prev,
+        [boatId]: Array.isArray(json?.blackouts) ? json.blackouts : [],
+      }));
+
+      setBlackoutError((prev) => ({
+        ...prev,
+        [boatId]: "",
+      }));
+    } catch (e) {
+      setBlackoutError((prev) => ({
+        ...prev,
+        [boatId]: e instanceof Error ? e.message : "blackout_load_failed",
+      }));
+    } finally {
+      setBlackoutLoading((prev) => ({
+        ...prev,
+        [boatId]: false,
+      }));
+    }
+  }
+
+const boats = useMemo(() => data?.boats ?? [], [data]);
   const recentActivity = useMemo(() => data?.recentActivity ?? [], [data]);
   const ownerCalendarEvents = useMemo(() => data?.ownerCalendarEvents ?? [], [data]);
   const occupancyItems = useMemo(
@@ -391,7 +447,16 @@ export default function OwnerDashboardClient() {
     (event) => event.displayType === "expired"
   ).length;
 
+  
   useEffect(() => {
+    boats.forEach((boat) => {
+      if (boat.id) {
+        loadBlackoutsForBoat(Number(boat.id));
+      }
+    });
+  }, [boats]);
+
+useEffect(() => {
     let alive = true;
 
     async function load() {
@@ -822,10 +887,79 @@ export default function OwnerDashboardClient() {
                     </div>
 
                     {boat.booking_enabled && boat.slug ? (
-                      <div>
-                        <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
-                          View public page
-                        </Link>
+                      <div style={{ display: "grid", gap: 14 }}>
+                        <div>
+                          <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
+                            View public page
+                          </Link>
+                        </div>
+
+                        <div
+                          className="card"
+                          style={{
+                            padding: 14,
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <div style={{ display: "grid", gap: 10 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <strong>Closed dates</strong>
+
+                              <button
+                                className="button secondary"
+                                type="button"
+                                onClick={() => loadBlackoutsForBoat(Number(boat.id))}
+                              >
+                                Refresh
+                              </button>
+                            </div>
+
+                            {blackoutLoading[Number(boat.id)] ? (
+                              <p className="kicker" style={{ margin: 0 }}>
+                                Loading...
+                              </p>
+                            ) : null}
+
+                            {blackoutError[Number(boat.id)] ? (
+                              <p className="kicker" style={{ margin: 0, color: "#b91c1c" }}>
+                                {blackoutError[Number(boat.id)]}
+                              </p>
+                            ) : null}
+
+                            {boatBlackouts[Number(boat.id)]?.length ? (
+                              <div style={{ display: "grid", gap: 8 }}>
+                                {boatBlackouts[Number(boat.id)].map((blackout) => (
+                                  <div
+                                    key={blackout.id}
+                                    style={{
+                                      padding: 10,
+                                      borderRadius: 12,
+                                      background: "rgba(255,255,255,0.04)",
+                                      border: "1px solid rgba(255,255,255,0.08)",
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 13 }}>
+                                      {blackout.start_utc}
+                                    </div>
+
+                                    <div style={{ fontSize: 13 }}>
+                                      {blackout.end_utc}
+                                    </div>
+
+                                    <div className="kicker" style={{ marginTop: 6 }}>
+                                      {blackout.reason || "blocked"}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="kicker" style={{ margin: 0 }}>
+                                No closed dates
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <p className="kicker" style={{ margin: 0 }}>
