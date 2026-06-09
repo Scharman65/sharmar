@@ -62,6 +62,9 @@ export function OwnerAvailabilityCalendar({ lang, blackouts }: OwnerAvailability
       >
         {days.map((day) => {
           const key = dateKeyUtc(day);
+          const todayKey = dateKeyUtc(new Date());
+          const isToday = key == todayKey;
+
           const dayBlackouts = blackouts.filter((blackout) => blackoutCoversDate(blackout, key));
           const isClosed = dayBlackouts.length > 0;
 
@@ -71,8 +74,17 @@ export function OwnerAvailabilityCalendar({ lang, blackouts }: OwnerAvailability
               style={{
                 minHeight: 86,
                 borderRadius: 14,
-                border: isClosed ? "1px solid rgba(220,38,38,0.35)" : "1px solid rgba(15,23,42,0.10)",
-                background: isClosed ? "rgba(220,38,38,0.10)" : "rgba(255,255,255,0.68)",
+                border: isToday
+                  ? "2px solid #0f172a"
+                  : isClosed
+                    ? "1px solid rgba(220,38,38,0.35)"
+                    : "1px solid rgba(15,23,42,0.10)",
+
+                background: isClosed
+                  ? "rgba(220,38,38,0.12)"
+                  : isToday
+                    ? "rgba(15,23,42,0.08)"
+                    : "rgba(255,255,255,0.68)",
                 padding: 10,
                 display: "grid",
                 alignContent: "space-between",
