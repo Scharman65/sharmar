@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { OwnerAvailabilityCalendar } from "@/components/owner/OwnerAvailabilityCalendar";
 
 type DashboardCopy = {
   ownerDashboard: string;
@@ -1190,6 +1191,11 @@ useEffect(() => {
                             >
                               Add closed date
                             </button>
+
+                            <OwnerAvailabilityCalendar
+                              lang={lang}
+                              blackouts={boatBlackouts[Number(boat.id)] || []}
+                            />
 
                             {boatBlackouts[Number(boat.id)]?.length ? (
                               <div style={{ display: "grid", gap: 8 }}>
