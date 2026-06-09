@@ -209,6 +209,14 @@ type OwnerBlackout = {
   created_at?: string;
 };
 
+type BlackoutFormState = {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  reason: string;
+};
+
 type OwnerCalendarDisplayType = "hold" | "confirmed" | "declined" | "expired" | "unknown";
 
 type OwnerCalendarEvent = {
@@ -404,6 +412,16 @@ function formatOwnerBlackoutRange(blackout: OwnerBlackout, lang: string): string
   return `${startDate}, ${startTime}–${endTime}`;
 }
 
+function buildBlackoutIso(date: string, time: string): string {
+  const cleanDate = String(date || "").trim();
+  const cleanTime = String(time || "").trim();
+
+  if (!cleanDate || !cleanTime) return "";
+
+  const value = new Date(`${cleanDate}T${cleanTime}:00.000Z`).toISOString();
+  return value;
+}
+
 function isUpcomingCalendarEvent(event: OwnerCalendarEvent): boolean {
   const raw = event.startUtc || event.endUtc || "";
   const timeMs = Date.parse(raw);
@@ -425,6 +443,8 @@ export default function OwnerDashboardClient() {
   const [boatBlackouts, setBoatBlackouts] = useState<Record<number, OwnerBlackout[]>>({});
   const [blackoutLoading, setBlackoutLoading] = useState<Record<number, boolean>>({});
   const [blackoutError, setBlackoutError] = useState<Record<number, string>>({});
+  const [blackoutBusy, setBlackoutBusy] = useState<Record<number, boolean>>({});
+  const [blackoutForm, setBlackoutForm] = useState<Record<number, BlackoutFormState>>({});
 
 
 
@@ -467,6 +487,115 @@ export default function OwnerDashboardClient() {
       }));
     }
   }
+
+  async function createBlackoutForBoat(boatId: number) {
+    const form = blackoutForm[boatId] || {
+      startDate: "",
+      startTime: "09:00",
+      endDate: "",
+      endTime: "17:00",
+      reason: "",
+    };
+
+    const cleanStartDate = String(form.startDate || "").trim();
+    const cleanStartTime = String(form.startTime || "09:00").trim();
+    const cleanEndDate = String(form.endDate || form.startDate || "").trim();
+    const cleanEndTime = String(form.endTime || "17:00").trim();
+
+    if (!cleanStartDate || !cleanEndDate) {
+      setBlackoutError((prev) => ({
+        ...prev,
+        [boatId]: "Select start and end date.",
+      }));
+      return;
+    }
+
+    const startUtc = buildBlackoutIso(cleanStartDate, cleanStartTime);
+    const endUtc = buildBlackoutIso(cleanEndDate, cleanEndTime);
+
+    try {
+      setBlackoutBusy((prev) => ({
+        ...prev,
+        [boatId]: true,
+      }));
+
+      const res = await fetch("/api/owner/blackouts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+          boat_id: boatId,
+          start_utc: startUtc,
+          end_utc: endUtc,
+          reason: form.reason || "owner_blocked",
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "blackout_create_failed");
+      }
+
+      setBlackoutForm((prev) => ({
+        ...prev,
+        [boatId]: {
+          startDate: cleanStartDate,
+          startTime: cleanStartTime,
+          endDate: cleanEndDate,
+          endTime: cleanEndTime,
+          reason: "",
+        },
+      }));
+
+      await loadBlackoutsForBoat(boatId);
+    } catch (e) {
+      setBlackoutError((prev) => ({
+        ...prev,
+        [boatId]: e instanceof Error ? e.message : "blackout_create_failed",
+      }));
+    } finally {
+      setBlackoutBusy((prev) => ({
+        ...prev,
+        [boatId]: false,
+      }));
+    }
+  }
+
+  async function deleteBlackoutForBoat(boatId: number, blackoutId: number) {
+    try {
+      setBlackoutBusy((prev) => ({
+        ...prev,
+        [boatId]: true,
+      }));
+
+      const res = await fetch(`/api/owner/blackouts/${blackoutId}?boat_id=${boatId}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "blackout_delete_failed");
+      }
+
+      await loadBlackoutsForBoat(boatId);
+    } catch (e) {
+      setBlackoutError((prev) => ({
+        ...prev,
+        [boatId]: e instanceof Error ? e.message : "blackout_delete_failed",
+      }));
+    } finally {
+      setBlackoutBusy((prev) => ({
+        ...prev,
+        [boatId]: false,
+      }));
+    }
+  }
+
 
 const boats = useMemo(() => data?.boats ?? [], [data]);
   const recentActivity = useMemo(() => data?.recentActivity ?? [], [data]);
@@ -969,6 +1098,99 @@ useEffect(() => {
                               </p>
                             ) : null}
 
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                                gap: 10,
+                              }}
+                            >
+                              <input
+                                type="date"
+                                value={blackoutForm[Number(boat.id)]?.startDate || ""}
+                                onChange={(e) => setBlackoutForm((prev) => ({
+                                  ...prev,
+                                  [Number(boat.id)]: {
+                                    startDate: e.target.value,
+                                    startTime: prev[Number(boat.id)]?.startTime || "09:00",
+                                    endDate: prev[Number(boat.id)]?.endDate || e.target.value,
+                                    endTime: prev[Number(boat.id)]?.endTime || "17:00",
+                                    reason: prev[Number(boat.id)]?.reason || "",
+                                  },
+                                }))}
+                              />
+
+                              <input
+                                type="time"
+                                value={blackoutForm[Number(boat.id)]?.startTime || "09:00"}
+                                onChange={(e) => setBlackoutForm((prev) => ({
+                                  ...prev,
+                                  [Number(boat.id)]: {
+                                    startDate: prev[Number(boat.id)]?.startDate || "",
+                                    startTime: e.target.value,
+                                    endDate: prev[Number(boat.id)]?.endDate || prev[Number(boat.id)]?.startDate || "",
+                                    endTime: prev[Number(boat.id)]?.endTime || "17:00",
+                                    reason: prev[Number(boat.id)]?.reason || "",
+                                  },
+                                }))}
+                              />
+
+                              <input
+                                type="date"
+                                value={blackoutForm[Number(boat.id)]?.endDate || ""}
+                                onChange={(e) => setBlackoutForm((prev) => ({
+                                  ...prev,
+                                  [Number(boat.id)]: {
+                                    startDate: prev[Number(boat.id)]?.startDate || e.target.value,
+                                    startTime: prev[Number(boat.id)]?.startTime || "09:00",
+                                    endDate: e.target.value,
+                                    endTime: prev[Number(boat.id)]?.endTime || "17:00",
+                                    reason: prev[Number(boat.id)]?.reason || "",
+                                  },
+                                }))}
+                              />
+
+                              <input
+                                type="time"
+                                value={blackoutForm[Number(boat.id)]?.endTime || "17:00"}
+                                onChange={(e) => setBlackoutForm((prev) => ({
+                                  ...prev,
+                                  [Number(boat.id)]: {
+                                    startDate: prev[Number(boat.id)]?.startDate || "",
+                                    startTime: prev[Number(boat.id)]?.startTime || "09:00",
+                                    endDate: prev[Number(boat.id)]?.endDate || prev[Number(boat.id)]?.startDate || "",
+                                    endTime: e.target.value,
+                                    reason: prev[Number(boat.id)]?.reason || "",
+                                  },
+                                }))}
+                              />
+                            </div>
+
+                            <input
+                              type="text"
+                              placeholder="Reason"
+                              value={blackoutForm[Number(boat.id)]?.reason || ""}
+                              onChange={(e) => setBlackoutForm((prev) => ({
+                                ...prev,
+                                [Number(boat.id)]: {
+                                  startDate: prev[Number(boat.id)]?.startDate || "",
+                                  startTime: prev[Number(boat.id)]?.startTime || "09:00",
+                                  endDate: prev[Number(boat.id)]?.endDate || prev[Number(boat.id)]?.startDate || "",
+                                  endTime: prev[Number(boat.id)]?.endTime || "17:00",
+                                  reason: e.target.value,
+                                },
+                              }))}
+                            />
+
+                            <button
+                              className="button secondary"
+                              type="button"
+                              disabled={Boolean(blackoutBusy[Number(boat.id)])}
+                              onClick={() => createBlackoutForBoat(Number(boat.id))}
+                            >
+                              Add closed date
+                            </button>
+
                             {boatBlackouts[Number(boat.id)]?.length ? (
                               <div style={{ display: "grid", gap: 8 }}>
                                 {boatBlackouts[Number(boat.id)].map((blackout) => (
@@ -988,6 +1210,16 @@ useEffect(() => {
                                     <div className="kicker" style={{ marginTop: 6 }}>
                                       {blackout.reason || "blocked"}
                                     </div>
+
+                                    <button
+                                      className="button secondary"
+                                      type="button"
+                                      disabled={Boolean(blackoutBusy[Number(boat.id)])}
+                                      onClick={() => deleteBlackoutForBoat(Number(boat.id), blackout.id)}
+                                      style={{ marginTop: 8 }}
+                                    >
+                                      Delete
+                                    </button>
                                   </div>
                                 ))}
                               </div>
