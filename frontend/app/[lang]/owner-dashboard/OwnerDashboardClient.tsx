@@ -362,6 +362,48 @@ function calendarBadgeBackground(displayType?: OwnerCalendarDisplayType): string
   return "rgba(255,255,255,0.08)";
 }
 
+
+function formatOwnerBlackoutDate(value: string | null | undefined, lang: string): string {
+  if (!value) return "—";
+
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return value;
+
+  const locale = lang === "ru" ? "ru-RU" : lang === "me" ? "sr-Latn-ME" : "en-US";
+
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(ms));
+}
+
+function formatOwnerBlackoutTime(value: string | null | undefined, lang: string): string {
+  if (!value) return "—";
+
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return value;
+
+  const locale = lang === "ru" ? "ru-RU" : lang === "me" ? "sr-Latn-ME" : "en-US";
+
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(new Date(ms));
+}
+
+function formatOwnerBlackoutRange(blackout: OwnerBlackout, lang: string): string {
+  const startDate = formatOwnerBlackoutDate(blackout.start_utc, lang);
+  const startTime = formatOwnerBlackoutTime(blackout.start_utc, lang);
+  const endTime = formatOwnerBlackoutTime(blackout.end_utc, lang);
+
+  return `${startDate}, ${startTime}–${endTime}`;
+}
+
 function isUpcomingCalendarEvent(event: OwnerCalendarEvent): boolean {
   const raw = event.startUtc || event.endUtc || "";
   const timeMs = Date.parse(raw);
@@ -939,12 +981,8 @@ useEffect(() => {
                                       border: "1px solid rgba(255,255,255,0.08)",
                                     }}
                                   >
-                                    <div style={{ fontSize: 13 }}>
-                                      {blackout.start_utc}
-                                    </div>
-
-                                    <div style={{ fontSize: 13 }}>
-                                      {blackout.end_utc}
+                                    <div style={{ fontSize: 14, fontWeight: 700 }}>
+                                      {formatOwnerBlackoutRange(blackout, lang)}
                                     </div>
 
                                     <div className="kicker" style={{ marginTop: 6 }}>
