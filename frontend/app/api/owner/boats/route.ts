@@ -20,6 +20,7 @@ type CreateBoatBody = {
   ownerEmail?: string;
   currency?: "EUR";
   locale?: string;
+  instantBooking?: boolean;
 };
 
 type ParsedCreateBoatBody = {
@@ -40,6 +41,7 @@ type ParsedCreateBoatBody = {
   ownerEmail?: string;
   currency: "EUR";
   locale: string;
+  instantBooking: boolean;
 };
 
 type StrapiUsersMe = {
@@ -172,6 +174,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const ownerEmail = asString(body.ownerEmail);
   const currencyRaw = asString(body.currency);
   const locale = asString(body.locale) || "en";
+  const instantBooking = body.instantBooking === false ? false : true;
 
   if (!title) return { ok: false, error: "title is required" };
   if (!listingType) return { ok: false, error: "listingType must be rent or sale" };
@@ -247,6 +250,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       ownerEmail: ownerEmail || undefined,
       currency,
       locale,
+      instantBooking,
     },
   };
 }
@@ -318,6 +322,7 @@ export async function POST(req: NextRequest) {
       owner_user_email: me.email ?? p.ownerEmail ?? "",
       currency: p.currency ?? "EUR",
       booking_enabled: false,
+      instant_booking: p.listingType === "rent" ? p.instantBooking : false,
       contacts_visible: false,
       publishedAt: null,
       locale: p.locale || "en",

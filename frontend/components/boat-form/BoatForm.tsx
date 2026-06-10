@@ -263,6 +263,7 @@ function defaultValues(): BoatFormValues {
     lengthM: "",
     capacityGuests: "",
     ownerPhone: "",
+    instantBooking: true,
     rentPriceHour: "",
     rentPriceDay: "",
     rentPriceWeek: "",
@@ -364,6 +365,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
       currency: "EUR",
       ownerPhone: values.ownerPhone.trim(),
+      instantBooking: Boolean(values.instantBooking),
       locale: listingLanguage,
       imageIds: uploadedImages.map((image) => image.id),
     }),
@@ -667,6 +669,27 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                   />
                   {fieldError("rentPriceWeek")}
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-black/10 p-4">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={values.instantBooking}
+                    onChange={(e) => set("instantBooking", e.target.checked)}
+                    className="mt-1 h-4 w-4"
+                  />
+
+                  <div>
+                    <div className="font-medium">
+                      ⚡ Мгновенное бронирование
+                    </div>
+
+                    <div className="text-sm text-black/60">
+                      Если включено — клиент сможет оплатить и сразу забронировать лодку без ручного подтверждения владельца.
+                    </div>
+                  </div>
+                </label>
               </div>
             </section>
           ) : (
