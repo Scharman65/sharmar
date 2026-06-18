@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const COOKIE_NAME = "sharmar_owner_session";
-
-function cookieDomain(): string | undefined {
-  return process.env.NODE_ENV === "production" ? ".sharmar.me" : undefined;
-}
+import { clearOwnerSessionCookie, setOwnerSessionCookie } from "./cookies";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,16 +21,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
 
-    response.cookies.set({
-      name: COOKIE_NAME,
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      domain: cookieDomain(),
-      maxAge: 60 * 60 * 24 * 14,
-    });
+    setOwnerSessionCookie(response, token);
 
     return response;
   } catch {
@@ -52,16 +38,7 @@ export async function DELETE() {
     { status: 200 }
   );
 
-  response.cookies.set({
-    name: COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    domain: cookieDomain(),
-    expires: new Date(0),
-  });
+  clearOwnerSessionCookie(response);
 
   return response;
 }

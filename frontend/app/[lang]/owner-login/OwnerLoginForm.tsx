@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 
@@ -13,6 +14,8 @@ type LoginCopy = {
   signingIn: string;
   invalidCredentials: string;
   tryAgain: string;
+  noAccount: string;
+  register: string;
 };
 
 function pageCopy(lang: string): LoginCopy {
@@ -26,6 +29,8 @@ function pageCopy(lang: string): LoginCopy {
       signingIn: "Вход...",
       invalidCredentials: "Не удалось войти. Проверьте email и пароль.",
       tryAgain: "Не удалось войти. Попробуйте ещё раз.",
+      noAccount: "Нет аккаунта владельца?",
+      register: "Зарегистрироваться",
     };
   }
 
@@ -39,6 +44,8 @@ function pageCopy(lang: string): LoginCopy {
       signingIn: "Prijava...",
       invalidCredentials: "Prijava nije uspjela. Provjerite email i lozinku.",
       tryAgain: "Prijava nije uspjela. Pokušajte ponovo.",
+      noAccount: "Nemate nalog vlasnika?",
+      register: "Registracija",
     };
   }
 
@@ -51,6 +58,8 @@ function pageCopy(lang: string): LoginCopy {
     signingIn: "Signing in...",
     invalidCredentials: "Unable to sign in. Check your email and password.",
     tryAgain: "Unable to sign in. Please try again.",
+    noAccount: "No owner account yet?",
+    register: "Register",
   };
 }
 
@@ -129,6 +138,13 @@ export default function OwnerLoginForm() {
           <button className="button" type="submit" disabled={isLoading}>
             {isLoading ? pageCopy(lang).signingIn : pageCopy(lang).signIn}
           </button>
+
+          <p style={{ margin: 0 }}>
+            {pageCopy(lang).noAccount}{" "}
+            <Link href={`/${lang}/owner-register`} style={{ textDecoration: "underline" }}>
+              {pageCopy(lang).register}
+            </Link>
+          </p>
         </form>
       </div>
     </main>
