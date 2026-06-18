@@ -408,6 +408,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const ownerProfileResponse = await strapiJson(
+    `/api/owner/profile-by-user?user_id=${ownerId}`,
+    serverToken
+  );
+
+  const ownerProfile =
+    ownerProfileResponse.ok &&
+    isRecord(ownerProfileResponse.json) &&
+    isRecord(ownerProfileResponse.json.profile)
+      ? ownerProfileResponse.json.profile
+      : null;
+
   const ownerBoats =
     isRecord(boats.json) && Array.isArray(boats.json.boats)
       ? boats.json.boats
@@ -434,6 +446,7 @@ export async function GET(req: NextRequest) {
         username: typeof me.json.username === "string" ? me.json.username : null,
         email: typeof me.json.email === "string" ? me.json.email : null,
       },
+      ownerProfile,
       boats: ownerBoats,
       activeBookings,
       activeHolds,

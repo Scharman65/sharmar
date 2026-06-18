@@ -114,7 +114,7 @@ export function OwnerAvailabilityCalendar({ lang, blackouts }: OwnerAvailability
                   color: isClosed ? "#991b1b" : "#166534",
                 }}
               >
-                {isClosed ? "Closed" : "Open"}
+                {isClosed ? (lang === "ru" ? "Закрыто" : lang === "me" ? "Zatvoreno" : "Closed") : (lang === "ru" ? "Открыто" : lang === "me" ? "Otvoreno" : "Open")}
               </div>
             </div>
           );

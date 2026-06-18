@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 const COOKIE_NAME = "sharmar_owner_session";
 
+function cookieDomain(): string | undefined {
+  return process.env.NODE_ENV === "production" ? ".sharmar.me" : undefined;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -29,6 +33,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      domain: cookieDomain(),
       maxAge: 60 * 60 * 24 * 14,
     });
 
@@ -54,6 +59,7 @@ export async function DELETE() {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
+    domain: cookieDomain(),
     expires: new Date(0),
   });
 

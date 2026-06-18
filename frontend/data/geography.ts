@@ -81,6 +81,28 @@ export const CITIES: CityDefinition[] = [
     marinaSlugs: ["kotor-marina"],
   },
   {
+    slug: "bar",
+    title: "Bar",
+    countrySlug: "montenegro",
+    description:
+      "Bar is a southern Montenegro yacht and boat rental destination with marina access, Adriatic routes, and sailing connections along the coast.",
+    seoTitle: "Yacht Rentals in Bar | Sharmar",
+    seoDescription:
+      "Explore yacht rentals, catamarans, motor boats, and sailing boats from Bar, Montenegro with Sharmar.",
+    marinaSlugs: ["bar-marina"],
+  },
+  {
+    slug: "herceg-novi",
+    title: "Herceg Novi",
+    countrySlug: "montenegro",
+    description:
+      "Herceg Novi is a Bay of Kotor gateway for yacht rentals, sailing routes, motor boats, and coastal marina discovery.",
+    seoTitle: "Yacht Rentals in Herceg Novi | Sharmar",
+    seoDescription:
+      "Explore yacht rentals, sailing boats, catamarans, and motor boats around Herceg Novi, Montenegro with Sharmar.",
+    marinaSlugs: ["herceg-novi-marina"],
+  },
+  {
     slug: "dubrovnik",
     title: "Dubrovnik",
     countrySlug: "croatia",

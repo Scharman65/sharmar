@@ -274,6 +274,16 @@ type EnterpriseOperationalReadiness = {
   enterpriseScalingFoundationReady?: boolean;
 };
 
+type OwnerProfile = {
+  id?: number | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  whatsapp_number?: string | null;
+  email_verified?: boolean | null;
+  whatsapp_verified?: boolean | null;
+  verification_status?: string | null;
+};
+
 type ApiPayload = {
   ok?: boolean;
   error?: string;
@@ -282,6 +292,7 @@ type ApiPayload = {
     username?: string | null;
     email?: string | null;
   };
+  ownerProfile?: OwnerProfile | null;
   boats?: OwnerBoat[];
   activeBookings?: OccupancyItem[];
   activeHolds?: OccupancyItem[];
@@ -309,6 +320,44 @@ function bookingActionKey(booking: BookingActivity, index: number) {
 
 function readinessLabel(value?: boolean) {
   return value ? pageCopy("en").ready : pageCopy("en").notReady;
+}
+
+function verificationLabel(status?: string | null, lang: string = "en") {
+  const labels = {
+    ru: {
+      new: "Ожидает проверки",
+      email_verified: "Email подтверждён",
+      whatsapp_verified: "WhatsApp подтверждён",
+      documents_uploaded: "Документы загружены",
+      under_review: "Проверяется",
+      approved: "Проверен",
+      rejected: "Отклонён",
+      blocked: "Заблокирован",
+    },
+    me: {
+      new: "Čeka provjeru",
+      email_verified: "Email potvrđen",
+      whatsapp_verified: "WhatsApp potvrđen",
+      documents_uploaded: "Dokumenti učitani",
+      under_review: "U obradi",
+      approved: "Provjeren",
+      rejected: "Odbijen",
+      blocked: "Blokiran",
+    },
+    en: {
+      new: "Pending review",
+      email_verified: "Email verified",
+      whatsapp_verified: "WhatsApp verified",
+      documents_uploaded: "Documents uploaded",
+      under_review: "Under review",
+      approved: "Verified",
+      rejected: "Rejected",
+      blocked: "Blocked",
+    },
+  } as const;
+
+  const safeLang = lang === "ru" || lang === "me" || lang === "en" ? lang : "en";
+  return labels[safeLang]?.[status as keyof typeof labels.en] || labels[safeLang].new;
 }
 
 function getCalendarTimeMs(event: OwnerCalendarEvent): number {
@@ -750,6 +799,25 @@ useEffect(() => {
           </button>
         </div>
 
+        {!isLoading && !error && data?.ownerProfile ? (
+          <div className="card" style={{ marginTop: 18, padding: 18 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10 }}>
+              {lang === "ru" ? "Статус владельца" : lang === "me" ? "Status vlasnika" : "Owner status"}
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <div>
+                Email: {data.ownerProfile.email_verified ? "✅" : "⏳"}
+              </div>
+              <div>
+                WhatsApp: {data.ownerProfile.whatsapp_verified ? "✅" : "⏳"} {data.ownerProfile.whatsapp_number || ""}
+              </div>
+              <div>
+                {lang === "ru" ? "Проверка" : lang === "me" ? "Provjera" : "Verification"}: {verificationLabel(data.ownerProfile.verification_status, lang)}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="actions" style={{ marginTop: 18 }}>
           <Link className="button" href={`/${lang}/add/rent/motor`}>
             {pageCopy(lang).addMotorBoatRent}
@@ -1062,7 +1130,7 @@ useEffect(() => {
                       <div style={{ display: "grid", gap: 14 }}>
                         <div>
                           <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
-                            View public page
+                            {lang === "ru" ? "Открыть страницу" : lang === "me" ? "Otvori stranicu" : "View public page"}
                           </Link>
                         </div>
 
@@ -1076,7 +1144,7 @@ useEffect(() => {
                         >
                           <div style={{ display: "grid", gap: 10 }}>
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                              <strong>Closed dates</strong>
+                              <strong>{lang === "ru" ? "Закрытые даты" : lang === "me" ? "Zatvoreni datumi" : "Closed dates"}</strong>
 
                               <button
                                 className="button secondary"
@@ -1189,7 +1257,7 @@ useEffect(() => {
                               disabled={Boolean(blackoutBusy[Number(boat.id)])}
                               onClick={() => createBlackoutForBoat(Number(boat.id))}
                             >
-                              Add closed date
+                              {lang === "ru" ? "Добавить закрытую дату" : lang === "me" ? "Dodaj zatvoreni datum" : "Add closed date"}
                             </button>
 
                             <OwnerAvailabilityCalendar
@@ -1231,7 +1299,7 @@ useEffect(() => {
                               </div>
                             ) : (
                               <p className="kicker" style={{ margin: 0 }}>
-                                No closed dates
+                                {lang === "ru" ? "Нет закрытых дат" : lang === "me" ? "Nema zatvorenih datuma" : "No closed dates"}
                               </p>
                             )}
                           </div>
