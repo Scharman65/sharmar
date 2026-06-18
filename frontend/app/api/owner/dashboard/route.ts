@@ -68,6 +68,12 @@ type OwnerCalendarEvent = {
   displayType: OwnerCalendarDisplayType;
 };
 
+type OwnerDocumentStatus = {
+  passport_uploaded: boolean;
+  identity_uploaded: boolean;
+  license_uploaded: boolean;
+};
+
 function getStrapiBase(): string {
   return (
     process.env.STRAPI_URL ||
@@ -97,6 +103,28 @@ function getId(v: unknown): number | string | null {
 function getNumber(v: unknown): number | null {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   return Number.isFinite(n) ? n : null;
+}
+
+function hasRelatedFile(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+
+  if (isRecord(value)) {
+    if (value.id !== undefined) return getNumber(value.id) !== null;
+    if (Array.isArray(value.data)) return value.data.length > 0;
+    if (isRecord(value.data)) return getNumber(value.data.id) !== null || Object.keys(value.data).length > 0;
+  }
+
+  return false;
+}
+
+function buildOwnerDocumentStatus(ownerProfile: JsonObject | null): OwnerDocumentStatus {
+  return {
+    passport_uploaded: hasRelatedFile(ownerProfile?.passport_document),
+    identity_uploaded: hasRelatedFile(ownerProfile?.identity_document),
+    license_uploaded: hasRelatedFile(ownerProfile?.license_document),
+  };
 }
 
 function getBearerToken(req: NextRequest): string | null {
@@ -447,6 +475,7 @@ export async function GET(req: NextRequest) {
         email: typeof me.json.email === "string" ? me.json.email : null,
       },
       ownerProfile,
+      ownerDocumentStatus: buildOwnerDocumentStatus(ownerProfile),
       boats: ownerBoats,
       activeBookings,
       activeHolds,

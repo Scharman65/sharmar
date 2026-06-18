@@ -42,6 +42,19 @@ type DashboardCopy = {
 
   occupancyOverview: string;
   noActiveOccupancy: string;
+
+  myDocuments: string;
+  passport: string;
+  identityDocument: string;
+  license: string;
+  uploaded: string;
+  notUploaded: string;
+  optional: string;
+  upload: string;
+  uploading: string;
+  documentUploadSuccess: string;
+  documentUploadFailed: string;
+  chooseFile: string;
 };
 
 function pageCopy(lang: string): DashboardCopy {
@@ -83,6 +96,19 @@ function pageCopy(lang: string): DashboardCopy {
 
       occupancyOverview: "Обзор загрузки",
       noActiveOccupancy: "Пока нет активной загрузки.",
+
+      myDocuments: "Мои документы",
+      passport: "Паспорт",
+      identityDocument: "Документ, удостоверяющий личность",
+      license: "Лицензия",
+      uploaded: "Загружено",
+      notUploaded: "Не загружено",
+      optional: "необязательно",
+      upload: "Загрузить",
+      uploading: "Загрузка...",
+      documentUploadSuccess: "Документ загружен.",
+      documentUploadFailed: "Не удалось загрузить документ.",
+      chooseFile: "Выберите файл",
     };
   }
 
@@ -124,6 +150,19 @@ function pageCopy(lang: string): DashboardCopy {
 
       occupancyOverview: "Pregled zauzetosti",
       noActiveOccupancy: "Još nema aktivne zauzetosti.",
+
+      myDocuments: "Moji dokumenti",
+      passport: "Pasoš",
+      identityDocument: "Identifikacioni dokument",
+      license: "Licenca",
+      uploaded: "Učitano",
+      notUploaded: "Nije učitano",
+      optional: "opciono",
+      upload: "Učitaj",
+      uploading: "Učitavanje...",
+      documentUploadSuccess: "Dokument je učitan.",
+      documentUploadFailed: "Dokument nije učitan.",
+      chooseFile: "Izaberite fajl",
     };
   }
 
@@ -164,6 +203,19 @@ function pageCopy(lang: string): DashboardCopy {
 
     occupancyOverview: "Occupancy overview",
     noActiveOccupancy: "No active occupancy yet.",
+
+    myDocuments: "My documents",
+    passport: "Passport",
+    identityDocument: "Identity document",
+    license: "License",
+    uploaded: "uploaded",
+    notUploaded: "not uploaded",
+    optional: "optional",
+    upload: "Upload",
+    uploading: "Uploading...",
+    documentUploadSuccess: "Document uploaded.",
+    documentUploadFailed: "Document upload failed.",
+    chooseFile: "Choose file",
   };
 }
 
@@ -274,6 +326,14 @@ type EnterpriseOperationalReadiness = {
   enterpriseScalingFoundationReady?: boolean;
 };
 
+type OwnerDocumentType = "passport" | "identity" | "license";
+
+type OwnerDocumentStatus = {
+  passport_uploaded?: boolean;
+  identity_uploaded?: boolean;
+  license_uploaded?: boolean;
+};
+
 type OwnerProfile = {
   id?: number | null;
   first_name?: string | null;
@@ -282,6 +342,9 @@ type OwnerProfile = {
   email_verified?: boolean | null;
   whatsapp_verified?: boolean | null;
   verification_status?: string | null;
+  passport_document?: unknown;
+  identity_document?: unknown;
+  license_document?: unknown;
 };
 
 type ApiPayload = {
@@ -293,6 +356,7 @@ type ApiPayload = {
     email?: string | null;
   };
   ownerProfile?: OwnerProfile | null;
+  ownerDocumentStatus?: OwnerDocumentStatus;
   boats?: OwnerBoat[];
   activeBookings?: OccupancyItem[];
   activeHolds?: OccupancyItem[];
@@ -478,6 +542,40 @@ function isUpcomingCalendarEvent(event: OwnerCalendarEvent): boolean {
   return Number.isFinite(timeMs) && timeMs >= Date.now();
 }
 
+function documentStatusKey(documentType: OwnerDocumentType): keyof OwnerDocumentStatus {
+  if (documentType === "passport") return "passport_uploaded";
+  if (documentType === "identity") return "identity_uploaded";
+  return "license_uploaded";
+}
+
+function documentProfileKey(documentType: OwnerDocumentType): keyof OwnerProfile {
+  if (documentType === "passport") return "passport_document";
+  if (documentType === "identity") return "identity_document";
+  return "license_document";
+}
+
+function hasProfileDocument(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (record.id !== undefined) return Boolean(record.id);
+    if (Array.isArray(record.data)) return record.data.length > 0;
+    if (record.data && typeof record.data === "object") return Object.keys(record.data).length > 0;
+  }
+
+  return false;
+}
+
+function isDocumentUploaded(data: ApiPayload | null, documentType: OwnerDocumentType): boolean {
+  const normalized = data?.ownerDocumentStatus?.[documentStatusKey(documentType)];
+  if (typeof normalized === "boolean") return normalized;
+
+  return hasProfileDocument(data?.ownerProfile?.[documentProfileKey(documentType)]);
+}
+
 export default function OwnerDashboardClient() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
@@ -489,6 +587,10 @@ export default function OwnerDashboardClient() {
   const [processingAction, setProcessingAction] = useState<Record<string, string>>({});
   const [actionSuccess, setActionSuccess] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [documentFiles, setDocumentFiles] = useState<Partial<Record<OwnerDocumentType, File | null>>>({});
+  const [documentUploading, setDocumentUploading] = useState<Partial<Record<OwnerDocumentType, boolean>>>({});
+  const [documentSuccess, setDocumentSuccess] = useState<Partial<Record<OwnerDocumentType, string>>>({});
+  const [documentError, setDocumentError] = useState<Partial<Record<OwnerDocumentType, string>>>({});
 
   const [boatBlackouts, setBoatBlackouts] = useState<Record<number, OwnerBlackout[]>>({});
   const [blackoutLoading, setBlackoutLoading] = useState<Record<number, boolean>>({});
@@ -783,6 +885,67 @@ useEffect(() => {
     }
   }
 
+  async function uploadOwnerDocument(documentType: OwnerDocumentType) {
+    const file = documentFiles[documentType];
+    if (!file) {
+      setDocumentError((prev) => ({
+        ...prev,
+        [documentType]: pageCopy(lang).chooseFile,
+      }));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("document_type", documentType);
+    formData.append("file", file, file.name);
+
+    setDocumentUploading((prev) => ({ ...prev, [documentType]: true }));
+    setDocumentSuccess((prev) => {
+      const next = { ...prev };
+      delete next[documentType];
+      return next;
+    });
+    setDocumentError((prev) => {
+      const next = { ...prev };
+      delete next[documentType];
+      return next;
+    });
+
+    try {
+      const res = await fetch("/api/owner/documents", {
+        method: "POST",
+        cache: "no-store",
+        body: formData,
+      });
+
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || pageCopy(lang).documentUploadFailed);
+      }
+
+      setDocumentSuccess((prev) => ({
+        ...prev,
+        [documentType]: pageCopy(lang).documentUploadSuccess,
+      }));
+      setDocumentFiles((prev) => ({
+        ...prev,
+        [documentType]: null,
+      }));
+      await refreshDashboard();
+    } catch (err) {
+      setDocumentError((prev) => ({
+        ...prev,
+        [documentType]: err instanceof Error ? err.message : pageCopy(lang).documentUploadFailed,
+      }));
+    } finally {
+      setDocumentUploading((prev) => ({
+        ...prev,
+        [documentType]: false,
+      }));
+    }
+  }
+
   return (
     <main className="main">
       <div className="container">
@@ -816,6 +979,95 @@ useEffect(() => {
               </div>
             </div>
           </div>
+        ) : null}
+
+        {!isLoading && !error ? (
+          <section className="card" style={{ marginTop: 18, padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).myDocuments}</h2>
+                <p className="kicker" style={{ marginTop: 6 }}>
+                  {lang === "ru" ? "Проверка" : lang === "me" ? "Provjera" : "Verification"}: {verificationLabel(data?.ownerProfile?.verification_status, lang)}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
+              {([
+                ["passport", pageCopy(lang).passport],
+                ["identity", pageCopy(lang).identityDocument],
+                ["license", `${pageCopy(lang).license} (${pageCopy(lang).optional})`],
+              ] as [OwnerDocumentType, string][]).map(([documentType, label]) => {
+                const uploaded = isDocumentUploaded(data, documentType);
+                const busy = Boolean(documentUploading[documentType]);
+
+                return (
+                  <div
+                    key={documentType}
+                    style={{
+                      display: "grid",
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                      <strong>{label}</strong>
+                      <span
+                        className="pill"
+                        style={{
+                          background: uploaded ? "rgba(22,163,74,0.18)" : "rgba(234,179,8,0.18)",
+                        }}
+                      >
+                        {uploaded ? pageCopy(lang).uploaded : pageCopy(lang).notUploaded}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 10,
+                        gridTemplateColumns: "minmax(0, 1fr) auto",
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        aria-label={label}
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          setDocumentFiles((prev) => ({ ...prev, [documentType]: file }));
+                        }}
+                      />
+                      <button
+                        className="button secondary"
+                        type="button"
+                        disabled={busy || !documentFiles[documentType]}
+                        onClick={() => uploadOwnerDocument(documentType)}
+                      >
+                        {busy ? pageCopy(lang).uploading : pageCopy(lang).upload}
+                      </button>
+                    </div>
+
+                    {documentSuccess[documentType] ? (
+                      <p className="kicker" style={{ margin: 0 }}>
+                        {documentSuccess[documentType]}
+                      </p>
+                    ) : null}
+
+                    {documentError[documentType] ? (
+                      <p className="kicker" style={{ margin: 0, color: "#b91c1c" }}>
+                        {documentError[documentType]}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         <div className="actions" style={{ marginTop: 18 }}>
