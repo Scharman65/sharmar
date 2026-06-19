@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { DemoBoatOverlay } from "@/components/boat/DemoBoatOverlay";
 import { BoatCardSpecs } from "@/components/boat/BoatCardSpecs";
+import { InstantBookingBadge } from "@/components/boat/InstantBookingBadge";
 import type { Metadata } from "next";
 import { fetchBoats } from "@/lib/strapi";
 import { isLang, t, formatCount, type Lang } from "@/i18n";
@@ -67,7 +68,7 @@ export default async function BoatsPage({ params }: Props) {
 
                     <BoatCardSpecs boat={b} />
 
-                    {b.verified_listing || b.featured_listing || b.purposes?.length ? (
+                    {b.verified_listing || b.featured_listing || b.instant_booking || b.purposes?.length ? (
                       <div className="badges">
                         {b.verified_listing ? (
                           <span className="badge">✓ Verified listing</span>
@@ -76,6 +77,11 @@ export default async function BoatsPage({ params }: Props) {
                         {b.featured_listing ? (
                           <span className="badge">★ Featured yacht</span>
                         ) : null}
+
+                        {b.listing_type === "rent" && b.instant_booking ? (
+                          <InstantBookingBadge lang={lang} />
+                        ) : null}
+
 
                         {b.purposes?.map((p) => (
                           <span className="badge" key={p.id}>

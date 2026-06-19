@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { DemoBoatOverlay } from "@/components/boat/DemoBoatOverlay";
 import { BoatCardSpecs } from "@/components/boat/BoatCardSpecs";
+import { InstantBookingBadge } from "@/components/boat/InstantBookingBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,13 @@ export default async function SaleMotorPage({ params }: Props) {
                     </p>
 
                     <BoatCardSpecs boat={b} />
+
+                    {b.instant_booking ? (
+                      <div className="badges">
+                        <InstantBookingBadge lang={lang} />
+                      </div>
+                    ) : null}
+
 
                     {b.deposit && (
                       <p className="card-sub">
