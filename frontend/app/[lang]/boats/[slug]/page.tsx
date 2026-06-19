@@ -388,19 +388,22 @@ export default async function BoatPage({ params }: Props) {
                     ? null
                     : Number(experience.duration_hours);
 
+                const routeCurrency = experience.currency ?? (boat as any).currency ?? "EUR";
+                const routePriceLabel = routePrice ? `${routePrice} ${routeCurrency}` : "—";
+
                 return (
                   <div
                     key={experience.id}
                     style={{
-                      border: "1px solid rgba(15, 23, 42, 0.12)",
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
                       borderRadius: 14,
                       padding: 14,
-                      background: "rgba(255,255,255,0.72)",
+                      background: "rgba(255, 255, 255, 0.045)",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                      <strong>{experience.title ?? "Route"}</strong>
-                      <strong>{routePrice ? fmtMoney(routePrice) : "—"}</strong>
+                      <strong>{experience.title ?? (lang === "ru" ? "Маршрут" : lang === "me" ? "Ruta" : "Route")}</strong>
+                      <strong>{routePriceLabel}</strong>
                     </div>
 
                     <p className="card-sub" style={{ marginTop: 6 }}>
