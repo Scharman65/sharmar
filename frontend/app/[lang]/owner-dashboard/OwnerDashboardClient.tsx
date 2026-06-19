@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { MARKETPLACE_FEE_RATE, applyMarketplaceFee } from "@/lib/pricing";
 import { OwnerAvailabilityCalendar } from "@/components/owner/OwnerAvailabilityCalendar";
 
 type DashboardCopy = {
@@ -252,6 +253,31 @@ type OccupancyItem = {
   slot_end_utc?: string | null;
 };
 
+
+type OwnerExperience = {
+  id: number;
+  documentId?: string | null;
+  title?: string | null;
+  slug?: string | null;
+  duration_hours?: number | string | null;
+  price?: number | string | null;
+  currency?: string | null;
+  short_description?: string | null;
+  publishedAt?: string | null;
+  is_active?: boolean | null;
+  boat?: {
+    id?: number | null;
+    title?: string | null;
+    slug?: string | null;
+  } | null;
+};
+
+type ExperienceFormState = {
+  title: string;
+  durationHours: string;
+  price: string;
+  shortDescription: string;
+};
 
 type OwnerBlackout = {
   id: number;
@@ -598,6 +624,12 @@ export default function OwnerDashboardClient() {
   const [blackoutBusy, setBlackoutBusy] = useState<Record<number, boolean>>({});
   const [blackoutForm, setBlackoutForm] = useState<Record<number, BlackoutFormState>>({});
 
+  const [boatExperiences, setBoatExperiences] = useState<Record<number, OwnerExperience[]>>({});
+  const [experienceLoading, setExperienceLoading] = useState(false);
+  const [experienceError, setExperienceError] = useState<string | null>(null);
+  const [experienceBusy, setExperienceBusy] = useState<Record<number, boolean>>({});
+  const [experienceForm, setExperienceForm] = useState<Record<number, ExperienceFormState>>({});
+
 
 
   
@@ -749,6 +781,104 @@ export default function OwnerDashboardClient() {
   }
 
 
+  function defaultExperienceForm(): ExperienceFormState {
+    return {
+      title: "",
+      durationHours: "",
+      price: "",
+      shortDescription: "",
+    };
+  }
+
+  function getExperienceBoatId(experience: OwnerExperience): number | null {
+    const id = experience.boat?.id;
+    return typeof id === "number" && Number.isFinite(id) ? id : null;
+  }
+
+  function formatOwnerExperiencePrice(value: unknown): string {
+    const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+    return Number.isFinite(n) ? `${Math.round((n + Number.EPSILON) * 100) / 100} EUR` : "—";
+  }
+
+  async function loadOwnerExperiences() {
+    try {
+      setExperienceLoading(true);
+      setExperienceError(null);
+
+      const res = await fetch("/api/owner/experiences", {
+        cache: "no-store",
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "experience_load_failed");
+      }
+
+      const rows: OwnerExperience[] = Array.isArray(json?.experiences) ? json.experiences : [];
+      const grouped: Record<number, OwnerExperience[]> = {};
+
+      rows.forEach((experience) => {
+        const boatId = getExperienceBoatId(experience);
+        if (!boatId) return;
+        grouped[boatId] = [...(grouped[boatId] || []), experience];
+      });
+
+      setBoatExperiences(grouped);
+    } catch (err) {
+      setExperienceError(err instanceof Error ? err.message : "experience_load_failed");
+    } finally {
+      setExperienceLoading(false);
+    }
+  }
+
+  async function createExperienceForBoat(boatId: number) {
+    const form = experienceForm[boatId] || defaultExperienceForm();
+
+    try {
+      setExperienceBusy((prev) => ({
+        ...prev,
+        [boatId]: true,
+      }));
+      setExperienceError(null);
+
+      const res = await fetch("/api/owner/experiences", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          boatId,
+          title: form.title,
+          durationHours: Number(form.durationHours),
+          price: Number(form.price),
+          shortDescription: form.shortDescription,
+          locale: lang === "me" ? "sr-Latn-ME" : lang,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "experience_create_failed");
+      }
+
+      setExperienceForm((prev) => ({
+        ...prev,
+        [boatId]: defaultExperienceForm(),
+      }));
+
+      await loadOwnerExperiences();
+    } catch (err) {
+      setExperienceError(err instanceof Error ? err.message : "experience_create_failed");
+    } finally {
+      setExperienceBusy((prev) => ({
+        ...prev,
+        [boatId]: false,
+      }));
+    }
+  }
+
 const boats = useMemo(() => data?.boats ?? [], [data]);
   const recentActivity = useMemo(() => data?.recentActivity ?? [], [data]);
   const ownerCalendarEvents = useMemo(() => data?.ownerCalendarEvents ?? [], [data]);
@@ -777,6 +907,8 @@ const boats = useMemo(() => data?.boats ?? [], [data]);
         loadBlackoutsForBoat(Number(boat.id));
       }
     });
+
+    loadOwnerExperiences();
   }, [boats]);
 
 useEffect(() => {
@@ -1384,6 +1516,158 @@ useEffect(() => {
                           <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
                             {lang === "ru" ? "Открыть страницу" : lang === "me" ? "Otvori stranicu" : "View public page"}
                           </Link>
+                        </div>
+
+                        <div
+                          className="card"
+                          style={{
+                            padding: 14,
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <div style={{ display: "grid", gap: 10 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                              <strong>{lang === "ru" ? "Маршруты владельца" : lang === "me" ? "Rute vlasnika" : "Owner routes"}</strong>
+                              <span className="kicker" style={{ margin: 0 }}>
+                                {(boatExperiences[Number(boat.id)] || []).length}/3
+                              </span>
+                            </div>
+
+                            {experienceLoading ? (
+                              <p className="kicker" style={{ margin: 0 }}>
+                                Loading routes...
+                              </p>
+                            ) : null}
+
+                            {experienceError ? (
+                              <p className="kicker" style={{ margin: 0, color: "#b91c1c" }}>
+                                {experienceError}
+                              </p>
+                            ) : null}
+
+                            {(boatExperiences[Number(boat.id)] || []).length ? (
+                              <div style={{ display: "grid", gap: 8 }}>
+                                {(boatExperiences[Number(boat.id)] || []).map((experience) => {
+                                  const ownerPrice = Number(experience.price);
+                                  const customerPrice = applyMarketplaceFee(ownerPrice);
+
+                                  return (
+                                    <div
+                                      key={experience.id}
+                                      style={{
+                                        padding: 10,
+                                        borderRadius: 12,
+                                        background: "rgba(255,255,255,0.04)",
+                                        border: "1px solid rgba(255,255,255,0.08)",
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                                        <strong>{experience.title || "Route"}</strong>
+                                        <span className="pill">
+                                          {experience.publishedAt ? "Published" : "Draft"}
+                                        </span>
+                                      </div>
+                                      <p className="kicker" style={{ margin: "6px 0 0" }}>
+                                        {experience.duration_hours ?? "—"}h · {experience.short_description || "—"}
+                                      </p>
+                                      <p className="kicker" style={{ margin: "6px 0 0" }}>
+                                        {lang === "ru" ? "Цена owner" : lang === "me" ? "Cijena vlasnika" : "Owner price"}: {formatOwnerExperiencePrice(ownerPrice)}
+                                        {" · "}
+                                        {lang === "ru" ? "Цена клиента" : lang === "me" ? "Cijena za klijenta" : "Client price"} (+{Math.round(MARKETPLACE_FEE_RATE * 100)}%): {formatOwnerExperiencePrice(customerPrice)}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="kicker" style={{ margin: 0 }}>
+                                {lang === "ru" ? "Маршруты ещё не добавлены" : lang === "me" ? "Rute još nisu dodate" : "No routes added yet"}
+                              </p>
+                            )}
+
+                            {(boatExperiences[Number(boat.id)] || []).length < 3 ? (
+                              <div style={{ display: "grid", gap: 10 }}>
+                                <input
+                                  type="text"
+                                  placeholder={lang === "ru" ? "Название маршрута" : lang === "me" ? "Naziv rute" : "Route title"}
+                                  value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).title}
+                                  onChange={(e) => setExperienceForm((prev) => ({
+                                    ...prev,
+                                    [Number(boat.id)]: {
+                                      ...(prev[Number(boat.id)] || defaultExperienceForm()),
+                                      title: e.target.value,
+                                    },
+                                  }))}
+                                />
+
+                                <div
+                                  style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                                    gap: 10,
+                                  }}
+                                >
+                                  <input
+                                    type="number"
+                                    min="0.5"
+                                    max="24"
+                                    step="0.5"
+                                    placeholder={lang === "ru" ? "Часы" : lang === "me" ? "Sati" : "Hours"}
+                                    value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).durationHours}
+                                    onChange={(e) => setExperienceForm((prev) => ({
+                                      ...prev,
+                                      [Number(boat.id)]: {
+                                        ...(prev[Number(boat.id)] || defaultExperienceForm()),
+                                        durationHours: e.target.value,
+                                      },
+                                    }))}
+                                  />
+
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    placeholder={lang === "ru" ? "Цена owner EUR" : lang === "me" ? "Cijena vlasnika EUR" : "Owner price EUR"}
+                                    value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).price}
+                                    onChange={(e) => setExperienceForm((prev) => ({
+                                      ...prev,
+                                      [Number(boat.id)]: {
+                                        ...(prev[Number(boat.id)] || defaultExperienceForm()),
+                                        price: e.target.value,
+                                      },
+                                    }))}
+                                  />
+                                </div>
+
+                                <input
+                                  type="text"
+                                  placeholder={lang === "ru" ? "Краткое описание" : lang === "me" ? "Kratak opis" : "Short description"}
+                                  value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).shortDescription}
+                                  onChange={(e) => setExperienceForm((prev) => ({
+                                    ...prev,
+                                    [Number(boat.id)]: {
+                                      ...(prev[Number(boat.id)] || defaultExperienceForm()),
+                                      shortDescription: e.target.value,
+                                    },
+                                  }))}
+                                />
+
+                                <button
+                                  className="button secondary"
+                                  type="button"
+                                  disabled={Boolean(experienceBusy[Number(boat.id)])}
+                                  onClick={() => createExperienceForBoat(Number(boat.id))}
+                                >
+                                  {lang === "ru" ? "Добавить маршрут" : lang === "me" ? "Dodaj rutu" : "Add route"}
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="kicker" style={{ margin: 0 }}>
+                                {lang === "ru" ? "Достигнут лимит 3 маршрута" : lang === "me" ? "Dostignut je limit od 3 rute" : "Maximum 3 routes reached"}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div

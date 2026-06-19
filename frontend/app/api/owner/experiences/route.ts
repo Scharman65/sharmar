@@ -222,28 +222,24 @@ async function getOwner(req: NextRequest) {
 }
 
 function getBoatOwnerId(boat: JsonObject): number | null {
-  return extractNumberId(boat.created_by_id);
+  return extractNumberId(boat.owner_user_id);
 }
 
 async function getOwnerBoat(boatId: number, ownerId: number, serverToken: string) {
   const res = await strapiJson(
-    `/api/boats?filters[id][$eq]=${boatId}&pagination[pageSize]=1`,
+    `/api/owner/boats-by-user?user_id=${ownerId}`,
     { method: "GET" },
     serverToken
   );
 
   if (!res.ok) {
-    return { ok: false as const, status: 502, error: "Could not load boat", details: res.json };
+    return { ok: false as const, status: 502, error: "Could not load owner boats", details: res.json };
   }
 
-  const rows = isRecord(res.json) && Array.isArray(res.json.data) ? res.json.data : [];
-  const boat = rows.find((item) => isRecord(item)) as JsonObject | undefined;
+  const rows = isRecord(res.json) && Array.isArray(res.json.boats) ? res.json.boats : [];
+  const boat = rows.find((item) => isRecord(item) && extractNumberId(item.id) === boatId) as JsonObject | undefined;
 
   if (!boat) {
-    return { ok: false as const, status: 404, error: "Boat not found" };
-  }
-
-  if (getBoatOwnerId(boat) !== ownerId) {
     return { ok: false as const, status: 403, error: "Boat does not belong to owner" };
   }
 
@@ -290,7 +286,7 @@ export async function GET(req: NextRequest) {
   }
 
   const boatsRes = await strapiJson(
-    `/api/boats?pagination[pageSize]=100&fields[0]=id&fields[1]=title&fields[2]=slug&fields[3]=listing_type&fields[4]=created_by_id`,
+    `/api/owner/boats-by-user?user_id=${ownerRes.owner.id}`,
     { method: "GET" },
     serverToken
   );
@@ -302,7 +298,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const allBoats = isRecord(boatsRes.json) && Array.isArray(boatsRes.json.data) ? boatsRes.json.data : [];
+  const allBoats = isRecord(boatsRes.json) && Array.isArray(boatsRes.json.boats) ? boatsRes.json.boats : [];
   const ownerBoatIds = allBoats
     .filter((boat) => isRecord(boat) && getBoatOwnerId(boat) === ownerRes.owner.id)
     .map((boat) => extractNumberId((boat as JsonObject).id))
@@ -325,8 +321,6 @@ export async function GET(req: NextRequest) {
   qs.append("populate[boat][fields][0]", "id");
   qs.append("populate[boat][fields][1]", "title");
   qs.append("populate[boat][fields][2]", "slug");
-  qs.append("populate[cover]", "*");
-  qs.append("populate[gallery]", "*");
 
   const experiencesRes = await strapiJson(`/api/experiences?${qs.toString()}`, { method: "GET" }, serverToken);
 

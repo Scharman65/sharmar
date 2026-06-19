@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
   }
 
   const boats = await strapiJson(
-    `/api/boats?populate=cover&sort=createdAt:desc&pagination[pageSize]=100`,
+    `/api/owner/boats-by-user?user_id=${ownerId}`,
     serverToken
   );
 
@@ -99,18 +99,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const allBoats = isRecord(boats.json) && Array.isArray(boats.json.data) ? boats.json.data : [];
-
-  const ownerBoats = allBoats.filter((boat) => {
-    if (!isRecord(boat)) return false;
-
-    const createdById =
-      typeof boat.created_by_id === "number"
-        ? boat.created_by_id
-        : Number(boat.created_by_id || 0);
-
-    return createdById === ownerId;
-  });
+  const ownerBoats = isRecord(boats.json) && Array.isArray(boats.json.boats) ? boats.json.boats : [];
 
   return NextResponse.json(
     {

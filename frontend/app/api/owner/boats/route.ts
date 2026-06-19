@@ -318,10 +318,8 @@ export async function POST(req: NextRequest) {
       price_per_week: p.rentPriceWeek ?? null,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
-      owner_email: p.ownerEmail || me.email || "owner@sharmar.me",
-      owner_user_email: me.email ?? p.ownerEmail ?? "",
+      owner_user_id: me.id,
       currency: p.currency ?? "EUR",
-      booking_enabled: false,
       instant_booking: p.listingType === "rent" ? p.instantBooking : false,
       contacts_visible: false,
       publishedAt: null,
@@ -361,8 +359,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           data: {
             publishedAt: null,
-            booking_enabled: false,
-            contacts_visible: false,
+                  contacts_visible: false,
             ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
               ? {
                   cover: p.imageIds[0],

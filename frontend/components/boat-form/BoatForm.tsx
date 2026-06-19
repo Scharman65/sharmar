@@ -397,13 +397,6 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       }
     }
 
-    const token = localStorage.getItem("owner_jwt")?.trim();
-
-    if (!token) {
-      setUploadError("Owner session expired. Please sign in again.");
-      return;
-    }
-
     try {
       setUploadingImages(true);
 
@@ -415,9 +408,6 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
 
       const response = await fetch("/api/owner/uploads", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
         cache: "no-store",
       });
@@ -458,19 +448,12 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
     setListingSaved(false);
     if (hasErrors) return;
 
-    const token = localStorage.getItem("owner_jwt")?.trim();
-    if (!token) {
-      setSaveError("Please sign in as an owner and try again.");
-      return;
-    }
-
     setIsSaving(true);
     try {
       const res = await fetch("/api/owner/boats", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(apiPayload),
       });
