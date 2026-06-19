@@ -41,6 +41,15 @@ export type Boat = {
   cover?: { url: string; alternativeText?: string | null } | null;
   images?: { id: number; url: string; alternativeText?: string | null }[];
   purposes?: { id: number; title?: string | null }[];
+  experiences?: {
+    id: number;
+    title?: string | null;
+    slug?: string | null;
+    duration_hours?: number | null;
+    price?: number | null;
+    currency?: string | null;
+    short_description?: string | null;
+  }[];
   verified_listing?: boolean | null;
   featured_listing?: boolean | null;
   instant_booking?: boolean | null;
@@ -170,6 +179,21 @@ function normalizeBoat(item: any): Boat | null {
     purposes: Array.isArray(item.purposes)
       ? item.purposes.map((p: any) => ({ id: p.id, title: p.title ?? null }))
       : [],
+    experiences: Array.isArray(item.experiences)
+      ? item.experiences
+          .slice()
+          .sort((a: any, b: any) => Number(a.sort_order ?? 100) - Number(b.sort_order ?? 100))
+          .slice(0, 3)
+          .map((e: any) => ({
+            id: e.id,
+            title: e.title ?? null,
+            slug: e.slug ?? null,
+            duration_hours: e.duration_hours ?? null,
+            price: e.price ?? null,
+            currency: e.currency ?? null,
+            short_description: e.short_description ?? null,
+          }))
+      : [],
     isDemo: isDemoBoat(item),
   };
 }
@@ -196,8 +220,21 @@ export type BoatFilters = {
   boatType?: string;
 };
 
+function addExperiencePopulate(qs: string[]) {
+  qs.push("populate[experiences][fields][0]=title");
+  qs.push("populate[experiences][fields][1]=slug");
+  qs.push("populate[experiences][fields][2]=duration_hours");
+  qs.push("populate[experiences][fields][3]=price");
+  qs.push("populate[experiences][fields][4]=currency");
+  qs.push("populate[experiences][fields][5]=short_description");
+  qs.push("populate[experiences][fields][6]=sort_order");
+  qs.push("populate[experiences][filters][is_active][$eq]=true");
+  qs.push("populate[experiences][sort][0]=sort_order:asc");
+}
+
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
   const qs: string[] = ["populate=*"];
+  addExperiencePopulate(qs);
   qs.push("sort=documentId:asc");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
   if (filters?.homeMarinaSlug) qs.push(`filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`);
@@ -209,10 +246,18 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
 }
 
 export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
+  const qs: string[] = [
+    `filters[slug][$eq]=${encodeURIComponent(slug)}`,
+    "populate=*",
+  ];
+
+  addExperiencePopulate(qs);
+
   const json = await strapiFetchWithFallback<{ data: any[] }>(
-    `/api/boats?filters[slug][$eq]=${encodeURIComponent(slug)}&populate=*`,
+    `/api/boats?${qs.join("&")}`,
     locale
   );
+
   return json.data?.[0] ? normalizeBoat(json.data[0]) : null;
 }
 
@@ -231,6 +276,7 @@ export async function fetchBoatsAdvanced(
   filters: AdvancedBoatFilters
 ): Promise<Boat[]> {
   const qs: string[] = ["populate[0]=cover", "populate[1]=rate_plans"];
+  addExperiencePopulate(qs);
 
   qs.push("sort=documentId:asc");
 
@@ -279,6 +325,8 @@ export async function fetchFeaturedBoats(
     "filters[featured_listing][$eq]=true",
     "sort=documentId:asc"
   ];
+
+  addExperiencePopulate(qs);
 
   const path = `/api/boats?${qs.join("&")}`;
   const json = await strapiFetchWithFallback<{ data: any[] }>(path, locale);

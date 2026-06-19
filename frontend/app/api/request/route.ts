@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
 import { bookingAdminEmail, bookingCustomerRequestEmail, ownerDecisionEmail } from "@/app/lib/emailTemplates";
 import crypto from "node:crypto";
+import { calculateMarketplaceBreakdown } from "@/lib/pricing";
 
 type JsonObj = Record<string, unknown>;
 
@@ -597,8 +598,18 @@ export async function POST(req: Request) {
     }
 
     const ownerAmount = roundMoney(hours * boatPricing.pricePerHour);
-    const marketplaceFeeAmount = roundMoney(ownerAmount * 0.15);
-    const customerTotalAmount = roundMoney(ownerAmount + marketplaceFeeAmount);
+
+    const breakdown = calculateMarketplaceBreakdown(ownerAmount);
+
+    if (!breakdown) {
+      return NextResponse.json(
+        { ok: false, error: "Failed to calculate marketplace fee.", fallbackMailto: buildFallbackMailto(p) },
+        { status: 500, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    const marketplaceFeeAmount = breakdown.marketplaceFeeAmount;
+    const customerTotalAmount = breakdown.customerTotalAmount;
 
     const people = p.peopleCount && p.peopleCount >= 1 ? Math.floor(p.peopleCount) : 1;
 

@@ -374,6 +374,55 @@ export default async function BoatPage({ params }: Props) {
           );
         })()}
 
+        {Array.isArray((boat as any).experiences) && (boat as any).experiences.length ? (
+          <div style={{ marginTop: 18 }}>
+            <p className="kicker" style={{ marginBottom: 10 }}>
+              {lang === "ru" ? "Маршруты владельца" : lang === "me" ? "Rute vlasnika" : "Owner routes"}
+            </p>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {(boat as any).experiences.slice(0, 3).map((experience: any) => {
+                const routePrice = applyMarketplaceFee(experience.price);
+                const duration =
+                  experience.duration_hours === null || experience.duration_hours === undefined
+                    ? null
+                    : Number(experience.duration_hours);
+
+                return (
+                  <div
+                    key={experience.id}
+                    style={{
+                      border: "1px solid rgba(15, 23, 42, 0.12)",
+                      borderRadius: 14,
+                      padding: 14,
+                      background: "rgba(255,255,255,0.72)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                      <strong>{experience.title ?? "Route"}</strong>
+                      <strong>{routePrice ? fmtMoney(routePrice) : "—"}</strong>
+                    </div>
+
+                    <p className="card-sub" style={{ marginTop: 6 }}>
+                      {duration ? (
+                        <span>
+                          {duration} {lang === "ru" ? "ч" : lang === "me" ? "h" : "h"}
+                        </span>
+                      ) : null}
+
+                      {duration && experience.short_description ? <span>·</span> : null}
+
+                      {experience.short_description ? (
+                        <span>{experience.short_description}</span>
+                      ) : null}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <div style={{ marginTop: 14 }}>
           {boat.description?.trim() ? (
             <p style={{ lineHeight: 1.7, margin: 0 }}>{boat.description}</p>
