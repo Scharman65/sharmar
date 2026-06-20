@@ -48,7 +48,24 @@ export default async function LangLayout({ children, params }: Props) {
       <main className="main">{children}</main>
 
       <footer className="footer">
-        <span>© 2025 Sharmar Boats</span>
+        <div className="footer-inner">
+          <span>© 2025 Sharmar Boats</span>
+
+          <nav className="footer-links" aria-label="Footer">
+            <Link href={`/${lang}/how-it-works`}>
+              {lang === "ru" ? "Как это работает" : lang === "me" ? "Kako funkcioniše" : "How it works"}
+            </Link>
+            <Link href={`/${lang}/cancellation-policy`}>
+              {lang === "ru" ? "Отмена и возврат" : lang === "me" ? "Otkazivanje i povraćaj" : "Cancellation policy"}
+            </Link>
+            <Link href={`/${lang}/terms`}>
+              {lang === "ru" ? "Условия" : lang === "me" ? "Uslovi" : "Terms"}
+            </Link>
+            <Link href={`/${lang}/support`}>
+              {lang === "ru" ? "Поддержка" : lang === "me" ? "Podrška" : "Support"}
+            </Link>
+          </nav>
+        </div>
       </footer>
     </div>
   );

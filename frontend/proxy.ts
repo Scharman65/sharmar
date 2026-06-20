@@ -27,6 +27,22 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+
+  const parts = pathname.split("/").filter(Boolean);
+  const lang = parts[0];
+
+  if (
+    parts.length >= 2 &&
+    LANGS.has(lang) &&
+    parts[1] === "owner-dashboard" &&
+    !req.cookies.get("sharmar_owner_session")?.value
+  ) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/${lang}/owner-login`;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   // If already has /en /ru /me prefix, do nothing
   if (hasLangPrefix(pathname)) {
     return NextResponse.next();

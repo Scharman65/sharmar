@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
-import { bookingAdminEmail } from "@/app/lib/emailTemplates";
+import { bookingAdminEmail, bookingCustomerRequestEmail, ownerDecisionEmail } from "@/app/lib/emailTemplates";
 import crypto from "node:crypto";
+import { calculateMarketplaceBreakdown } from "@/lib/pricing";
 
 type JsonObj = Record<string, unknown>;
 
@@ -18,6 +19,10 @@ type Payload = {
   peopleCount?: number;
   needSkipper?: boolean;
   message?: string;
+  ownerAmount?: number | null;
+  marketplaceFeeAmount?: number | null;
+  customerTotalAmount?: number | null;
+  currency?: string | null;
   publicToken?: string;
   hp?: string;
   client_ts?: number;
@@ -25,9 +30,9 @@ type Payload = {
 
 function logBookingEvent(e: Record<string, unknown>): void {
   try {
-    console.log(JSON.stringify({ tag: "booking_request", ...e }));
+    console.warn(JSON.stringify({ tag: "booking_request", ...e }));
   } catch {
-    console.log("booking_request", e);
+    console.warn("booking_request", e);
   }
 }
 
@@ -45,6 +50,18 @@ function getBool(x: unknown): boolean | null {
 
 function getNum(x: unknown): number | null {
   return typeof x === "number" && Number.isFinite(x) ? x : null;
+}
+
+function getOptionalNonNegativeAmount(
+  body: JsonObj,
+  key: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const value = body[key];
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return { ok: false, error: `${key} must be a finite non-negative number` };
+  }
+  return { ok: true, value };
 }
 
 function isValidTime(v: string): boolean {
@@ -127,6 +144,18 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   const peopleCount = getNum(body.peopleCount) ?? undefined;
   const needSkipper = getBool(body.needSkipper) ?? undefined;
 
+  const ownerAmount = getOptionalNonNegativeAmount(body, "ownerAmount");
+  if (!ownerAmount.ok) return { ok: false, error: ownerAmount.error };
+
+  const marketplaceFeeAmount = getOptionalNonNegativeAmount(body, "marketplaceFeeAmount");
+  if (!marketplaceFeeAmount.ok) return { ok: false, error: marketplaceFeeAmount.error };
+
+  const customerTotalAmount = getOptionalNonNegativeAmount(body, "customerTotalAmount");
+  if (!customerTotalAmount.ok) return { ok: false, error: customerTotalAmount.error };
+
+  const rawCurrency = getStr(body.currency);
+  const currency = rawCurrency && rawCurrency.trim().length <= 16 ? rawCurrency.trim() : null;
+
   const publicToken =
     typeof body.publicToken === "string" && body.publicToken.trim().length ? body.publicToken.trim() : undefined;
 
@@ -148,6 +177,10 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
       peopleCount,
       needSkipper,
       message,
+      ownerAmount: ownerAmount.value,
+      marketplaceFeeAmount: marketplaceFeeAmount.value,
+      customerTotalAmount: customerTotalAmount.value,
+      currency,
       publicToken,
       hp,
       client_ts,
@@ -354,8 +387,112 @@ function isDuplicatePublicTokenError(err: unknown): boolean {
   return s.includes("409 Conflict") && s.toLowerCase().includes("public_token already exists");
 }
 
+type OwnerContact = {
+  owner_email: string | null;
+  owner_phone: string | null;
+  owner_whatsapp: string | null;
+  owner_viber: string | null;
+};
+
+function detectLangFromRequest(req: Request): "en" | "ru" | "me" {
+  const ref = String(req.headers.get("referer") || "").trim();
+
+  try {
+    if (ref) {
+      const u = new URL(ref);
+      const first = u.pathname.split("/").filter(Boolean)[0] || "";
+      if (first === "ru" || first === "me" || first === "en") return first;
+    }
+  } catch {}
+
+  return "en";
+}
+
+function buildOwnerUrl(req: Request, token: string): string {
+  const lang = detectLangFromRequest(req);
+  const origin = new URL(req.url).origin;
+  return `${origin}/${lang}/owner/${encodeURIComponent(token)}`;
+}
+
+function normalizePhoneLike(value: string | null | undefined): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const cleaned = raw.replace(/[^\d+]/g, "");
+  if (!cleaned) return null;
+
+  if (cleaned.startsWith("00")) {
+    return "+" + cleaned.slice(2);
+  }
+
+  return cleaned;
+}
+
+function buildOwnerMessage(
+  boatTitle: string,
+  clientName: string,
+  clientPhone: string,
+  start: string,
+  end: string,
+  ownerUrl: string
+): string {
+  return [
+    "New booking request",
+    `Boat: ${boatTitle}`,
+    `Client: ${clientName}`,
+    `Phone: ${clientPhone}`,
+    `From: ${start}`,
+    `To: ${end}`,
+    `Open: ${ownerUrl}`,
+  ].join("\n");
+}
+
+function buildOwnerWhatsAppUrl(ownerWhatsApp: string | null | undefined, message: string): string | null {
+  const phone = normalizePhoneLike(ownerWhatsApp);
+  if (!phone) return null;
+
+  const digits = phone.replace(/^\+/, "");
+  return `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildOwnerViberUrl(ownerViber: string | null | undefined, message: string): string | null {
+  const phone = normalizePhoneLike(ownerViber);
+  if (!phone) return null;
+
+  return `viber://chat?number=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}`;
+}
+
+async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null> {
+  const json = await strapiFetch(`/api/boats-owner-contact-by-slug/${encodeURIComponent(slug)}`);
+
+  if (!isRecord(json)) return null;
+  if (json.ok !== true) return null;
+
+  const data = isRecord(json.data) ? json.data : null;
+  if (!data) return null;
+
+  const owner_email = typeof data.owner_email === "string" && data.owner_email.trim().length ? data.owner_email.trim() : null;
+  const owner_phone = typeof data.owner_phone === "string" && data.owner_phone.trim().length ? data.owner_phone.trim() : null;
+  const owner_whatsapp = typeof data.owner_whatsapp === "string" && data.owner_whatsapp.trim().length ? data.owner_whatsapp.trim() : null;
+  const owner_viber = typeof data.owner_viber === "string" && data.owner_viber.trim().length ? data.owner_viber.trim() : null;
+
+  return { owner_email, owner_phone, owner_whatsapp, owner_viber };
+}
+
+function emailLocaleFromRequest(req: Request): string {
+  try {
+    const first = new URL(req.url).pathname.split("/").filter(Boolean)[0] || "";
+    if (first === "ru") return "ru";
+    if (first === "me") return "me";
+    return "en";
+  } catch {
+    return "en";
+  }
+}
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
+  const emailLocale = emailLocaleFromRequest(req);
   const t0 = Date.now();
 
   let body: unknown;
@@ -461,8 +598,18 @@ export async function POST(req: Request) {
     }
 
     const ownerAmount = roundMoney(hours * boatPricing.pricePerHour);
-    const marketplaceFeeAmount = roundMoney(ownerAmount * 0.15);
-    const customerTotalAmount = roundMoney(ownerAmount + marketplaceFeeAmount);
+
+    const breakdown = calculateMarketplaceBreakdown(ownerAmount);
+
+    if (!breakdown) {
+      return NextResponse.json(
+        { ok: false, error: "Failed to calculate marketplace fee.", fallbackMailto: buildFallbackMailto(p) },
+        { status: 500, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    const marketplaceFeeAmount = breakdown.marketplaceFeeAmount;
+    const customerTotalAmount = breakdown.customerTotalAmount;
 
     const people = p.peopleCount && p.peopleCount >= 1 ? Math.floor(p.peopleCount) : 1;
 
@@ -499,10 +646,35 @@ export async function POST(req: Request) {
     });
 
     const id = extractIdFromStrapiResponse(json);
+    const ownerUrl = buildOwnerUrl(req, publicToken);
+
+    let ownerContact: OwnerContact | null = null;
+    let ownerEmailSent = false;
+    let ownerWhatsAppUrl: string | null = null;
+    let ownerViberUrl: string | null = null;
+
+    try {
+      ownerContact = await getOwnerContactBySlug(p.boatSlug);
+    } catch (e) {
+      console.error("OWNER_CONTACT_LOOKUP_FAILED", e);
+    }
+
+    const ownerMessage = buildOwnerMessage(
+      p.boatTitle || p.boatSlug,
+      p.name,
+      p.phone,
+      start,
+      end,
+      ownerUrl
+    );
+
+    ownerWhatsAppUrl = buildOwnerWhatsAppUrl(ownerContact?.owner_whatsapp, ownerMessage);
+    ownerViberUrl = buildOwnerViberUrl(ownerContact?.owner_viber, ownerMessage);
 
     if (id > 0 && BOOKING_TO && resend) {
       try {
         const mail = bookingAdminEmail({
+          locale: emailLocale,
           id,
           boatTitle: p.boatTitle || p.boatSlug,
           boatSlug: p.boatSlug,
@@ -527,6 +699,61 @@ export async function POST(req: Request) {
       }
     }
 
+    if (id > 0 && ownerContact?.owner_email && resend) {
+      try {
+        const mail = ownerDecisionEmail({
+          locale: emailLocale,
+          boatTitle: p.boatTitle || p.boatSlug,
+          boatSlug: p.boatSlug,
+          ownerUrl,
+          clientName: p.name,
+          clientPhone: p.phone,
+          clientEmail: p.email || undefined,
+          start,
+          end,
+          people,
+          skipper: Boolean(p.needSkipper),
+          notes: p.message || undefined,
+        });
+
+        await resend.emails.send({
+          from: BOOKING_FROM,
+          to: ownerContact.owner_email,
+          subject: mail.subject,
+          text: mail.text,
+        });
+
+        ownerEmailSent = true;
+      } catch (e) {
+        console.error("OWNER_EMAIL_SEND_FAILED", e);
+      }
+    }
+
+    if (id > 0 && p.email && resend) {
+      try {
+        const mail = bookingCustomerRequestEmail({
+          locale: emailLocale,
+          boatTitle: p.boatTitle || p.boatSlug,
+          customerName: p.name,
+          start,
+          end,
+          publicToken,
+          supportEmail: BOOKING_TO,
+          supportNote: "If you have questions, reply to this email or contact Sharmar support.",
+        });
+
+        await resend.emails.send({
+          from: BOOKING_FROM,
+          to: p.email,
+          subject: mail.subject,
+          text: mail.text,
+          html: mail.html,
+        });
+      } catch (e) {
+        console.warn("CUSTOMER_EMAIL_SEND_FAILED", e);
+      }
+    }
+
     logBookingEvent({
       request_id: requestId,
       public_token: publicToken,
@@ -538,7 +765,22 @@ export async function POST(req: Request) {
       fingerprint: fp,
       source_ip: ip,
     });
-    return NextResponse.json({ ok: true, id, token: publicToken }, { status: 200, headers: { "cache-control": "no-store" } });
+    return NextResponse.json(
+      {
+        ok: true,
+        id,
+        token: publicToken,
+        ownerUrl,
+        ownerEmailSent,
+        ownerEmail: ownerContact?.owner_email ?? null,
+        ownerPhone: ownerContact?.owner_phone ?? null,
+        ownerWhatsApp: ownerContact?.owner_whatsapp ?? null,
+        ownerViber: ownerContact?.owner_viber ?? null,
+        ownerWhatsAppUrl,
+        ownerViberUrl,
+      },
+      { status: 200, headers: { "cache-control": "no-store" } }
+    );
   } catch (e) {
     if (isDuplicatePublicTokenError(e)) {
       logBookingEvent({

@@ -1,0 +1,159 @@
+Ты работаешь как технический аудитор production-проекта Sharmar Marketplace.
+
+ВАЖНО:
+Ничего не изменяй.
+Не редактируй файлы.
+Не создавай новые файлы.
+Не запускай исправления.
+Не делай миграции.
+Не меняй зависимости.
+Не делай deploy.
+Только диагностика и вывод отчёта.
+
+Проект:
+- frontend: Next.js 16
+- backend: Strapi v5
+- database: Postgres
+- production frontend: https://sharmar.me
+- production API: https://api.sharmar.me
+- основная ветка: runtime-scale-phase1
+- платежи: Dodo Payments
+- есть owner dashboard
+- есть booking engine
+- есть availability engine
+- есть anti-double-booking architecture
+
+Текущая проблема:
+production страницы:
+https://sharmar.me/ru/boats
+https://sharmar.me/en/boats
+
+падают с ошибкой:
+Application error: a server-side exception has occurred while loading www.sharmar.me
+Digest: 2806737908
+
+Главные страницы:
+https://sharmar.me/ru
+https://sharmar.me/en
+работают.
+
+Недавняя диагностика:
+- /ru/boats = 500
+- /en/boats = 500
+- /ru = 200
+- /en = 200
+- локальная сборка frontend проходит успешно
+- запрос:
+  https://api.sharmar.me/api/boats?populate=*&pagination[pageSize]=20&locale=ru
+  вернул не JSON, поэтому python3 -m json.tool дал ошибку:
+  Expecting value: line 1 column 1 (char 0)
+
+Нужно провести полный аудит устойчивости проекта.
+
+Проверь:
+
+1. Почему могут падать страницы /[lang]/boats
+- frontend/app/[lang]/boats/page.tsx
+- frontend/lib/strapi.ts
+- работу fetchBoats
+- работу с cover/image URL
+- работу с purposes
+- работу с переводами
+- работу с locale
+- обработку пустого/битого ответа API
+- где может быть throw new Error
+- почему локальная сборка проходит, а production страница падает
+
+2. Проверь API-риски
+- Strapi endpoint /api/boats
+- populate=*
+- поля лодок
+- media URLs
+- published/unpublished записи
+- дубли
+- битые связи
+- несовместимость локалей
+
+3. Проверь frontend устойчивость
+- все страницы app/[lang]
+- страницы лодок
+- страницы detail boat
+- owner dashboard
+- request/payment/thanks pages
+- error handling
+- защита от падения всей страницы при одной битой лодке
+
+4. Проверь owner flow
+- frontend/app/api/owner/boats/route.ts
+- создание лодок
+- проверки данных
+- instantBooking/instant_booking
+- imageIds
+- owner authorization
+- защита от чужих изображений
+- защита от дублей
+- слабые места формы
+
+5. Проверь booking/payment flow
+- hold
+- payments intent
+- webhook
+- idempotency
+- booking creation
+- anti-double-booking
+- statuses
+- owner confirmation flow
+- instant booking flow
+
+6. Проверь production architecture
+- docker/compose файлы
+- green/staging containers
+- nginx assumptions, если видно из проекта
+- env usage
+- опасные fallback значения
+- смешение production/staging
+
+7. Проверь безопасность
+- токены
+- публичные endpoints
+- owner endpoints
+- API route protections
+- localStorage/cookies
+- upload/media access
+- возможность подставить чужой id
+- отсутствие rate limit
+- ошибки с выводом секретов
+
+8. Проверь SEO и устойчивость
+- sitemap
+- robots
+- slug
+- canonical
+- 404
+- page errors
+- fallback при пустых данных
+
+9. Проверь технический долг
+- .bak файлы в рабочем дереве
+- старые backup файлы рядом с production кодом
+- дубли логики
+- большие файлы, которые нужно потом разделить
+- опасные временные решения
+
+Формат ответа:
+1. Сначала короткий вывод простым русским языком.
+2. Потом список критических проблем.
+3. Потом список средних проблем.
+4. Потом список слабых мест на будущее.
+5. Потом отдельный раздел: вероятная причина падения /ru/boats и /en/boats.
+6. Потом безопасный план исправления без изменений на production.
+7. Для каждой проблемы укажи:
+   - файл
+   - участок кода или функцию
+   - почему это риск
+   - как проверить
+   - как безопасно исправлять потом
+
+Ещё раз:
+Ничего не меняй.
+Только диагностика.

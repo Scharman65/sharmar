@@ -2,13 +2,146 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import Image from "next/image";
 import { getBoatCardImage } from "@/lib/media";
+import { BoatGallery } from "@/components/boat/BoatGallery";
+import { AvailabilityCalendar } from "@/components/boat/AvailabilityCalendar";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
 import { isLang, t, type Lang } from "@/i18n";
 import { fetchAvailability } from "@/lib/availability";
+import { applyMarketplaceFee } from "@/lib/pricing";
+import { MARINAS } from "@/data/marinas";
+
+type PageCopy = {
+  boatNotFound: string;
+  marina: string;
+  specifications: string;
+  sale: string;
+  rent: string;
+  availabilityTitle: string;
+  availabilityEmpty: string;
+  availabilityUnavailable: string;
+  requestSlot: string;
+  locatedIn: string;
+  slug: string;
+  type: string;
+  capacity: string;
+  length: string;
+  enginePower: string;
+  year: string;
+  priceHour: string;
+  priceDay: string;
+  priceWeek: string;
+  deposit: string;
+  skipperHour: string;
+  skipperDay: string;
+  license: string;
+  required: string;
+  notRequired: string;
+  skipper: string;
+  available: string;
+  notAvailable: string;
+};
+
+function pageCopy(lang: Lang): PageCopy {
+  if (lang === "ru") {
+    return {
+      boatNotFound: "Лодка не найдена",
+      marina: "Марина",
+      specifications: "Характеристики",
+      sale: "Продажа",
+      rent: "Аренда",
+      availabilityTitle: "Доступность (14 дней)",
+      availabilityEmpty: "Нет доступных слотов на ближайшие 14 дней.",
+      availabilityUnavailable: "Календарь временно недоступен.",
+      requestSlot: "Запросить этот слот",
+      locatedIn: "Расположено в",
+      slug: "Slug",
+      type: "Тип",
+      capacity: "Вместимость",
+      length: "Длина",
+      enginePower: "Мощность двигателя",
+      year: "Год",
+      priceHour: "Цена/час",
+      priceDay: "Цена/день",
+      priceWeek: "Цена/неделя",
+      deposit: "Депозит",
+      skipperHour: "Шкипер/час",
+      skipperDay: "Шкипер/день",
+      license: "Лицензия",
+      required: "Требуется",
+      notRequired: "Не требуется",
+      skipper: "Шкипер",
+      available: "Доступен",
+      notAvailable: "Недоступен",
+    };
+  }
+
+  if (lang === "me") {
+    return {
+      boatNotFound: "Plovilo nije pronađeno",
+      marina: "Marina",
+      specifications: "Specifikacije",
+      sale: "Prodaja",
+      rent: "Najam",
+      availabilityTitle: "Dostupnost (14 dana)",
+      availabilityEmpty: "Nema dostupnih termina u narednih 14 dana.",
+      availabilityUnavailable: "Kalendar je privremeno nedostupan.",
+      requestSlot: "Zatraži ovaj termin",
+      locatedIn: "Nalazi se u",
+      slug: "Slug",
+      type: "Tip",
+      capacity: "Kapacitet",
+      length: "Dužina",
+      enginePower: "Snaga motora",
+      year: "Godina",
+      priceHour: "Cijena/sat",
+      priceDay: "Cijena/dan",
+      priceWeek: "Cijena/nedjelja",
+      deposit: "Depozit",
+      skipperHour: "Skiper/sat",
+      skipperDay: "Skiper/dan",
+      license: "Licenca",
+      required: "Potrebna",
+      notRequired: "Nije potrebna",
+      skipper: "Skiper",
+      available: "Dostupan",
+      notAvailable: "Nedostupan",
+    };
+  }
+
+  return {
+    boatNotFound: "Boat not found",
+    marina: "Marina",
+    specifications: "Specifications",
+    sale: "Sale",
+    rent: "Rent",
+    availabilityTitle: "Availability (14 days)",
+    availabilityEmpty: "No available slots for the next 14 days.",
+    availabilityUnavailable: "Calendar is temporarily unavailable.",
+    requestSlot: "Request this slot",
+    locatedIn: "Located in",
+    slug: "Slug",
+    type: "Type",
+    capacity: "Capacity",
+    length: "Length",
+    enginePower: "Engine power",
+    year: "Year",
+    priceHour: "Price/hour",
+    priceDay: "Price/day",
+    priceWeek: "Price/week",
+    deposit: "Deposit",
+    skipperHour: "Skipper/hour",
+    skipperDay: "Skipper/day",
+    license: "License",
+    required: "Required",
+    notRequired: "Not required",
+    skipper: "Skipper",
+    available: "Available",
+    notAvailable: "Not available",
+  };
+}
 
 type Props = {
   params: Promise<{ lang: string; slug: string }>;
@@ -21,7 +154,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
   if (!boat) {
-    return { title: "Boat not found" };
+    return { title: pageCopy(lang).boatNotFound };
   }
 
   const title = boat.title ?? slug;
@@ -31,77 +164,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title, description };
 }
 
-function getLocaleForFmt(lang: Lang): string {
-  if (lang === "ru") return "ru-RU";
-  if (lang === "me") return "sr-Latn-ME";
-  return "en-US";
-}
-
-function fmtSlotRange(
-  startUtcIso: string,
-  endUtcIso: string,
-  timeZone: string,
-  lang: Lang
-): string {
-  const locale = getLocaleForFmt(lang);
-  const start = new Date(startUtcIso);
-  const end = new Date(endUtcIso);
-
-  const dateFmt = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const timeFmt = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
-  return `${dateFmt.format(start)} · ${timeFmt.format(start)}–${timeFmt.format(
-    end
-  )}`;
-}
-
 export default async function BoatPage({ params }: Props) {
   const { lang: rawLang, slug } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
   const tr = t(lang);
 
-  const marinaLabel = lang === "ru" ? "Марина" : "Marina";
-  const specsLabel = lang === "ru" ? "Характеристики" : "Specifications";
-  const saleLabel = lang === "ru" ? "Продажа" : "Sale";
-  const rentLabel = lang === "ru" ? "Аренда" : "Rent";
+  const marinaLabel = pageCopy(lang).marina;
+  const specsLabel = pageCopy(lang).specifications;
+  const saleLabel = pageCopy(lang).sale;
+  const rentLabel = pageCopy(lang).rent;
 
-  const availabilityTitle =
-    lang === "ru"
-      ? "Доступность (14 дней)"
-      : lang === "me"
-        ? "Dostupnost (14 dana)"
-        : "Availability (14 days)";
-
-  const availabilityEmpty =
-    lang === "ru"
-      ? "Нет доступных слотов на ближайшие 14 дней."
-      : lang === "me"
-        ? "Nema dostupnih termina u narednih 14 dana."
-        : "No available slots for the next 14 days.";
-
-  const availabilityUnavailable =
-    lang === "ru"
-      ? "Календарь временно недоступен."
-      : lang === "me"
-        ? "Kalendar je privremeno nedostupan."
-        : "Calendar is temporarily unavailable.";
+  const availabilityTitle = pageCopy(lang).availabilityTitle;
+  const availabilityEmpty = pageCopy(lang).availabilityEmpty;
+  const availabilityUnavailable = pageCopy(lang).availabilityUnavailable;
+  const requestSlotLabel = pageCopy(lang).requestSlot;
 
   const fmtMoney = (v: unknown) => {
     if (v === null || v === undefined) return null;
     const n = typeof v === "number" ? v : Number(v);
     if (!Number.isFinite(n)) return null;
-    return `${n} ${(boat as any)?.currency ?? ""}`.trim();
+    const rounded = Math.round((n + Number.EPSILON) * 100) / 100;
+    const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+    return `${formatted} ${(boat as any)?.currency ?? ""}`.trim();
   };
 
   const rows: Array<{ label: string; value: string }> = [];
@@ -127,12 +211,12 @@ export default async function BoatPage({ params }: Props) {
       <main className="main">
         <div className="container">
           <div className="detail-top">
-            <h1 className="h1">Boat not found</h1>
+            <h1 className="h1">{pageCopy(lang).boatNotFound}</h1>
             <Link className="backlink" href={`/${lang}/boats`}>
               ← {tr.boat.back_to_list}
             </Link>
           </div>
-          <p className="kicker">Slug: {slug}</p>
+          <p className="kicker">{pageCopy(lang).slug}: {slug}</p>
         </div>
       </main>
     );
@@ -141,6 +225,14 @@ export default async function BoatPage({ params }: Props) {
   const boatId = Number((boat as any).id ?? 0);
   const availability =
     Number.isFinite(boatId) && boatId > 0 ? await fetchAvailability(lang, boatId) : null;
+  const homeMarina = (boat as any).home_marina;
+  const homeMarinaSlug =
+    typeof homeMarina?.slug === "string" ? homeMarina.slug.trim() : "";
+  const homeMarinaDefinition =
+    MARINAS.find((marina) => marina.slug === homeMarinaSlug) ?? null;
+  const homeMarinaHref = homeMarinaDefinition
+    ? `/${lang}/marina/${homeMarinaSlug}`
+    : null;
 
   return (
     <main className="main">
@@ -152,18 +244,12 @@ export default async function BoatPage({ params }: Props) {
           </Link>
         </div>
 
-        {heroImg ? (
-          <div className="hero">
-            <Image
-              src={heroImg.src}
-              alt={heroImg.alt}
-              fill
-              sizes="(max-width: 900px) 100vw, 900px"
-              style={{ objectFit: "cover" }}
-              priority
-            />
-          </div>
-        ) : null}
+        <BoatGallery
+          heroImg={heroImg}
+          images={(boat as any).images ?? []}
+          title={boat.title ?? slug}
+          slug={slug}
+        />
 
         <div className="meta-row">
           <span>
@@ -175,8 +261,18 @@ export default async function BoatPage({ params }: Props) {
           </span>
           <span>·</span>
           <span data-testid="boat-home-marina">
-            {marinaLabel}: {boat.homeMarina?.name ?? "—"}
-            {boat.homeMarina?.region ? ` (${boat.homeMarina.region})` : ""}
+            {marinaLabel}:{" "}
+            {homeMarinaHref ? (
+              <Link href={homeMarinaHref}>
+                {homeMarina?.name ?? "—"}
+                {homeMarina?.region ? ` (${homeMarina.region})` : ""}
+              </Link>
+            ) : (
+              <>
+                {homeMarina?.name ?? "—"}
+                {homeMarina?.region ? ` (${homeMarina.region})` : ""}
+              </>
+            )}
           </span>
           <span>·</span>
           <span>
@@ -195,23 +291,23 @@ export default async function BoatPage({ params }: Props) {
         {(() => {
           rows.length = 0;
 
-          add(lang === "ru" ? "Тип" : "Type", boat.boat_type ?? boat.vesselType ?? null);
+          add(pageCopy(lang).type, boat.boat_type ?? boat.vesselType ?? null);
           add(
-            lang === "ru" ? "Вместимость" : "Capacity",
+            pageCopy(lang).capacity,
             boat.capacity,
             (x) => (x === null || x === undefined ? null : `${x}`)
           );
           add(
-            lang === "ru" ? "Марина" : "Marina",
-            (boat as any).home_marina?.name ?? boat.homeMarina?.name ?? null
+            pageCopy(lang).marina,
+            (boat as any).home_marina?.name ?? (boat as any).home_marina?.name ?? null
           );
           add(
-            lang === "ru" ? "Длина" : "Length",
+            pageCopy(lang).length,
             ((boat as any).length_m ?? (boat as any).lengthM ?? (boat as any).length_m ?? null),
             (x) => (x === null || x === undefined ? null : `${x} m`)
           );
           add(
-            lang === "ru" ? "Мощность двигателя" : "Engine power",
+            pageCopy(lang).enginePower,
             ((boat as any).engine_hp ?? (boat as any).engineHp ?? (boat as any).engine_hp ?? null),
             (x) => (x === null || x === undefined ? null : `${x} hp`)
           );
@@ -219,42 +315,34 @@ export default async function BoatPage({ params }: Props) {
           const listing = (boat as any).listing_type ?? null;
 
           if (listing === "sale") {
-            add(lang === "ru" ? "Год" : "Year", (boat as any).year ?? null);
+            add(pageCopy(lang).year, (boat as any).year ?? null);
           }
 
           if (listing === "rent") {
-            add(lang === "ru" ? "Цена/час" : "Price/hour", (boat as any).price_per_hour ?? null, fmtMoney);
-            add(lang === "ru" ? "Цена/день" : "Price/day", (boat as any).price_per_day ?? null, fmtMoney);
-            add(lang === "ru" ? "Цена/неделя" : "Price/week", (boat as any).price_per_week ?? null, fmtMoney);
-            add(lang === "ru" ? "Депозит" : "Deposit", (boat as any).deposit ?? null, fmtMoney);
+            add(pageCopy(lang).priceHour, applyMarketplaceFee((boat as any).price_per_hour), fmtMoney);
+            add(pageCopy(lang).priceDay, applyMarketplaceFee((boat as any).price_per_day), fmtMoney);
+            add(pageCopy(lang).priceWeek, applyMarketplaceFee((boat as any).price_per_week), fmtMoney);
+            add(pageCopy(lang).deposit, (boat as any).deposit ?? null, fmtMoney);
 
-            add(lang === "ru" ? "Шкипер/час" : "Skipper/hour", (boat as any).skipper_price_per_hour ?? null, fmtMoney);
-            add(lang === "ru" ? "Шкипер/день" : "Skipper/day", (boat as any).skipper_price_per_day ?? null, fmtMoney);
+            add(pageCopy(lang).skipperHour, (boat as any).skipper_price_per_hour ?? null, fmtMoney);
+            add(pageCopy(lang).skipperDay, (boat as any).skipper_price_per_day ?? null, fmtMoney);
           }
 
           add(
-            lang === "ru" ? "Лицензия" : "License",
+            pageCopy(lang).license,
             boat.license_required === true
-              ? lang === "ru"
-                ? "Требуется"
-                : "Required"
+              ? pageCopy(lang).required
               : boat.license_required === false
-                ? lang === "ru"
-                  ? "Не требуется"
-                  : "Not required"
+                ? pageCopy(lang).notRequired
                 : null
           );
 
           add(
-            lang === "ru" ? "Шкипер" : "Skipper",
+            pageCopy(lang).skipper,
             boat.skipper_available === true
-              ? lang === "ru"
-                ? "Доступен"
-                : "Available"
+              ? pageCopy(lang).available
               : boat.skipper_available === false
-                ? lang === "ru"
-                  ? "Недоступен"
-                  : "Not available"
+                ? pageCopy(lang).notAvailable
                 : null
           );
 
@@ -286,6 +374,58 @@ export default async function BoatPage({ params }: Props) {
           );
         })()}
 
+        {Array.isArray((boat as any).experiences) && (boat as any).experiences.length ? (
+          <div style={{ marginTop: 18 }}>
+            <p className="kicker" style={{ marginBottom: 10 }}>
+              {lang === "ru" ? "Маршруты владельца" : lang === "me" ? "Rute vlasnika" : "Owner routes"}
+            </p>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {(boat as any).experiences.slice(0, 3).map((experience: any) => {
+                const routePrice = applyMarketplaceFee(experience.price);
+                const duration =
+                  experience.duration_hours === null || experience.duration_hours === undefined
+                    ? null
+                    : Number(experience.duration_hours);
+
+                const routeCurrency = experience.currency ?? (boat as any).currency ?? "EUR";
+                const routePriceLabel = routePrice ? `${routePrice} ${routeCurrency}` : "—";
+
+                return (
+                  <div
+                    key={experience.id}
+                    style={{
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                      borderRadius: 14,
+                      padding: 14,
+                      background: "rgba(255, 255, 255, 0.045)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                      <strong>{experience.title ?? (lang === "ru" ? "Маршрут" : lang === "me" ? "Ruta" : "Route")}</strong>
+                      <strong>{routePriceLabel}</strong>
+                    </div>
+
+                    <p className="card-sub" style={{ marginTop: 6 }}>
+                      {duration ? (
+                        <span>
+                          {duration} {lang === "ru" ? "ч" : lang === "me" ? "h" : "h"}
+                        </span>
+                      ) : null}
+
+                      {duration && experience.short_description ? <span>·</span> : null}
+
+                      {experience.short_description ? (
+                        <span>{experience.short_description}</span>
+                      ) : null}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <div style={{ marginTop: 14 }}>
           {boat.description?.trim() ? (
             <p style={{ lineHeight: 1.7, margin: 0 }}>{boat.description}</p>
@@ -294,61 +434,63 @@ export default async function BoatPage({ params }: Props) {
           )}
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <p className="kicker" style={{ marginBottom: 10 }}>
-            {availabilityTitle}
-          </p>
-
-          {availability ? (
-            availability.data.length ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                {availability.data.map((s) => {
-                  const key = `${s.slot_start_utc}-${s.slot_end_utc}`;
-                  const label = fmtSlotRange(
-                    s.slot_start_utc,
-                    s.slot_end_utc,
-                    availability.timezone || "Europe/Podgorica",
-                    lang
-                  );
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 16,
-                        padding: "10px 12px",
-                        borderRadius: 12,
-                        border: "1px solid rgba(255,255,255,0.10)",
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{label}</span>
-                      <span className="kicker" style={{ margin: 0 }}>
-                        UTC
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="kicker" style={{ margin: 0 }}>
-                {availabilityEmpty}
-              </p>
-            )
-          ) : (
-            <p className="kicker" style={{ margin: 0 }}>
-              {availabilityUnavailable}
+        {homeMarinaHref && homeMarinaDefinition ? (
+          <section
+            aria-labelledby="boat-located-in-title"
+            style={{
+              marginTop: 18,
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              borderRadius: 18,
+              padding: 18,
+              background: "rgba(255, 255, 255, 0.045)",
+            }}
+          >
+            <p className="kicker" style={{ marginBottom: 8 }}>
+              {pageCopy(lang).locatedIn}
             </p>
-          )}
-        </div>
+            <h2
+              id="boat-located-in-title"
+              style={{ margin: 0, fontSize: 24, lineHeight: 1.15 }}
+            >
+              <Link
+                href={homeMarinaHref}
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                {homeMarinaDefinition.title}
+              </Link>
+            </h2>
+            <p style={{ margin: "8px 0 0", color: "rgba(255, 255, 255, 0.72)" }}>
+              {homeMarinaDefinition.city}, {homeMarinaDefinition.country}
+            </p>
+          </section>
+        ) : null}
 
-        {boat.purposes?.length ? (
+        <AvailabilityCalendar
+          lang={lang}
+          availability={availability}
+          boat={boat}
+          slug={slug}
+          requestSlotLabel={requestSlotLabel}
+          availabilityTitle={availabilityTitle}
+          availabilityEmpty={availabilityEmpty}
+          availabilityUnavailable={availabilityUnavailable}
+        />
+
+        {boat.verified_listing || boat.featured_listing || boat.purposes?.length ? (
           <div style={{ marginTop: 18 }}>
             <p className="kicker" style={{ marginBottom: 10 }}>
               {tr.boat.purposes}
             </p>
             <div className="badges">
-              {boat.purposes.map((p) => (
+              {boat.verified_listing ? (
+                <span className="badge">✓ Verified listing</span>
+              ) : null}
+
+              {boat.featured_listing ? (
+                <span className="badge">★ Featured yacht</span>
+              ) : null}
+
+              {boat.purposes?.map((p) => (
                 <span className="badge" key={p.id}>
                   {p.title ?? `Purpose #${p.id}`}
                 </span>
@@ -358,15 +500,6 @@ export default async function BoatPage({ params }: Props) {
         ) : null}
 
         <div className="actions">
-          <Link
-            className="button"
-            href={`/${lang}/request?slug=${encodeURIComponent(slug)}&title=${encodeURIComponent(
-              boat.title ?? slug
-            )}`}
-          >
-            {tr.booking.requestThisBoat}
-          </Link>
-
           <Link className="button secondary" href={`/${lang}/boats`}>
             {tr.boat.back_to_list}
           </Link>
