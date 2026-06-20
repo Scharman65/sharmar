@@ -393,7 +393,7 @@ export function BoatForm({ mode, locations = [] }: { mode: BoatFormMode; locatio
       locale: listingLanguage,
       imageIds: uploadedImages.map((image) => image.id),
     }),
-    [values, mode]
+    [values, mode, uploadedImages, listingLanguage]
   );
 
 
