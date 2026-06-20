@@ -21,6 +21,7 @@ export type BoatFormValues = {
   rentPriceHour: string;
   rentPriceDay: string;
   rentPriceWeek: string;
+  minRentalHours: string;
 
   salePrice: string;
   motorHorsePower: string;

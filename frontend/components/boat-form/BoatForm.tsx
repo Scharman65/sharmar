@@ -48,6 +48,8 @@ const translations = {
     pricePerHour: "Price per hour, EUR",
     pricePerDay: "Price per day, EUR",
     pricePerWeek: "Price per week, EUR",
+    minRentalHours: "Minimum rental, hours",
+    placeholderMinRentalHours: "Minimum hours",
     placeholderHourlyPrice: "Hourly price",
     placeholderDailyPrice: "Daily price",
     placeholderWeeklyPrice: "Weekly price",
@@ -111,6 +113,8 @@ const translations = {
     pricePerHour: "Цена за час, EUR",
     pricePerDay: "Цена за день, EUR",
     pricePerWeek: "Цена за неделю, EUR",
+    minRentalHours: "Минимальная аренда, часов",
+    placeholderMinRentalHours: "Минимум часов",
     placeholderHourlyPrice: "Цена за час",
     placeholderDailyPrice: "Цена за день",
     placeholderWeeklyPrice: "Цена за неделю",
@@ -174,6 +178,8 @@ const translations = {
     pricePerHour: "Cijena po satu, EUR",
     pricePerDay: "Cijena po danu, EUR",
     pricePerWeek: "Cijena po sedmici, EUR",
+    minRentalHours: "Minimalni najam, sati",
+    placeholderMinRentalHours: "Minimum sati",
     placeholderHourlyPrice: "Cijena po satu",
     placeholderDailyPrice: "Cijena po danu",
     placeholderWeeklyPrice: "Cijena po sedmici",
@@ -267,6 +273,7 @@ function defaultValues(): BoatFormValues {
     rentPriceHour: "",
     rentPriceDay: "",
     rentPriceWeek: "",
+    minRentalHours: "1",
     salePrice: "",
     motorHorsePower: "",
   };
@@ -316,6 +323,11 @@ function validate(values: BoatFormValues, mode: BoatFormMode) {
       errors.rentPriceDay = "Add at least one rental price";
       errors.rentPriceWeek = "Add at least one rental price";
     }
+
+    const minRentalHoursN = toNumberOrNull(values.minRentalHours);
+    if (minRentalHoursN === null || minRentalHoursN < 1 || minRentalHoursN > 24 || !Number.isInteger(minRentalHoursN)) {
+      errors.minRentalHours = "Enter minimum rental hours from 1 to 24";
+    }
   }
 
   if (mode.kind === "sale" && !isNonEmpty(values.salePrice)) {
@@ -362,6 +374,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       rentPriceHour: mode.kind === "rent" ? toNumberOrNull(values.rentPriceHour) : null,
       rentPriceDay: mode.kind === "rent" ? toNumberOrNull(values.rentPriceDay) : null,
       rentPriceWeek: mode.kind === "rent" ? toNumberOrNull(values.rentPriceWeek) : null,
+      minRentalHours: mode.kind === "rent" ? toNumberOrNull(values.minRentalHours) : null,
       salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
       currency: "EUR",
       ownerPhone: values.ownerPhone.trim(),
@@ -629,6 +642,17 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
                     onChange={(e) => set("rentPriceHour", e.target.value)}
                   />
                   {fieldError("rentPriceHour")}
+                </div>
+
+                <div className={fieldGroup()}>
+                  <div className={labelBase()}>{ui.minRentalHours}</div>
+                  <input
+                    className={inputBase()}
+                    placeholder={ui.placeholderMinRentalHours}
+                    value={values.minRentalHours}
+                    onChange={(e) => set("minRentalHours", e.target.value)}
+                  />
+                  {fieldError("minRentalHours")}
                 </div>
 
                 <div className={fieldGroup()}>

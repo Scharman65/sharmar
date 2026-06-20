@@ -35,6 +35,7 @@ export type Boat = {
   price_per_hour?: number | null;
   price_per_day?: number | null;
   price_per_week?: number | null;
+  min_rental_hours?: number | null;
   sale_price?: number | null;
   deposit?: number | null;
   currency?: string | null;
@@ -156,6 +157,7 @@ function normalizeBoat(item: any): Boat | null {
     price_per_hour: item.price_per_hour ?? null,
     price_per_day: item.price_per_day ?? null,
     price_per_week: item.price_per_week ?? null,
+    min_rental_hours: item.min_rental_hours ?? 1,
     sale_price: item.sale_price ?? null,
     deposit: item.deposit ?? null,
     verified_listing: item.verified_listing ?? false,

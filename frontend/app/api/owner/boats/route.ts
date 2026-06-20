@@ -14,6 +14,7 @@ type CreateBoatBody = {
   rentPriceHour?: number | null;
   rentPriceDay?: number | null;
   rentPriceWeek?: number | null;
+  minRentalHours?: number | null;
   salePrice?: number | null;
   ownerPhone?: string;
   imageIds?: number[];
@@ -35,6 +36,7 @@ type ParsedCreateBoatBody = {
   rentPriceHour: number | null;
   rentPriceDay: number | null;
   rentPriceWeek: number | null;
+  minRentalHours: number | null;
   salePrice: number | null;
   ownerPhone?: string;
   imageIds?: number[];
@@ -168,6 +170,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const rentPriceHour = body.rentPriceHour == null ? null : asNumber(body.rentPriceHour);
   const rentPriceDay = body.rentPriceDay == null ? null : asNumber(body.rentPriceDay);
   const rentPriceWeek = body.rentPriceWeek == null ? null : asNumber(body.rentPriceWeek);
+  const minRentalHours = body.minRentalHours == null ? 1 : asNumber(body.minRentalHours);
   const salePrice = body.salePrice == null ? null : asNumber(body.salePrice);
   const ownerPhone = asString(body.ownerPhone);
   const imageIds = asNumberArray(body.imageIds);
@@ -203,6 +206,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
 
   if (rentPriceWeek != null && (rentPriceWeek < 0 || rentPriceWeek > 100000000)) {
     return { ok: false, error: "rentPriceWeek is out of range" };
+  }
+
+  if (minRentalHours == null || minRentalHours < 1 || minRentalHours > 24 || !Number.isInteger(minRentalHours)) {
+    return { ok: false, error: "minRentalHours must be an integer from 1 to 24" };
   }
 
   if (listingType === "sale" && salePrice == null) {
@@ -244,6 +251,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       rentPriceHour,
       rentPriceDay,
       rentPriceWeek,
+      minRentalHours,
       salePrice,
       ownerPhone: ownerPhone || undefined,
       imageIds: imageIds.length > 0 ? imageIds : undefined,
@@ -316,6 +324,7 @@ export async function POST(req: NextRequest) {
       price_per_hour: p.rentPriceHour ?? null,
       price_per_day: p.rentPriceDay ?? null,
       price_per_week: p.rentPriceWeek ?? null,
+      min_rental_hours: p.minRentalHours ?? 1,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
       owner_user_id: me.id,
