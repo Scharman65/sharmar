@@ -232,6 +232,15 @@ type OwnerBoat = {
   createdAt?: string | null;
   listing_type?: string | null;
   boat_type?: string | null;
+  min_rental_hours?: number | null;
+  home_marina_id?: number | null;
+  home_marina_name?: string | null;
+  cover_url?: string | null;
+  owner_phone?: string | null;
+  currency?: string | null;
+  price_per_hour?: number | null;
+  price_per_day?: number | null;
+  price_per_week?: number | null;
 };
 
 type BookingActivity = {
@@ -1505,9 +1514,25 @@ useEffect(() => {
                     <div className="meta-row">
                       <span>ID: {boat.id ?? "—"}</span>
                       <span>·</span>
-                      <span>Slug: {boat.slug ?? "—"}</span>
+                      <span>{lang === "ru" ? "Локация" : lang === "me" ? "Lokacija" : "Location"}: {boat.home_marina_name || "—"}</span>
+                      <span>·</span>
+                      <span>{lang === "ru" ? "Минимум" : lang === "me" ? "Minimum" : "Minimum"}: {boat.min_rental_hours ?? 1} h</span>
                       <span>·</span>
                       <span>Booking: {boat.booking_enabled ? pageCopy(lang).bookingEnabled : pageCopy(lang).bookingDisabled}</span>
+                    </div>
+
+                    <div className="meta-row">
+                      <span>{lang === "ru" ? "Цена/час" : lang === "me" ? "Cijena/sat" : "Price/hour"}: {boat.price_per_hour ?? "—"} {boat.currency || "EUR"}</span>
+                      <span>·</span>
+                      <span>{lang === "ru" ? "Цена/день" : lang === "me" ? "Cijena/dan" : "Price/day"}: {boat.price_per_day ?? "—"} {boat.currency || "EUR"}</span>
+                      <span>·</span>
+                      <span>{lang === "ru" ? "Цена/неделя" : lang === "me" ? "Cijena/nedjelja" : "Price/week"}: {boat.price_per_week ?? "—"} {boat.currency || "EUR"}</span>
+                    </div>
+
+                    <div className="meta-row">
+                      <span>{lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone"}: {boat.owner_phone || "—"}</span>
+                      <span>·</span>
+                      <span>{lang === "ru" ? "Обложка" : lang === "me" ? "Naslovna fotografija" : "Cover"}: {boat.cover_url ? "OK" : "—"}</span>
                     </div>
 
                     {boat.booking_enabled && boat.slug ? (
