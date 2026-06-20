@@ -369,26 +369,41 @@ export async function POST(req: NextRequest) {
   const data = isRecord(json) && isRecord(json.data) ? json.data : null;
   const documentId = data && typeof data.documentId === "string" ? data.documentId : null;
 
-  if (documentId) {
-    await strapiFetchJson(
+  if (documentId && Array.isArray(p.imageIds) && p.imageIds.length > 0) {
+    const mediaIds = p.imageIds.map((id) => ({ id }));
+
+    const updatePayload = {
+      data: {
+        publishedAt: null,
+        contacts_visible: false,
+        cover: {
+          connect: [{ id: p.imageIds[0] }],
+        },
+        images: {
+          connect: mediaIds,
+        },
+      },
+    };
+
+    const updateRes = await strapiFetchJson(
       `/api/boats/${encodeURIComponent(documentId)}`,
       {
         method: "PUT",
-        body: JSON.stringify({
-          data: {
-            publishedAt: null,
-                  contacts_visible: false,
-            ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
-              ? {
-                  cover: p.imageIds[0],
-                  images: p.imageIds,
-                }
-              : {}),
-          },
-        }),
+        body: JSON.stringify(updatePayload),
       },
       serverToken
     );
+
+    if (!updateRes.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Strapi media attach failed",
+          details: updateRes.json,
+        },
+        { status: 502, headers: { "cache-control": "no-store" } }
+      );
+    }
   }
 
   return NextResponse.json(
