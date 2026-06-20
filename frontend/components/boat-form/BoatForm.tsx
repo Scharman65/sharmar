@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import type { BoatFormMode, BoatFormValues } from "./types";
+import type { BoatFormLocation, BoatFormMode, BoatFormValues } from "./types";
 
 
 
@@ -16,6 +16,9 @@ const translations = {
     languageDetected: "{ui.languageDetected}",
     title: "Title",
     description: "Description",
+    location: "Location",
+    marina: "Location",
+    selectMarina: "Select location",
     boatBasics: "Boat basics",
     boatBasicsDesc: "Use numbers only where possible.",
     capacity: "Capacity",
@@ -81,6 +84,9 @@ const translations = {
     languageDetected: "Язык объявления определяется автоматически по языку сайта.",
     title: "Название",
     description: "Описание",
+    location: "Локация",
+    marina: "Локация",
+    selectMarina: "Выберите локацию",
     boatBasics: "Основные параметры",
     boatBasicsDesc: "Используйте цифры там, где возможно.",
     capacity: "Вместимость",
@@ -146,6 +152,9 @@ const translations = {
     languageDetected: "Jezik oglasa se automatski određuje prema jeziku sajta.",
     title: "Naziv",
     description: "Opis",
+    location: "Lokacija",
+    marina: "Lokacija",
+    selectMarina: "Izaberite lokaciju",
     boatBasics: "Osnovni podaci",
     boatBasicsDesc: "Koristite brojeve gdje god je moguće.",
     capacity: "Kapacitet",
@@ -269,6 +278,7 @@ function defaultValues(): BoatFormValues {
     lengthM: "",
     capacityGuests: "",
     ownerPhone: "",
+    homeMarinaId: "",
     instantBooking: true,
     rentPriceHour: "",
     rentPriceDay: "",
@@ -337,7 +347,7 @@ function validate(values: BoatFormValues, mode: BoatFormMode) {
   return errors;
 }
 
-export function BoatForm({ mode }: { mode: BoatFormMode }) {
+export function BoatForm({ mode, locations = [] }: { mode: BoatFormMode; locations?: BoatFormLocation[] }) {
   const [values, setValues] = useState<BoatFormValues>(() => defaultValues());
   const [submitted, setSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -378,6 +388,7 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
       salePrice: mode.kind === "sale" ? toNumberOrNull(values.salePrice) : null,
       currency: "EUR",
       ownerPhone: values.ownerPhone.trim(),
+      homeMarinaId: toNumberOrNull(values.homeMarinaId),
       instantBooking: Boolean(values.instantBooking),
       locale: listingLanguage,
       imageIds: uploadedImages.map((image) => image.id),
@@ -547,6 +558,23 @@ export function BoatForm({ mode }: { mode: BoatFormMode }) {
             </div>
 
             <div className="boat-form-stack">
+              <div className={fieldGroup()}>
+                <div className={labelBase()}>{ui.marina}</div>
+                <select
+                  className={inputBase()}
+                  value={values.homeMarinaId}
+                  onChange={(e) => set("homeMarinaId", e.target.value)}
+                >
+                  <option value="">{ui.selectMarina}</option>
+                  {locations.map((location) => (
+                    <option key={location.id} value={String(location.id)}>
+                      {location.name ?? location.slug ?? `#${location.id}`}
+                    </option>
+                  ))}
+                </select>
+                {fieldError("homeMarinaId")}
+              </div>
+
               <div className={fieldGroup()}>
                 <div className={labelBase()}>{ui.title}</div>
                 <input

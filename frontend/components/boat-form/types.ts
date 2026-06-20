@@ -7,6 +7,12 @@ export type BoatFormMode =
   | { kind: "sale"; boatType: "motor" }
   | { kind: "sale"; boatType: "sail" };
 
+export type BoatFormLocation = {
+  id: number;
+  name?: string | null;
+  slug?: string | null;
+};
+
 export type BoatFormValues = {
   title: string;
   description: string;
@@ -14,6 +20,7 @@ export type BoatFormValues = {
   lengthM: string;
   capacityGuests: string;
   ownerPhone: string;
+  homeMarinaId: string;
   imageIds?: number[];
 
   instantBooking: boolean;

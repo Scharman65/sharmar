@@ -17,6 +17,7 @@ type CreateBoatBody = {
   minRentalHours?: number | null;
   salePrice?: number | null;
   ownerPhone?: string;
+  homeMarinaId?: number | null;
   imageIds?: number[];
   ownerEmail?: string;
   currency?: "EUR";
@@ -39,6 +40,7 @@ type ParsedCreateBoatBody = {
   minRentalHours: number | null;
   salePrice: number | null;
   ownerPhone?: string;
+  homeMarinaId: number | null;
   imageIds?: number[];
   ownerEmail?: string;
   currency: "EUR";
@@ -173,6 +175,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const minRentalHours = body.minRentalHours == null ? 1 : asNumber(body.minRentalHours);
   const salePrice = body.salePrice == null ? null : asNumber(body.salePrice);
   const ownerPhone = asString(body.ownerPhone);
+  const homeMarinaId = body.homeMarinaId == null ? null : asNumber(body.homeMarinaId);
   const imageIds = asNumberArray(body.imageIds);
   const ownerEmail = asString(body.ownerEmail);
   const currencyRaw = asString(body.currency);
@@ -224,6 +227,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
     return { ok: false, error: "ownerPhone is too long" };
   }
 
+  if (homeMarinaId != null && (!Number.isInteger(homeMarinaId) || homeMarinaId <= 0)) {
+    return { ok: false, error: "homeMarinaId is invalid" };
+  }
+
   if (imageIds.length > 8) {
     return { ok: false, error: "Maximum 8 images per listing" };
   }
@@ -254,6 +261,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       minRentalHours,
       salePrice,
       ownerPhone: ownerPhone || undefined,
+      homeMarinaId,
       imageIds: imageIds.length > 0 ? imageIds : undefined,
       ownerEmail: ownerEmail || undefined,
       currency,
@@ -327,6 +335,7 @@ export async function POST(req: NextRequest) {
       min_rental_hours: p.minRentalHours ?? 1,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
+      ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
       owner_user_id: me.id,
       currency: p.currency ?? "EUR",
       instant_booking: p.listingType === "rent" ? p.instantBooking : false,
