@@ -272,6 +272,11 @@ type OwnerExperience = {
   price?: number | string | null;
   currency?: string | null;
   short_description?: string | null;
+  cover?: {
+    id?: number | string | null;
+    url?: string | null;
+    alternativeText?: string | null;
+  } | null;
   publishedAt?: string | null;
   is_active?: boolean | null;
   boat?: {
@@ -281,11 +286,21 @@ type OwnerExperience = {
   } | null;
 };
 
+type UploadedOwnerImage = {
+  id: number;
+  url: string;
+  name?: string | null;
+  mime?: string | null;
+  size?: number | null;
+};
+
 type ExperienceFormState = {
   title: string;
   durationHours: string;
   price: string;
   shortDescription: string;
+  coverId: number | null;
+  coverUrl: string | null;
 };
 
 type OwnerBlackout = {
@@ -637,6 +652,7 @@ export default function OwnerDashboardClient() {
   const [experienceLoading, setExperienceLoading] = useState(false);
   const [experienceError, setExperienceError] = useState<string | null>(null);
   const [experienceBusy, setExperienceBusy] = useState<Record<number, boolean>>({});
+  const [experienceUploadBusy, setExperienceUploadBusy] = useState<Record<number, boolean>>({});
   const [experienceForm, setExperienceForm] = useState<Record<number, ExperienceFormState>>({});
 
 
@@ -796,6 +812,8 @@ export default function OwnerDashboardClient() {
       durationHours: "",
       price: "",
       shortDescription: "",
+      coverId: null,
+      coverUrl: null,
     };
   }
 
@@ -808,6 +826,65 @@ export default function OwnerDashboardClient() {
     const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
     return Number.isFinite(n) ? `${Math.round((n + Number.EPSILON) * 100) / 100} EUR` : "—";
   }
+
+  async function uploadExperienceCover(boatId: number, files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setExperienceError("Only JPG, PNG and WEBP images are allowed");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setExperienceError("Maximum file size is 8MB");
+      return;
+    }
+
+    try {
+      setExperienceUploadBusy((prev) => ({ ...prev, [boatId]: true }));
+      setExperienceError(null);
+
+      const formData = new FormData();
+      formData.append("files", file);
+
+      const res = await fetch("/api/owner/uploads", {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      });
+
+      const json = (await res.json()) as {
+        ok?: boolean;
+        files?: UploadedOwnerImage[];
+        error?: string;
+      };
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "experience_cover_upload_failed");
+      }
+
+      const uploaded = json.files?.[0];
+
+      if (!uploaded?.id || !uploaded.url) {
+        throw new Error("experience_cover_upload_failed");
+      }
+
+      setExperienceForm((prev) => ({
+        ...prev,
+        [boatId]: {
+          ...(prev[boatId] || defaultExperienceForm()),
+          coverId: Number(uploaded.id),
+          coverUrl: uploaded.url,
+        },
+      }));
+    } catch (err) {
+      setExperienceError(err instanceof Error ? err.message : "experience_cover_upload_failed");
+    } finally {
+      setExperienceUploadBusy((prev) => ({ ...prev, [boatId]: false }));
+    }
+  }
+
 
   async function loadOwnerExperiences() {
     try {
@@ -862,6 +939,7 @@ export default function OwnerDashboardClient() {
           durationHours: Number(form.durationHours),
           price: Number(form.price),
           shortDescription: form.shortDescription,
+          coverId: form.coverId,
           locale: lang === "me" ? "sr-Latn-ME" : lang,
         }),
       });
@@ -1587,6 +1665,20 @@ useEffect(() => {
                                         border: "1px solid rgba(255,255,255,0.08)",
                                       }}
                                     >
+                                      {experience.cover?.url ? (
+                                        <img
+                                          src={experience.cover.url}
+                                          alt={experience.cover.alternativeText || experience.title || "Route"}
+                                          style={{
+                                            width: "100%",
+                                            height: 110,
+                                            objectFit: "cover",
+                                            borderRadius: 10,
+                                            marginBottom: 8,
+                                            background: "rgba(255,255,255,0.06)",
+                                          }}
+                                        />
+                                      ) : null}
                                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                                         <strong>{experience.title || "Route"}</strong>
                                         <span className="pill">
@@ -1677,6 +1769,33 @@ useEffect(() => {
                                     },
                                   }))}
                                 />
+
+                                <div style={{ display: "grid", gap: 8 }}>
+                                  {(experienceForm[Number(boat.id)] || defaultExperienceForm()).coverUrl ? (
+                                    <img
+                                      src={(experienceForm[Number(boat.id)] || defaultExperienceForm()).coverUrl || ""}
+                                      alt={lang === "ru" ? "Фото маршрута" : lang === "me" ? "Fotografija rute" : "Route photo"}
+                                      style={{
+                                        width: "100%",
+                                        maxHeight: 160,
+                                        objectFit: "cover",
+                                        borderRadius: 12,
+                                        background: "rgba(255,255,255,0.06)",
+                                      }}
+                                    />
+                                  ) : null}
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    disabled={Boolean(experienceUploadBusy[Number(boat.id)])}
+                                    onChange={(e) => uploadExperienceCover(Number(boat.id), e.target.files)}
+                                  />
+                                  <p className="kicker" style={{ margin: 0 }}>
+                                    {experienceUploadBusy[Number(boat.id)]
+                                      ? (lang === "ru" ? "Фото загружается..." : lang === "me" ? "Fotografija se učitava..." : "Uploading photo...")
+                                      : (lang === "ru" ? "Можно добавить одно фото маршрута" : lang === "me" ? "Možete dodati jednu fotografiju rute" : "You can add one route photo")}
+                                  </p>
+                                </div>
 
                                 <button
                                   className="button secondary"

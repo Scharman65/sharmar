@@ -587,6 +587,20 @@ export function AvailabilityCalendar({
                               gap: 4,
                             }}
                           >
+                            {experience.cover?.url ? (
+                              <img
+                                src={experience.cover.url}
+                                alt={experience.cover.alternativeText || experience.title || "Route"}
+                                style={{
+                                  width: "100%",
+                                  height: 96,
+                                  objectFit: "cover",
+                                  borderRadius: 10,
+                                  marginBottom: 4,
+                                  background: "rgba(255,255,255,0.08)",
+                                }}
+                              />
+                            ) : null}
                             <strong>{experience.title || "Route"}</strong>
                             <span style={{ fontSize: 12, opacity: 0.78 }}>
                               {Number.isFinite(duration) && duration > 0 ? formatDuration(duration, lang) : "—"}

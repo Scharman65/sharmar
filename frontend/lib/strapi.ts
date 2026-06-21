@@ -50,6 +50,8 @@ export type Boat = {
     price?: number | null;
     currency?: string | null;
     short_description?: string | null;
+    cover?: { url: string; alternativeText?: string | null } | null;
+    gallery?: { id: number; url: string; alternativeText?: string | null }[];
   }[];
   verified_listing?: boolean | null;
   featured_listing?: boolean | null;
@@ -194,6 +196,15 @@ function normalizeBoat(item: any): Boat | null {
             price: e.price ?? null,
             currency: e.currency ?? null,
             short_description: e.short_description ?? null,
+            cover: e.cover ? { url: pickBestMediaUrl(e.cover)!, alternativeText: e.cover.alternativeText ?? null } : null,
+            gallery: Array.isArray(e.gallery)
+              ? e.gallery
+                  .map((i: any) => {
+                    const url = pickBestMediaUrl(i);
+                    return url ? { id: i.id, url, alternativeText: i.alternativeText ?? null } : null;
+                  })
+                  .filter(Boolean)
+              : [],
           }))
       : [],
     isDemo: isDemoBoat(item),
@@ -230,6 +241,12 @@ function addExperiencePopulate(qs: string[]) {
   qs.push("populate[experiences][fields][4]=currency");
   qs.push("populate[experiences][fields][5]=short_description");
   qs.push("populate[experiences][fields][6]=sort_order");
+  qs.push("populate[experiences][populate][cover][fields][0]=url");
+  qs.push("populate[experiences][populate][cover][fields][1]=alternativeText");
+  qs.push("populate[experiences][populate][cover][fields][2]=formats");
+  qs.push("populate[experiences][populate][gallery][fields][0]=url");
+  qs.push("populate[experiences][populate][gallery][fields][1]=alternativeText");
+  qs.push("populate[experiences][populate][gallery][fields][2]=formats");
   qs.push("populate[experiences][filters][is_active][$eq]=true");
   qs.push("populate[experiences][sort][0]=sort_order:asc");
 }
