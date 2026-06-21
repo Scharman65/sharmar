@@ -250,7 +250,16 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
 export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
   const qs: string[] = [
     `filters[slug][$eq]=${encodeURIComponent(slug)}`,
-    "populate=*",
+    "populate[cover][fields][0]=url",
+    "populate[cover][fields][1]=alternativeText",
+    "populate[cover][fields][2]=formats",
+    "populate[images][fields][0]=url",
+    "populate[images][fields][1]=alternativeText",
+    "populate[images][fields][2]=formats",
+    "populate[home_marina][fields][0]=name",
+    "populate[home_marina][fields][1]=slug",
+    "populate[home_marina][fields][2]=region",
+    "populate[home_marina][fields][3]=country",
   ];
 
   addExperiencePopulate(qs);
