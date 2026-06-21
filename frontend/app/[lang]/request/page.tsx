@@ -327,11 +327,15 @@ export default function RequestPage() {
     isIsoUtcTimestamp(slotStartUtc) &&
     isIsoUtcTimestamp(slotEndUtc);
 
+  const pricePerHourFromUrl = Number(sp.get("pph"));
   const pricePerHourFromEnv = Number(process.env.NEXT_PUBLIC_PRICE_PER_HOUR);
+
   const PRICE_PER_HOUR =
-    Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
-      ? pricePerHourFromEnv
-      : 100;
+    Number.isFinite(pricePerHourFromUrl) && pricePerHourFromUrl > 0
+      ? pricePerHourFromUrl
+      : Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
+        ? pricePerHourFromEnv
+        : 100;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -352,9 +356,17 @@ export default function RequestPage() {
   const [fallbackMailto, setFallbackMailto] = useState<string | null>(null);
 
   const hours = useMemo(() => {
+    if (
+      hasExperience &&
+      Number.isFinite(experienceDuration) &&
+      experienceDuration > 0
+    ) {
+      return experienceDuration;
+    }
+
     if (!timeFrom || !timeTo) return 0;
     return diffHours(timeFrom, timeTo);
-  }, [timeFrom, timeTo]);
+  }, [hasExperience, experienceDuration, timeFrom, timeTo]);
 
   const ownerAmount = useMemo(() => {
     if (hasExperience && Number.isFinite(experiencePrice) && experiencePrice > 0) {
@@ -696,8 +708,12 @@ export default function RequestPage() {
 
               <div className="price-lines">
                 <div>
-                  <span>{copy.boatRate}</span>
-                  <b>{money(PRICE_PER_HOUR, currency)} / {copy.hour}</b>
+                  <span>{hasExperience ? experienceTitle : copy.boatRate}</span>
+                  <b>
+                    {hasExperience
+                      ? money(ownerAmount, currency)
+                      : `${money(PRICE_PER_HOUR, currency)} / ${copy.hour}`}
+                  </b>
                 </div>
                 <div>
                   <span>{copy.summaryDuration}</span>

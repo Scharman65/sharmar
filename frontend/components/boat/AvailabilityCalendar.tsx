@@ -245,6 +245,25 @@ function buildDurationSlotRange(
   };
 }
 
+function buildExperienceSlotRange(
+  startSlot: AvailabilitySlot | null,
+  durationHours: number | null
+): AvailabilitySlot | null {
+  if (!startSlot || !durationHours || !Number.isFinite(durationHours) || durationHours <= 0) {
+    return startSlot;
+  }
+
+  const startMs = Date.parse(startSlot.slot_start_utc);
+  if (!Number.isFinite(startMs)) return startSlot;
+
+  const end = new Date(startMs + durationHours * 60 * 60 * 1000);
+
+  return {
+    slot_start_utc: startSlot.slot_start_utc,
+    slot_end_utc: end.toISOString(),
+  };
+}
+
 type SelectedExperience = NonNullable<Boat["experiences"]>[number];
 
 function buildRequestHref(
@@ -339,8 +358,9 @@ export function AvailabilityCalendar({
     ? getConsecutiveSlots(activeGroup?.slots ?? [], selectedSlot).length >= selectedExperienceSlotCount
     : durationOptions.some((option) => option.slotCount === selectedDurationSlots && option.enabled);
 
-  const requestSlotRange =
-    buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, effectiveDurationSlots) ?? selectedSlot;
+  const requestSlotRange = selectedExperience
+    ? buildExperienceSlotRange(selectedSlot, Number(selectedExperience.duration_hours))
+    : buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, effectiveDurationSlots) ?? selectedSlot;
   const totalSlots = groups.reduce((sum, group) => sum + group.slots.length, 0);
   const selectedDateLabel = requestSlotRange ? formatDate(requestSlotRange.slot_start_utc, timeZone, lang) : null;
   const selectedTimeLabel = requestSlotRange
