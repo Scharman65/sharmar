@@ -245,7 +245,15 @@ function buildDurationSlotRange(
   };
 }
 
-function buildRequestHref(lang: Lang, boat: Boat, slug: string, slot: AvailabilitySlot): string {
+type SelectedExperience = NonNullable<Boat["experiences"]>[number];
+
+function buildRequestHref(
+  lang: Lang,
+  boat: Boat,
+  slug: string,
+  slot: AvailabilitySlot,
+  experience?: SelectedExperience | null
+): string {
   const params = new URLSearchParams({
     boatId: String(boat.id),
     boatSlug: slug,
@@ -256,6 +264,18 @@ function buildRequestHref(lang: Lang, boat: Boat, slug: string, slot: Availabili
     slot_start_utc: slot.slot_start_utc,
     slot_end_utc: slot.slot_end_utc,
   });
+
+  if (experience?.id) {
+    params.set("experienceId", String(experience.id));
+    if (experience.title) params.set("experienceTitle", experience.title);
+    if (experience.duration_hours !== null && experience.duration_hours !== undefined) {
+      params.set("experienceDuration", String(experience.duration_hours));
+    }
+    if (experience.price !== null && experience.price !== undefined) {
+      params.set("experiencePrice", String(experience.price));
+    }
+    if (experience.currency) params.set("experienceCurrency", experience.currency);
+  }
 
   if (boat.price_per_hour !== null && boat.price_per_hour !== undefined) {
     params.set("pph", String(boat.price_per_hour));
