@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-test('Budva route booking reaches payment page', async ({ page }) => {
+test('Budva route booking shows unavailable slot message when hold rejects route interval', async ({ page }) => {
   await page.goto('/ru/boats/uuuuu-1781974634255');
 
   await page.getByRole('button', { name: /^16:00/i }).click();
@@ -19,5 +19,6 @@ test('Budva route booking reaches payment page', async ({ page }) => {
 
   await page.getByRole('button', { name: /перейти к бронированию/i }).click();
 
-  await expect(page).toHaveURL(/\/ru\/payments\//, { timeout: 15000 });
+  await expect(page.getByText(/Выбранный слот больше недоступен/i)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/INVALID_SLOT|OCCUPIED/i)).toBeVisible();
 });
