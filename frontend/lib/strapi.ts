@@ -259,7 +259,7 @@ export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Bo
     "populate[home_marina][fields][0]=name",
     "populate[home_marina][fields][1]=slug",
     "populate[home_marina][fields][2]=region",
-    "populate[home_marina][fields][3]=country",
+    "populate[purposes][fields][0]=title",
   ];
 
   addExperiencePopulate(qs);
