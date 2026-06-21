@@ -314,17 +314,33 @@ export function AvailabilityCalendar({
     activeGroup?.slots[0] ? slotKey(activeGroup.slots[0]) : null
   );
   const [selectedDurationSlots, setSelectedDurationSlots] = useState(1);
+  const [selectedExperienceId, setSelectedExperienceId] = useState<number | null>(null);
+  const experiences = boat.experiences ?? [];
+  const selectedExperience =
+    selectedExperienceId !== null
+      ? experiences.find((experience) => experience.id === selectedExperienceId) ?? null
+      : null;
   const selectedSlot =
     activeGroup?.slots.find((slot) => slotKey(slot) === selectedSlotKey) ?? activeGroup?.slots[0] ?? null;
+  const selectedExperienceSlotCount =
+    selectedExperience?.duration_hours &&
+    Number.isFinite(Number(selectedExperience.duration_hours)) &&
+    Number(selectedExperience.duration_hours) > 0
+      ? Math.ceil(Number(selectedExperience.duration_hours))
+      : null;
+
+  const effectiveDurationSlots = selectedExperienceSlotCount ?? selectedDurationSlots;
+
   const durationOptions = useMemo(
     () => getValidDurationOptions(activeGroup?.slots ?? [], selectedSlot),
     [activeGroup?.slots, selectedSlot]
   );
-  const selectedDurationIsValid = durationOptions.some(
-    (option) => option.slotCount === selectedDurationSlots && option.enabled
-  );
+  const selectedDurationIsValid = selectedExperienceSlotCount
+    ? getConsecutiveSlots(activeGroup?.slots ?? [], selectedSlot).length >= selectedExperienceSlotCount
+    : durationOptions.some((option) => option.slotCount === selectedDurationSlots && option.enabled);
+
   const requestSlotRange =
-    buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, selectedDurationSlots) ?? selectedSlot;
+    buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, effectiveDurationSlots) ?? selectedSlot;
   const totalSlots = groups.reduce((sum, group) => sum + group.slots.length, 0);
   const selectedDateLabel = requestSlotRange ? formatDate(requestSlotRange.slot_start_utc, timeZone, lang) : null;
   const selectedTimeLabel = requestSlotRange
@@ -338,8 +354,8 @@ export function AvailabilityCalendar({
   const ctaLabel = bookingCtaLabel(requestSlotLabel) || "Request this booking";
 
   useEffect(() => {
-    if (!selectedDurationIsValid) setSelectedDurationSlots(1);
-  }, [selectedDurationIsValid]);
+    if (!selectedExperience && !selectedDurationIsValid) setSelectedDurationSlots(1);
+  }, [selectedDurationIsValid, selectedExperience]);
 
   function selectDate(group: SlotGroup) {
     setSelectedDate(group.key);
@@ -501,7 +517,72 @@ export function AvailabilityCalendar({
                   </div>
                 </div>
 
-                {selectedSlot ? (
+                {experiences.length ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>
+                      {lang === "ru" ? "Тип поездки" : lang === "me" ? "Tip putovanja" : "Trip type"}
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <button
+                        type="button"
+                        aria-pressed={selectedExperienceId === null}
+                        onClick={() => {
+                          setSelectedExperienceId(null);
+                          setSelectedDurationSlots(1);
+                        }}
+                        style={{
+                          borderRadius: 12,
+                          border: selectedExperienceId === null ? "1px solid rgba(255,255,255,0.82)" : "1px solid rgba(255,255,255,0.13)",
+                          background: selectedExperienceId === null ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.055)",
+                          color: "inherit",
+                          padding: "10px 11px",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <strong>{lang === "ru" ? "Аренда по времени" : lang === "me" ? "Najam po vremenu" : "Hourly rental"}</strong>
+                      </button>
+
+                      {experiences.map((experience) => {
+                        const isActive = selectedExperienceId === experience.id;
+                        const duration = Number(experience.duration_hours);
+                        const price = Number(experience.price);
+                        const routeCurrency = experience.currency || boat.currency || "EUR";
+
+                        return (
+                          <button
+                            key={experience.id}
+                            type="button"
+                            aria-pressed={isActive}
+                            onClick={() => setSelectedExperienceId(experience.id)}
+                            style={{
+                              borderRadius: 12,
+                              border: isActive ? "1px solid rgba(255,255,255,0.82)" : "1px solid rgba(255,255,255,0.13)",
+                              background: isActive ? "rgba(37,99,235,0.45)" : "rgba(255,255,255,0.055)",
+                              color: "inherit",
+                              padding: "10px 11px",
+                              cursor: "pointer",
+                              textAlign: "left",
+                              display: "grid",
+                              gap: 4,
+                            }}
+                          >
+                            <strong>{experience.title || "Route"}</strong>
+                            <span style={{ fontSize: 12, opacity: 0.78 }}>
+                              {Number.isFinite(duration) && duration > 0 ? formatDuration(duration, lang) : "—"}
+                              {Number.isFinite(price) && price > 0 ? ` · ${price} ${routeCurrency}` : ""}
+                            </span>
+                            {experience.short_description ? (
+                              <span style={{ fontSize: 12, opacity: 0.68 }}>{experience.short_description}</span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedSlot && !selectedExperience ? (
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>{copy.duration}</div>
                     <div
@@ -577,7 +658,7 @@ export function AvailabilityCalendar({
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <span style={{ opacity: 0.68 }}>{copy.duration}</span>
-                    <strong style={{ textAlign: "right" }}>{formatDuration(selectedDurationSlots, lang)}</strong>
+                    <strong style={{ textAlign: "right" }}>{formatDuration(effectiveDurationSlots, lang)}</strong>
                   </div>
                 </div>
 
@@ -595,7 +676,7 @@ export function AvailabilityCalendar({
                   {requestSlotRange ? (
                     <Link
                       className="button"
-                      href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+                      href={buildRequestHref(lang, boat, slug, requestSlotRange, selectedExperience)}
                       style={{
                         width: "100%",
                         justifyContent: "center",
@@ -624,15 +705,15 @@ export function AvailabilityCalendar({
             <span aria-hidden="true">·</span>
             <span>{selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")}</span>
             <span aria-hidden="true">·</span>
-            <span>{formatDuration(selectedDurationSlots, lang)}</span>
+            <span>{formatDuration(effectiveDurationSlots, lang)}</span>
           </div>
         </div>
         <Link
           className="mobile-booking-link"
-          href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+          href={buildRequestHref(lang, boat, slug, requestSlotRange, selectedExperience)}
           aria-label={`${ctaLabel}: ${selectedDateLabel ?? activeGroup?.dateLabel}, ${
             selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")
-          }, ${formatDuration(selectedDurationSlots, lang)}`}
+          }, ${formatDuration(effectiveDurationSlots, lang)}`}
         >
           {ctaLabel}
         </Link>
