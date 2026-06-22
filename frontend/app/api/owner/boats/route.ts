@@ -332,7 +332,6 @@ export async function POST(req: NextRequest) {
       price_per_hour: p.rentPriceHour ?? null,
       price_per_day: p.rentPriceDay ?? null,
       price_per_week: p.rentPriceWeek ?? null,
-      min_rental_hours: p.minRentalHours ?? 1,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
       ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
