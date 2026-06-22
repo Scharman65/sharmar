@@ -1,4 +1,4 @@
-export const MARKETPLACE_FEE_RATE = 0.15;
+export const MARKETPLACE_FEE_RATE = 0.10;
 
 export type MarketplaceBreakdown = {
   ownerAmount: number;
