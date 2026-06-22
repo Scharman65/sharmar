@@ -1,5 +1,13 @@
 import { BoatForm } from "@/components/boat-form/BoatForm";
+import { fetchLocations } from "@/lib/strapi";
 
-export default function Page() {
-  return <BoatForm mode={{ kind: "sale", boatType: "motor" }} />;
+type PageProps = {
+  params: Promise<{ lang: string }>;
+};
+
+export default async function Page({ params }: PageProps) {
+  const { lang } = await params;
+  const locations = await fetchLocations(lang);
+
+  return <BoatForm mode={{ kind: "sale", boatType: "motor" }} locations={locations} />;
 }

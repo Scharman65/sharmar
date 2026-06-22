@@ -14,8 +14,10 @@ type CreateBoatBody = {
   rentPriceHour?: number | null;
   rentPriceDay?: number | null;
   rentPriceWeek?: number | null;
+  minRentalHours?: number | null;
   salePrice?: number | null;
   ownerPhone?: string;
+  homeMarinaId?: number | null;
   imageIds?: number[];
   ownerEmail?: string;
   currency?: "EUR";
@@ -35,8 +37,10 @@ type ParsedCreateBoatBody = {
   rentPriceHour: number | null;
   rentPriceDay: number | null;
   rentPriceWeek: number | null;
+  minRentalHours: number | null;
   salePrice: number | null;
   ownerPhone?: string;
+  homeMarinaId: number | null;
   imageIds?: number[];
   ownerEmail?: string;
   currency: "EUR";
@@ -168,8 +172,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const rentPriceHour = body.rentPriceHour == null ? null : asNumber(body.rentPriceHour);
   const rentPriceDay = body.rentPriceDay == null ? null : asNumber(body.rentPriceDay);
   const rentPriceWeek = body.rentPriceWeek == null ? null : asNumber(body.rentPriceWeek);
+  const minRentalHours = body.minRentalHours == null ? 1 : asNumber(body.minRentalHours);
   const salePrice = body.salePrice == null ? null : asNumber(body.salePrice);
   const ownerPhone = asString(body.ownerPhone);
+  const homeMarinaId = body.homeMarinaId == null ? null : asNumber(body.homeMarinaId);
   const imageIds = asNumberArray(body.imageIds);
   const ownerEmail = asString(body.ownerEmail);
   const currencyRaw = asString(body.currency);
@@ -205,6 +211,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
     return { ok: false, error: "rentPriceWeek is out of range" };
   }
 
+  if (minRentalHours == null || minRentalHours < 1 || minRentalHours > 24 || !Number.isInteger(minRentalHours)) {
+    return { ok: false, error: "minRentalHours must be an integer from 1 to 24" };
+  }
+
   if (listingType === "sale" && salePrice == null) {
     return { ok: false, error: "salePrice is required for sale listings" };
   }
@@ -215,6 +225,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
 
   if (ownerPhone && ownerPhone.length > 100) {
     return { ok: false, error: "ownerPhone is too long" };
+  }
+
+  if (homeMarinaId != null && (!Number.isInteger(homeMarinaId) || homeMarinaId <= 0)) {
+    return { ok: false, error: "homeMarinaId is invalid" };
   }
 
   if (imageIds.length > 8) {
@@ -244,8 +258,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       rentPriceHour,
       rentPriceDay,
       rentPriceWeek,
+      minRentalHours,
       salePrice,
       ownerPhone: ownerPhone || undefined,
+      homeMarinaId,
       imageIds: imageIds.length > 0 ? imageIds : undefined,
       ownerEmail: ownerEmail || undefined,
       currency,
@@ -318,12 +334,19 @@ export async function POST(req: NextRequest) {
       price_per_week: p.rentPriceWeek ?? null,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
+      ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
       owner_user_id: me.id,
       currency: p.currency ?? "EUR",
       instant_booking: p.listingType === "rent" ? p.instantBooking : false,
       contacts_visible: false,
       publishedAt: null,
       locale: p.locale || "en",
+      ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
+        ? {
+            cover: p.imageIds[0],
+            images: p.imageIds,
+          }
+        : {}),
     },
   };
 
@@ -350,28 +373,6 @@ export async function POST(req: NextRequest) {
   const json = createRes.json;
   const data = isRecord(json) && isRecord(json.data) ? json.data : null;
   const documentId = data && typeof data.documentId === "string" ? data.documentId : null;
-
-  if (documentId) {
-    await strapiFetchJson(
-      `/api/boats/${encodeURIComponent(documentId)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          data: {
-            publishedAt: null,
-                  contacts_visible: false,
-            ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
-              ? {
-                  cover: p.imageIds[0],
-                  images: p.imageIds,
-                }
-              : {}),
-          },
-        }),
-      },
-      serverToken
-    );
-  }
 
   return NextResponse.json(
     {

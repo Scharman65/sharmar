@@ -31,6 +31,7 @@ type RequestPayload = {
   marketplaceFeeAmount?: number;
   customerTotalAmount?: number;
   currency?: string;
+  experienceId?: number;
 
   peopleCount?: number;
   needSkipper?: boolean;
@@ -304,7 +305,15 @@ export default function RequestPage() {
   const boatSlug = sp.get("slug") ?? "";
   const boatTitle = sp.get("title") ?? boatSlug;
 
-  const currency = sp.get("currency") ?? "EUR";
+  const experienceIdFromUrl = Number(sp.get("experienceId"));
+  const experienceTitle = sp.get("experienceTitle") ?? "";
+  const experienceDuration = Number(sp.get("experienceDuration"));
+  const experiencePrice = Number(sp.get("experiencePrice"));
+  const hasExperience =
+    Number.isFinite(experienceIdFromUrl) &&
+    experienceIdFromUrl > 0;
+
+  const currency = sp.get("experienceCurrency") ?? sp.get("currency") ?? "EUR";
   const boatIdFromUrl = Number(sp.get("boatId"));
   const slotStartUtc = sp.get("slot_start_utc") ?? "";
   const slotEndUtc = sp.get("slot_end_utc") ?? "";
@@ -318,11 +327,15 @@ export default function RequestPage() {
     isIsoUtcTimestamp(slotStartUtc) &&
     isIsoUtcTimestamp(slotEndUtc);
 
+  const pricePerHourFromUrl = Number(sp.get("pph"));
   const pricePerHourFromEnv = Number(process.env.NEXT_PUBLIC_PRICE_PER_HOUR);
+
   const PRICE_PER_HOUR =
-    Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
-      ? pricePerHourFromEnv
-      : 100;
+    Number.isFinite(pricePerHourFromUrl) && pricePerHourFromUrl > 0
+      ? pricePerHourFromUrl
+      : Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
+        ? pricePerHourFromEnv
+        : 100;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -343,14 +356,25 @@ export default function RequestPage() {
   const [fallbackMailto, setFallbackMailto] = useState<string | null>(null);
 
   const hours = useMemo(() => {
+    if (
+      hasExperience &&
+      Number.isFinite(experienceDuration) &&
+      experienceDuration > 0
+    ) {
+      return experienceDuration;
+    }
+
     if (!timeFrom || !timeTo) return 0;
     return diffHours(timeFrom, timeTo);
-  }, [timeFrom, timeTo]);
+  }, [hasExperience, experienceDuration, timeFrom, timeTo]);
 
   const ownerAmount = useMemo(() => {
+    if (hasExperience && Number.isFinite(experiencePrice) && experiencePrice > 0) {
+      return experiencePrice;
+    }
     if (!hours) return 0;
     return hours * PRICE_PER_HOUR;
-  }, [hours, PRICE_PER_HOUR]);
+  }, [hasExperience, experiencePrice, hours, PRICE_PER_HOUR]);
 
   const marketplaceFeeAmount = useMemo(() => {
     if (!ownerAmount) return 0;
@@ -418,6 +442,7 @@ export default function RequestPage() {
       marketplaceFeeAmount,
       customerTotalAmount,
       currency,
+      experienceId: hasExperience ? experienceIdFromUrl : undefined,
 
       peopleCount: Number.isFinite(peopleCount) ? peopleCount : 1,
       needSkipper,
@@ -510,10 +535,11 @@ export default function RequestPage() {
 
   const summaryRows = [
     { label: copy.summaryBoat, value: boatTitle || boatSlug || "—" },
+    ...(hasExperience ? [{ label: lang === "ru" ? "Маршрут" : lang === "me" ? "Ruta" : "Route", value: experienceTitle || `#${experienceIdFromUrl}` }] : []),
     { label: copy.summaryDate, value: date || "—" },
     { label: copy.summaryTimeFrom, value: timeFrom || "—" },
     { label: copy.summaryTimeTo, value: timeTo || "—" },
-    { label: copy.summaryDuration, value: hours ? formatDuration(hours) : "—" },
+    { label: copy.summaryDuration, value: hasExperience && Number.isFinite(experienceDuration) && experienceDuration > 0 ? formatDuration(experienceDuration) : hours ? formatDuration(hours) : "—" },
     { label: copy.summaryPeople, value: Number.isFinite(peopleCount) && peopleCount > 0 ? String(peopleCount) : "—" },
     ...(needSkipper ? [{ label: copy.summarySkipper, value: copy.summarySkipperRequested }] : []),
   ];
@@ -682,8 +708,12 @@ export default function RequestPage() {
 
               <div className="price-lines">
                 <div>
-                  <span>{copy.boatRate}</span>
-                  <b>{money(PRICE_PER_HOUR, currency)} / {copy.hour}</b>
+                  <span>{hasExperience ? experienceTitle : copy.boatRate}</span>
+                  <b>
+                    {hasExperience
+                      ? money(ownerAmount, currency)
+                      : `${money(PRICE_PER_HOUR, currency)} / ${copy.hour}`}
+                  </b>
                 </div>
                 <div>
                   <span>{copy.summaryDuration}</span>

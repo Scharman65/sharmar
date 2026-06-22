@@ -35,6 +35,7 @@ export type Boat = {
   price_per_hour?: number | null;
   price_per_day?: number | null;
   price_per_week?: number | null;
+  min_rental_hours?: number | null;
   sale_price?: number | null;
   deposit?: number | null;
   currency?: string | null;
@@ -49,6 +50,8 @@ export type Boat = {
     price?: number | null;
     currency?: string | null;
     short_description?: string | null;
+    cover?: { url: string; alternativeText?: string | null } | null;
+    gallery?: { id: number; url: string; alternativeText?: string | null }[];
   }[];
   verified_listing?: boolean | null;
   featured_listing?: boolean | null;
@@ -156,6 +159,7 @@ function normalizeBoat(item: any): Boat | null {
     price_per_hour: item.price_per_hour ?? null,
     price_per_day: item.price_per_day ?? null,
     price_per_week: item.price_per_week ?? null,
+    min_rental_hours: item.min_rental_hours ?? 1,
     sale_price: item.sale_price ?? null,
     deposit: item.deposit ?? null,
     verified_listing: item.verified_listing ?? false,
@@ -192,6 +196,15 @@ function normalizeBoat(item: any): Boat | null {
             price: e.price ?? null,
             currency: e.currency ?? null,
             short_description: e.short_description ?? null,
+            cover: e.cover ? { url: pickBestMediaUrl(e.cover)!, alternativeText: e.cover.alternativeText ?? null } : null,
+            gallery: Array.isArray(e.gallery)
+              ? e.gallery
+                  .map((i: any) => {
+                    const url = pickBestMediaUrl(i);
+                    return url ? { id: i.id, url, alternativeText: i.alternativeText ?? null } : null;
+                  })
+                  .filter(Boolean)
+              : [],
           }))
       : [],
     isDemo: isDemoBoat(item),
@@ -228,6 +241,12 @@ function addExperiencePopulate(qs: string[]) {
   qs.push("populate[experiences][fields][4]=currency");
   qs.push("populate[experiences][fields][5]=short_description");
   qs.push("populate[experiences][fields][6]=sort_order");
+  qs.push("populate[experiences][populate][cover][fields][0]=url");
+  qs.push("populate[experiences][populate][cover][fields][1]=alternativeText");
+  qs.push("populate[experiences][populate][cover][fields][2]=formats");
+  qs.push("populate[experiences][populate][gallery][fields][0]=url");
+  qs.push("populate[experiences][populate][gallery][fields][1]=alternativeText");
+  qs.push("populate[experiences][populate][gallery][fields][2]=formats");
   qs.push("populate[experiences][filters][is_active][$eq]=true");
   qs.push("populate[experiences][sort][0]=sort_order:asc");
 }
@@ -248,7 +267,16 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
 export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
   const qs: string[] = [
     `filters[slug][$eq]=${encodeURIComponent(slug)}`,
-    "populate=*",
+    "populate[cover][fields][0]=url",
+    "populate[cover][fields][1]=alternativeText",
+    "populate[cover][fields][2]=formats",
+    "populate[images][fields][0]=url",
+    "populate[images][fields][1]=alternativeText",
+    "populate[images][fields][2]=formats",
+    "populate[home_marina][fields][0]=name",
+    "populate[home_marina][fields][1]=slug",
+    "populate[home_marina][fields][2]=region",
+    "populate[purposes][fields][0]=title",
   ];
 
   addExperiencePopulate(qs);

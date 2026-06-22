@@ -245,7 +245,34 @@ function buildDurationSlotRange(
   };
 }
 
-function buildRequestHref(lang: Lang, boat: Boat, slug: string, slot: AvailabilitySlot): string {
+function buildExperienceSlotRange(
+  startSlot: AvailabilitySlot | null,
+  durationHours: number | null
+): AvailabilitySlot | null {
+  if (!startSlot || !durationHours || !Number.isFinite(durationHours) || durationHours <= 0) {
+    return startSlot;
+  }
+
+  const startMs = Date.parse(startSlot.slot_start_utc);
+  if (!Number.isFinite(startMs)) return startSlot;
+
+  const end = new Date(startMs + durationHours * 60 * 60 * 1000);
+
+  return {
+    slot_start_utc: startSlot.slot_start_utc,
+    slot_end_utc: end.toISOString(),
+  };
+}
+
+type SelectedExperience = NonNullable<Boat["experiences"]>[number];
+
+function buildRequestHref(
+  lang: Lang,
+  boat: Boat,
+  slug: string,
+  slot: AvailabilitySlot,
+  experience?: SelectedExperience | null
+): string {
   const params = new URLSearchParams({
     boatId: String(boat.id),
     boatSlug: slug,
@@ -256,6 +283,18 @@ function buildRequestHref(lang: Lang, boat: Boat, slug: string, slot: Availabili
     slot_start_utc: slot.slot_start_utc,
     slot_end_utc: slot.slot_end_utc,
   });
+
+  if (experience?.id) {
+    params.set("experienceId", String(experience.id));
+    if (experience.title) params.set("experienceTitle", experience.title);
+    if (experience.duration_hours !== null && experience.duration_hours !== undefined) {
+      params.set("experienceDuration", String(experience.duration_hours));
+    }
+    if (experience.price !== null && experience.price !== undefined) {
+      params.set("experiencePrice", String(experience.price));
+    }
+    if (experience.currency) params.set("experienceCurrency", experience.currency);
+  }
 
   if (boat.price_per_hour !== null && boat.price_per_hour !== undefined) {
     params.set("pph", String(boat.price_per_hour));
@@ -294,17 +333,34 @@ export function AvailabilityCalendar({
     activeGroup?.slots[0] ? slotKey(activeGroup.slots[0]) : null
   );
   const [selectedDurationSlots, setSelectedDurationSlots] = useState(1);
+  const [selectedExperienceId, setSelectedExperienceId] = useState<number | null>(null);
+  const experiences = boat.experiences ?? [];
+  const selectedExperience =
+    selectedExperienceId !== null
+      ? experiences.find((experience) => experience.id === selectedExperienceId) ?? null
+      : null;
   const selectedSlot =
     activeGroup?.slots.find((slot) => slotKey(slot) === selectedSlotKey) ?? activeGroup?.slots[0] ?? null;
+  const selectedExperienceSlotCount =
+    selectedExperience?.duration_hours &&
+    Number.isFinite(Number(selectedExperience.duration_hours)) &&
+    Number(selectedExperience.duration_hours) > 0
+      ? Math.ceil(Number(selectedExperience.duration_hours))
+      : null;
+
+  const effectiveDurationSlots = selectedExperienceSlotCount ?? selectedDurationSlots;
+
   const durationOptions = useMemo(
     () => getValidDurationOptions(activeGroup?.slots ?? [], selectedSlot),
     [activeGroup?.slots, selectedSlot]
   );
-  const selectedDurationIsValid = durationOptions.some(
-    (option) => option.slotCount === selectedDurationSlots && option.enabled
-  );
-  const requestSlotRange =
-    buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, selectedDurationSlots) ?? selectedSlot;
+  const selectedDurationIsValid = selectedExperienceSlotCount
+    ? getConsecutiveSlots(activeGroup?.slots ?? [], selectedSlot).length >= selectedExperienceSlotCount
+    : durationOptions.some((option) => option.slotCount === selectedDurationSlots && option.enabled);
+
+  const requestSlotRange = selectedExperience
+    ? buildExperienceSlotRange(selectedSlot, Number(selectedExperience.duration_hours))
+    : buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, effectiveDurationSlots) ?? selectedSlot;
   const totalSlots = groups.reduce((sum, group) => sum + group.slots.length, 0);
   const selectedDateLabel = requestSlotRange ? formatDate(requestSlotRange.slot_start_utc, timeZone, lang) : null;
   const selectedTimeLabel = requestSlotRange
@@ -318,8 +374,8 @@ export function AvailabilityCalendar({
   const ctaLabel = bookingCtaLabel(requestSlotLabel) || "Request this booking";
 
   useEffect(() => {
-    if (!selectedDurationIsValid) setSelectedDurationSlots(1);
-  }, [selectedDurationIsValid]);
+    if (!selectedExperience && !selectedDurationIsValid) setSelectedDurationSlots(1);
+  }, [selectedDurationIsValid, selectedExperience]);
 
   function selectDate(group: SlotGroup) {
     setSelectedDate(group.key);
@@ -481,7 +537,86 @@ export function AvailabilityCalendar({
                   </div>
                 </div>
 
-                {selectedSlot ? (
+                {experiences.length ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>
+                      {lang === "ru" ? "Тип поездки" : lang === "me" ? "Tip putovanja" : "Trip type"}
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <button
+                        type="button"
+                        aria-pressed={selectedExperienceId === null}
+                        onClick={() => {
+                          setSelectedExperienceId(null);
+                          setSelectedDurationSlots(1);
+                        }}
+                        style={{
+                          borderRadius: 12,
+                          border: selectedExperienceId === null ? "1px solid rgba(255,255,255,0.82)" : "1px solid rgba(255,255,255,0.13)",
+                          background: selectedExperienceId === null ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.055)",
+                          color: "inherit",
+                          padding: "10px 11px",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <strong>{lang === "ru" ? "Аренда по времени" : lang === "me" ? "Najam po vremenu" : "Hourly rental"}</strong>
+                      </button>
+
+                      {experiences.map((experience) => {
+                        const isActive = selectedExperienceId === experience.id;
+                        const duration = Number(experience.duration_hours);
+                        const price = Number(experience.price);
+                        const routeCurrency = experience.currency || boat.currency || "EUR";
+
+                        return (
+                          <button
+                            key={experience.id}
+                            type="button"
+                            aria-pressed={isActive}
+                            onClick={() => setSelectedExperienceId(experience.id)}
+                            style={{
+                              borderRadius: 12,
+                              border: isActive ? "1px solid rgba(255,255,255,0.82)" : "1px solid rgba(255,255,255,0.13)",
+                              background: isActive ? "rgba(37,99,235,0.45)" : "rgba(255,255,255,0.055)",
+                              color: "inherit",
+                              padding: "10px 11px",
+                              cursor: "pointer",
+                              textAlign: "left",
+                              display: "grid",
+                              gap: 4,
+                            }}
+                          >
+                            {experience.cover?.url ? (
+                              <img
+                                src={experience.cover.url}
+                                alt={experience.cover.alternativeText || experience.title || "Route"}
+                                style={{
+                                  width: "100%",
+                                  height: 96,
+                                  objectFit: "cover",
+                                  borderRadius: 10,
+                                  marginBottom: 4,
+                                  background: "rgba(255,255,255,0.08)",
+                                }}
+                              />
+                            ) : null}
+                            <strong>{experience.title || "Route"}</strong>
+                            <span style={{ fontSize: 12, opacity: 0.78 }}>
+                              {Number.isFinite(duration) && duration > 0 ? formatDuration(duration, lang) : "—"}
+                              {Number.isFinite(price) && price > 0 ? ` · ${price} ${routeCurrency}` : ""}
+                            </span>
+                            {experience.short_description ? (
+                              <span style={{ fontSize: 12, opacity: 0.68 }}>{experience.short_description}</span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedSlot && !selectedExperience ? (
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>{copy.duration}</div>
                     <div
@@ -557,7 +692,7 @@ export function AvailabilityCalendar({
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <span style={{ opacity: 0.68 }}>{copy.duration}</span>
-                    <strong style={{ textAlign: "right" }}>{formatDuration(selectedDurationSlots, lang)}</strong>
+                    <strong style={{ textAlign: "right" }}>{formatDuration(effectiveDurationSlots, lang)}</strong>
                   </div>
                 </div>
 
@@ -575,7 +710,7 @@ export function AvailabilityCalendar({
                   {requestSlotRange ? (
                     <Link
                       className="button"
-                      href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+                      href={buildRequestHref(lang, boat, slug, requestSlotRange, selectedExperience)}
                       style={{
                         width: "100%",
                         justifyContent: "center",
@@ -604,15 +739,15 @@ export function AvailabilityCalendar({
             <span aria-hidden="true">·</span>
             <span>{selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")}</span>
             <span aria-hidden="true">·</span>
-            <span>{formatDuration(selectedDurationSlots, lang)}</span>
+            <span>{formatDuration(effectiveDurationSlots, lang)}</span>
           </div>
         </div>
         <Link
           className="mobile-booking-link"
-          href={buildRequestHref(lang, boat, slug, requestSlotRange)}
+          href={buildRequestHref(lang, boat, slug, requestSlotRange, selectedExperience)}
           aria-label={`${ctaLabel}: ${selectedDateLabel ?? activeGroup?.dateLabel}, ${
             selectedTimeLabel ?? (selectedSlot ? formatSlotTime(selectedSlot, timeZone, lang) : "-")
-          }, ${formatDuration(selectedDurationSlots, lang)}`}
+          }, ${formatDuration(effectiveDurationSlots, lang)}`}
         >
           {ctaLabel}
         </Link>

@@ -319,6 +319,22 @@ export default async function BoatPage({ params }: Props) {
           }
 
           if (listing === "rent") {
+            const minRentalHours = Number((boat as any).min_rental_hours ?? 1);
+            add(
+              lang === "ru" ? "Почасовая аренда" : lang === "me" ? "Najam po satu" : "Hourly rental",
+              Number.isFinite(minRentalHours) && minRentalHours > 1 ? minRentalHours : 1,
+              (x) => {
+                const hours = Number(x);
+                if (!Number.isFinite(hours) || hours <= 1) {
+                  return lang === "ru" ? "от 1 часа" : lang === "me" ? "od 1 sata" : "from 1 hour";
+                }
+                return lang === "ru"
+                  ? `от ${hours} часов`
+                  : lang === "me"
+                    ? `od ${hours} sata`
+                    : `from ${hours} hours`;
+              }
+            );
             add(pageCopy(lang).priceHour, applyMarketplaceFee((boat as any).price_per_hour), fmtMoney);
             add(pageCopy(lang).priceDay, applyMarketplaceFee((boat as any).price_per_day), fmtMoney);
             add(pageCopy(lang).priceWeek, applyMarketplaceFee((boat as any).price_per_week), fmtMoney);
