@@ -85,7 +85,6 @@ export default {
             or boats.updated_at >= now() - interval '30 days'
           )
           and lower(coalesce(boats.title,'')) not like '%test%'
-          and lower(coalesce(boats.title,'')) not like '%demo%'
           and lower(coalesce(boats.title,'')) not like '%draft%'
         order by
           boats.published_at desc nulls last,
