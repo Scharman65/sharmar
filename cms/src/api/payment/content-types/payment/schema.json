@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "payments",
+  "info": {
+    "singularName": "payment",
+    "pluralName": "payments",
+    "displayName": "Payment",
+    "description": "Read-only in admin for marketplace payments; controlled by backend endpoints"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "provider": {
+      "type": "string",
+      "required": true
+    },
+    "provider_intent_id": {
+      "type": "string"
+    },
+    "amount_cents": {
+      "type": "integer",
+      "required": true
+    },
+    "currency": {
+      "type": "string",
+      "required": true
+    },
+    "status": {
+      "type": "string",
+      "required": true
+    },
+    "booking_request_id": {
+      "type": "integer",
+      "required": true
+    },
+    "booking_id": {
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "required": true
+    },
+    "metadata": {
+      "type": "json",
+      "default": {}
+    }
+  }
+}
