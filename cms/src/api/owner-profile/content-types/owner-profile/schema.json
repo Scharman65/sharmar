@@ -1,0 +1,126 @@
+{
+  "kind": "collectionType",
+  "collectionName": "owner_profiles",
+  "info": {
+    "singularName": "owner-profile",
+    "pluralName": "owner-profiles",
+    "displayName": "Owner Profile",
+    "description": "Boat owner verification profile"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": false
+    }
+  },
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "first_name": {
+      "type": "string",
+      "required": true
+    },
+    "last_name": {
+      "type": "string",
+      "required": true
+    },
+    "phone": {
+      "type": "string",
+      "required": false
+    },
+    "whatsapp_number": {
+      "type": "string",
+      "required": true
+    },
+    "country": {
+      "type": "string",
+      "required": false
+    },
+    "preferred_language": {
+      "type": "enumeration",
+      "enum": [
+        "en",
+        "ru",
+        "me"
+      ],
+      "default": "en",
+      "required": true
+    },
+    "email_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "whatsapp_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "verification_status": {
+      "type": "enumeration",
+      "enum": [
+        "new",
+        "email_verified",
+        "whatsapp_verified",
+        "documents_uploaded",
+        "under_review",
+        "approved",
+        "rejected",
+        "blocked"
+      ],
+      "default": "new",
+      "required": true
+    },
+    "documents_uploaded_at": {
+      "type": "datetime",
+      "required": false
+    },
+    "verified_at": {
+      "type": "datetime",
+      "required": false
+    },
+    "rejected_at": {
+      "type": "datetime",
+      "required": false
+    },
+    "rejection_reason": {
+      "type": "text",
+      "required": false
+    },
+    "notes": {
+      "type": "text",
+      "required": false,
+      "private": true
+    },
+    "passport_document": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files"
+      ],
+      "required": false
+    },
+    "identity_document": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files"
+      ],
+      "required": false
+    },
+    "license_document": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files"
+      ],
+      "required": false
+    }
+  }
+}

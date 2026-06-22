@@ -453,6 +453,7 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
         'Speedboat',
         'Sailboat',
         'Yacht',
+        'Superyacht',
         'Catamaran',
         'Fishing boat',
         'Jet ski',
@@ -493,6 +494,13 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
         },
         number
       >;
+    contacts_visible: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
     cover: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -509,6 +517,7 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
         };
       }> &
       Schema.Attribute.DefaultTo<'EUR'>;
+    deposit: Schema.Attribute.Decimal;
     description: Schema.Attribute.RichText &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -521,12 +530,23 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
           localized: false;
         };
       }>;
+    experiences: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::experience.experience'
+    >;
     extras: Schema.Attribute.Relation<'manyToMany', 'api::extra.extra'> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: false;
         };
       }>;
+    featured_listing: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
     home_marina: Schema.Attribute.Relation<
       'manyToOne',
       'api::location.location'
@@ -542,6 +562,13 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
           localized: false;
         };
       }>;
+    instant_booking: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<true>;
     length_m: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
@@ -555,8 +582,60 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
         };
       }> &
       Schema.Attribute.DefaultTo<false>;
+    listing_type: Schema.Attribute.Enumeration<['rent', 'sale']> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<'rent'>;
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::boat.boat'>;
+    min_rental_hours: Schema.Attribute.Integer &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 24;
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    owner_phone: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    owner_user_id: Schema.Attribute.Integer &
+      Schema.Attribute.Private &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    owner_viber: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    owner_whatsapp: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    price_per_day: Schema.Attribute.Decimal;
+    price_per_hour: Schema.Attribute.Decimal;
+    price_per_week: Schema.Attribute.Decimal;
     publishedAt: Schema.Attribute.DateTime;
     purposes: Schema.Attribute.Relation<'manyToMany', 'api::purpose.purpose'> &
       Schema.Attribute.SetPluginOptions<{
@@ -568,6 +647,18 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::rate-plan.rate-plan'
     > &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    reviewed_at: Schema.Attribute.DateTime &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
+    sale_price: Schema.Attribute.Decimal &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: false;
@@ -609,12 +700,32 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    verified_listing: Schema.Attribute.Boolean &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.DefaultTo<false>;
     vesselType: Schema.Attribute.Enumeration<['motorboat', 'sailboat']> &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: false;
         };
       }>;
+    year: Schema.Attribute.Integer &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 2100;
+          min: 1900;
+        },
+        number
+      >;
   };
 }
 
@@ -627,15 +738,31 @@ export interface ApiBookingRequestBookingRequest
     singularName: 'booking-request';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
+    admin_note: Schema.Attribute.Text & Schema.Attribute.Private;
+    approved_at: Schema.Attribute.DateTime;
     boat: Schema.Attribute.Relation<'manyToOne', 'api::boat.boat'>;
+    contact_method: Schema.Attribute.Enumeration<
+      ['phone', 'whatsapp', 'viber', 'email']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'phone'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    currency: Schema.Attribute.String;
+    customer_total_amount: Schema.Attribute.Decimal;
+    decided_at: Schema.Attribute.DateTime;
+    decision_note: Schema.Attribute.Text;
     email: Schema.Attribute.Email;
     end_datetime: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    experience: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::experience.experience'
+    >;
+    fingerprint: Schema.Attribute.String;
     full_name: Schema.Attribute.String & Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -643,8 +770,10 @@ export interface ApiBookingRequestBookingRequest
       'api::booking-request.booking-request'
     > &
       Schema.Attribute.Private;
+    marketplace_fee_amount: Schema.Attribute.Decimal;
     need_skipper: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     notes: Schema.Attribute.Text;
+    owner_amount: Schema.Attribute.Decimal;
     people_count: Schema.Attribute.Integer &
       Schema.Attribute.SetMinMax<
         {
@@ -654,14 +783,28 @@ export interface ApiBookingRequestBookingRequest
       > &
       Schema.Attribute.DefaultTo<1>;
     phone: Schema.Attribute.String & Schema.Attribute.Required;
+    public_token: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
+    source_ip: Schema.Attribute.String;
+    spam_score: Schema.Attribute.Integer;
     start_datetime: Schema.Attribute.DateTime & Schema.Attribute.Required;
-    status: Schema.Attribute.Enumeration<['new', 'confirmed', 'declined']> &
+    status: Schema.Attribute.Enumeration<
+      [
+        'new',
+        'pending',
+        'paid_pending_owner',
+        'approved',
+        'confirmed',
+        'declined',
+      ]
+    > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'new'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    user_agent: Schema.Attribute.Text;
+    viewed_at: Schema.Attribute.DateTime;
   };
 }
 
@@ -711,6 +854,81 @@ export interface ApiBrandBrand extends Struct.CollectionTypeSchema {
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: false;
+        };
+      }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiExperienceExperience extends Struct.CollectionTypeSchema {
+  collectionName: 'experiences';
+  info: {
+    description: 'Individual boat route or experience offered by owner';
+    displayName: 'Experience';
+    pluralName: 'experiences';
+    singularName: 'experience';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    boat: Schema.Attribute.Relation<'manyToOne', 'api::boat.boat'>;
+    cover: Schema.Attribute.Media<'images'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    currency: Schema.Attribute.Enumeration<['EUR']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'EUR'>;
+    duration_hours: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    full_description: Schema.Attribute.RichText &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    gallery: Schema.Attribute.Media<'images', true>;
+    included_services: Schema.Attribute.Text &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::experience.experience'
+    >;
+    max_guests: Schema.Attribute.Integer;
+    meeting_point: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    price: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    short_description: Schema.Attribute.Text &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    slug: Schema.Attribute.UID<'title'> & Schema.Attribute.Required;
+    sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<100>;
+    title: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
         };
       }>;
     updatedAt: Schema.Attribute.DateTime;
@@ -859,6 +1077,115 @@ export interface ApiLocationLocation extends Struct.CollectionTypeSchema {
           localized: false;
         };
       }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiOwnerProfileOwnerProfile
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'owner_profiles';
+  info: {
+    description: 'Boat owner verification profile';
+    displayName: 'Owner Profile';
+    pluralName: 'owner-profiles';
+    singularName: 'owner-profile';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: false;
+    };
+  };
+  attributes: {
+    country: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    documents_uploaded_at: Schema.Attribute.DateTime;
+    email_verified: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    first_name: Schema.Attribute.String & Schema.Attribute.Required;
+    identity_document: Schema.Attribute.Media<'images' | 'files'>;
+    last_name: Schema.Attribute.String & Schema.Attribute.Required;
+    license_document: Schema.Attribute.Media<'images' | 'files'>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::owner-profile.owner-profile'
+    > &
+      Schema.Attribute.Private;
+    notes: Schema.Attribute.Text & Schema.Attribute.Private;
+    passport_document: Schema.Attribute.Media<'images' | 'files'>;
+    phone: Schema.Attribute.String;
+    preferred_language: Schema.Attribute.Enumeration<['en', 'ru', 'me']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'en'>;
+    publishedAt: Schema.Attribute.DateTime;
+    rejected_at: Schema.Attribute.DateTime;
+    rejection_reason: Schema.Attribute.Text;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    verification_status: Schema.Attribute.Enumeration<
+      [
+        'new',
+        'email_verified',
+        'whatsapp_verified',
+        'documents_uploaded',
+        'under_review',
+        'approved',
+        'rejected',
+        'blocked',
+      ]
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'new'>;
+    verified_at: Schema.Attribute.DateTime;
+    whatsapp_number: Schema.Attribute.String & Schema.Attribute.Required;
+    whatsapp_verified: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+  };
+}
+
+export interface ApiPaymentPayment extends Struct.CollectionTypeSchema {
+  collectionName: 'payments';
+  info: {
+    description: 'Read-only in admin for marketplace payments; controlled by backend endpoints';
+    displayName: 'Payment';
+    pluralName: 'payments';
+    singularName: 'payment';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    amount_cents: Schema.Attribute.Integer & Schema.Attribute.Required;
+    booking_id: Schema.Attribute.Integer;
+    booking_request_id: Schema.Attribute.Integer & Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    currency: Schema.Attribute.String & Schema.Attribute.Required;
+    idempotency_key: Schema.Attribute.String & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::payment.payment'
+    > &
+      Schema.Attribute.Private;
+    metadata: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<{}>;
+    provider: Schema.Attribute.String & Schema.Attribute.Required;
+    provider_intent_id: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    status: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1470,8 +1797,11 @@ declare module '@strapi/strapi' {
       'api::boat.boat': ApiBoatBoat;
       'api::booking-request.booking-request': ApiBookingRequestBookingRequest;
       'api::brand.brand': ApiBrandBrand;
+      'api::experience.experience': ApiExperienceExperience;
       'api::extra.extra': ApiExtraExtra;
       'api::location.location': ApiLocationLocation;
+      'api::owner-profile.owner-profile': ApiOwnerProfileOwnerProfile;
+      'api::payment.payment': ApiPaymentPayment;
       'api::purpose.purpose': ApiPurposePurpose;
       'api::rate-plan.rate-plan': ApiRatePlanRatePlan;
       'plugin::content-releases.release': PluginContentReleasesRelease;

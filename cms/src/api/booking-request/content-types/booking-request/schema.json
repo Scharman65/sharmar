@@ -45,6 +45,9 @@
       "type": "enumeration",
       "enum": [
         "new",
+        "pending",
+        "paid_pending_owner",
+        "approved",
         "confirmed",
         "declined"
       ],
@@ -71,6 +74,50 @@
     "admin_note": {
       "type": "text",
       "private": true
+    },
+    "viewed_at": {
+      "type": "datetime"
+    },
+    "decided_at": {
+      "type": "datetime"
+    },
+    "approved_at": {
+      "type": "datetime"
+    },
+    "decision_note": {
+      "type": "text"
+    },
+    "public_token": {
+      "type": "string"
+    },
+    "source_ip": {
+      "type": "string"
+    },
+    "user_agent": {
+      "type": "text"
+    },
+    "fingerprint": {
+      "type": "string"
+    },
+    "spam_score": {
+      "type": "integer"
+    },
+    "owner_amount": {
+      "type": "decimal"
+    },
+    "marketplace_fee_amount": {
+      "type": "decimal"
+    },
+    "customer_total_amount": {
+      "type": "decimal"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "experience": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::experience.experience"
     }
   }
 }
