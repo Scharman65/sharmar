@@ -289,6 +289,7 @@ type OwnerExperience = {
   is_active?: boolean | null;
   boat?: {
     id?: number | null;
+    documentId?: string | null;
     title?: string | null;
     slug?: string | null;
   } | null;
@@ -958,6 +959,7 @@ export default function OwnerDashboardClient() {
       }));
 
       await refreshDashboard();
+      setEditingBoatDocumentId(null);
     } catch (e) {
       setBoatEditError((prev) => ({
         ...prev,
