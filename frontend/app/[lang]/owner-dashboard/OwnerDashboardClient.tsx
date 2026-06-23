@@ -669,7 +669,7 @@ export default function OwnerDashboardClient() {
   const [blackoutBusy, setBlackoutBusy] = useState<Record<number, boolean>>({});
   const [blackoutForm, setBlackoutForm] = useState<Record<number, BlackoutFormState>>({});
 
-  const [boatExperiences, setBoatExperiences] = useState<Record<number, OwnerExperience[]>>({});
+  const [boatExperiences, setBoatExperiences] = useState<Record<string, OwnerExperience[]>>({});
   const [experienceLoading, setExperienceLoading] = useState(false);
   const [experienceError, setExperienceError] = useState<string | null>(null);
   const [experienceBusy, setExperienceBusy] = useState<Record<number, boolean>>({});
@@ -879,9 +879,16 @@ export default function OwnerDashboardClient() {
     };
   }
 
-  function getExperienceBoatId(experience: OwnerExperience): number | null {
+  function getExperienceBoatKey(experience: OwnerExperience): string | null {
+    const documentId = experience.boat?.documentId;
+    if (typeof documentId === "string" && documentId.trim()) return documentId.trim();
+
     const id = experience.boat?.id;
-    return typeof id === "number" && Number.isFinite(id) ? id : null;
+    return typeof id === "number" && Number.isFinite(id) ? String(id) : null;
+  }
+
+  function getBoatExperienceKey(boat: OwnerBoat): string {
+    return boat.documentId || String(boat.id || "");
   }
 
   function formatOwnerExperiencePrice(value: unknown): string {
@@ -1044,12 +1051,12 @@ export default function OwnerDashboardClient() {
       }
 
       const rows: OwnerExperience[] = Array.isArray(json?.experiences) ? json.experiences : [];
-      const grouped: Record<number, OwnerExperience[]> = {};
+      const grouped: Record<string, OwnerExperience[]> = {};
 
       rows.forEach((experience) => {
-        const boatId = getExperienceBoatId(experience);
-        if (!boatId) return;
-        grouped[boatId] = [...(grouped[boatId] || []), experience];
+        const boatKey = getExperienceBoatKey(experience);
+        if (!boatKey) return;
+        grouped[boatKey] = [...(grouped[boatKey] || []), experience];
       });
 
       setBoatExperiences(grouped);
@@ -1731,7 +1738,7 @@ useEffect(() => {
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                               <strong>{lang === "ru" ? "Маршруты владельца" : lang === "me" ? "Rute vlasnika" : "Owner routes"}</strong>
                               <span className="kicker" style={{ margin: 0 }}>
-                                {(boatExperiences[Number(boat.id)] || []).length}/3
+                                {(boatExperiences[getBoatExperienceKey(boat)] || []).length}/3
                               </span>
                             </div>
 
@@ -1747,9 +1754,9 @@ useEffect(() => {
                               </p>
                             ) : null}
 
-                            {(boatExperiences[Number(boat.id)] || []).length ? (
+                            {(boatExperiences[getBoatExperienceKey(boat)] || []).length ? (
                               <div style={{ display: "grid", gap: 8 }}>
-                                {(boatExperiences[Number(boat.id)] || []).map((experience) => {
+                                {(boatExperiences[getBoatExperienceKey(boat)] || []).map((experience) => {
                                   const ownerPrice = Number(experience.price);
                                   const customerPrice = applyMarketplaceFee(ownerPrice);
 
@@ -1801,7 +1808,7 @@ useEffect(() => {
                               </p>
                             )}
 
-                            {(boatExperiences[Number(boat.id)] || []).length < 3 ? (
+                            {(boatExperiences[getBoatExperienceKey(boat)] || []).length < 3 ? (
                               <div style={{ display: "grid", gap: 10 }}>
                                 <input
                                   type="text"

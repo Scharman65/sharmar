@@ -70,6 +70,20 @@ function isRecord(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null;
 }
 
+function extractNumberId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+}
+
+
 function getBearerToken(req: NextRequest): string | null {
   const h = req.headers.get("authorization") || req.headers.get("Authorization");
   if (h) {
@@ -268,6 +282,82 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       locale,
       instantBooking,
     },
+  };
+}
+
+
+function collectMediaId(value: unknown): number | null {
+  if (!isRecord(value)) return null;
+
+  const directId = extractNumberId(value.id);
+  if (directId !== null) return directId;
+
+  const data = value.data;
+  if (isRecord(data)) {
+    return extractNumberId(data.id);
+  }
+
+  return null;
+}
+
+function collectMediaIds(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value.map(collectMediaId).filter((id): id is number => id !== null);
+  }
+
+  if (isRecord(value) && Array.isArray(value.data)) {
+    return value.data.map(collectMediaId).filter((id): id is number => id !== null);
+  }
+
+  return [];
+}
+
+function uniqueNumberArray(values: number[]): number[] {
+  return Array.from(new Set(values.filter((value) => Number.isInteger(value) && value > 0)));
+}
+
+async function fetchBoatMediaIdsByDocumentId(documentId: string, serverToken: string): Promise<{
+  coverId: number | null;
+  imageIds: number[];
+}> {
+  const baseQs = [
+    `filters[documentId][$eq]=${encodeURIComponent(documentId)}`,
+    "locale=all",
+    "populate[cover][fields][0]=id",
+    "populate[images][fields][0]=id",
+    "pagination[pageSize]=50",
+  ];
+
+  const queryVariants = [
+    [...baseQs, "status=draft"],
+    [...baseQs, "status=published"],
+    baseQs,
+    [...baseQs, "publicationState=preview"],
+  ];
+
+  const coverIds: number[] = [];
+  const imageIds: number[] = [];
+
+  for (const qs of queryVariants) {
+    const res = await strapiFetchJson(`/api/boats?${qs.join("&")}`, { method: "GET" }, serverToken);
+    if (!res.ok || !isRecord(res.json) || !Array.isArray(res.json.data)) continue;
+
+    for (const item of res.json.data) {
+      if (!isRecord(item)) continue;
+
+      const coverId = collectMediaId(item.cover);
+      if (coverId !== null) coverIds.push(coverId);
+
+      imageIds.push(...collectMediaIds(item.images));
+    }
+  }
+
+  const uniqueImages = uniqueNumberArray(imageIds);
+  const coverId = uniqueNumberArray(coverIds)[0] ?? uniqueImages[0] ?? null;
+
+  return {
+    coverId,
+    imageIds: uniqueImages,
   };
 }
 
@@ -473,6 +563,22 @@ export async function PATCH(req: NextRequest) {
 
   const p = parsed.data;
 
+  const requestedImageIds = Array.isArray(p.imageIds) && p.imageIds.length > 0 ? p.imageIds : null;
+  const existingMedia = requestedImageIds ? null : await fetchBoatMediaIdsByDocumentId(documentId, serverToken);
+  const mediaUpdate: JsonObject = {};
+
+  if (requestedImageIds) {
+    mediaUpdate.cover = requestedImageIds[0];
+    mediaUpdate.images = requestedImageIds;
+  } else if (existingMedia) {
+    if (existingMedia.coverId !== null) {
+      mediaUpdate.cover = existingMedia.coverId;
+    }
+    if (existingMedia.imageIds.length > 0) {
+      mediaUpdate.images = existingMedia.imageIds;
+    }
+  }
+
   const updatePayload = {
     data: {
       title: p.title,
@@ -494,12 +600,7 @@ export async function PATCH(req: NextRequest) {
       currency: p.currency ?? "EUR",
       instant_booking: p.listingType === "rent" ? p.instantBooking : false,
       publishedAt: null,
-      ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
-        ? {
-            cover: p.imageIds[0],
-            images: p.imageIds,
-          }
-        : {}),
+      ...mediaUpdate,
     },
   };
 

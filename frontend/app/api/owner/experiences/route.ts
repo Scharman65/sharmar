@@ -299,12 +299,17 @@ export async function GET(req: NextRequest) {
   }
 
   const allBoats = isRecord(boatsRes.json) && Array.isArray(boatsRes.json.boats) ? boatsRes.json.boats : [];
-  const ownerBoatIds = allBoats
-    .filter((boat) => isRecord(boat) && getBoatOwnerId(boat) === ownerRes.owner.id)
-    .map((boat) => extractNumberId((boat as JsonObject).id))
+  const ownerBoats = allBoats.filter((boat) => isRecord(boat) && getBoatOwnerId(boat) === ownerRes.owner.id) as JsonObject[];
+
+  const ownerBoatDocumentIds = ownerBoats
+    .map((boat) => (typeof boat.documentId === "string" && boat.documentId.trim() ? boat.documentId.trim() : null))
+    .filter((documentId): documentId is string => documentId !== null);
+
+  const ownerBoatIds = ownerBoats
+    .map((boat) => extractNumberId(boat.id))
     .filter((id): id is number => id !== null);
 
-  if (!ownerBoatIds.length) {
+  if (!ownerBoatDocumentIds.length && !ownerBoatIds.length) {
     return NextResponse.json(
       { ok: true, experiences: [] },
       { status: 200, headers: { "cache-control": "no-store" } }
@@ -315,12 +320,20 @@ export async function GET(req: NextRequest) {
   qs.set("pagination[pageSize]", "100");
   qs.append("sort[0]", "sort_order:asc");
   qs.append("sort[1]", "createdAt:desc");
-  ownerBoatIds.forEach((id, index) => {
-    qs.append(`filters[boat][id][$in][${index}]`, String(id));
-  });
+
+  if (ownerBoatDocumentIds.length) {
+    ownerBoatDocumentIds.forEach((documentId, index) => {
+      qs.append(`filters[boat][documentId][$in][${index}]`, documentId);
+    });
+  } else {
+    ownerBoatIds.forEach((id, index) => {
+      qs.append(`filters[boat][id][$in][${index}]`, String(id));
+    });
+  }
   qs.append("populate[boat][fields][0]", "id");
-  qs.append("populate[boat][fields][1]", "title");
-  qs.append("populate[boat][fields][2]", "slug");
+  qs.append("populate[boat][fields][1]", "documentId");
+  qs.append("populate[boat][fields][2]", "title");
+  qs.append("populate[boat][fields][3]", "slug");
 
   const experiencesRes = await strapiJson(`/api/experiences?${qs.toString()}`, { method: "GET" }, serverToken);
 
