@@ -392,3 +392,156 @@ export async function POST(req: NextRequest) {
     { status: 201, headers: { "cache-control": "no-store" } }
   );
 }
+
+export async function PATCH(req: NextRequest) {
+  const userJwt = getBearerToken(req);
+  if (!userJwt) {
+    return NextResponse.json(
+      { ok: false, error: "Missing Authorization Bearer token" },
+      { status: 401, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const serverToken = getServerToken();
+  if (!serverToken) {
+    return NextResponse.json(
+      { ok: false, error: "Server STRAPI_TOKEN is not configured" },
+      { status: 500, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Invalid JSON" },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  if (!isRecord(body) || typeof body.documentId !== "string" || !body.documentId.trim()) {
+    return NextResponse.json(
+      { ok: false, error: "documentId is required" },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const documentId = body.documentId.trim();
+
+  const parsed = parseCreateBoatBody(body);
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { ok: false, error: parsed.error },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const meRes = await strapiFetchJson("/api/users/me", { method: "GET" }, userJwt);
+  if (!meRes.ok || !isRecord(meRes.json) || typeof meRes.json.id !== "number") {
+    return NextResponse.json(
+      { ok: false, error: "User authentication failed" },
+      { status: 401, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const me = meRes.json as StrapiUsersMe;
+
+  const ownerBoatsRes = await strapiFetchJson(
+    `/api/owner/boats-by-user?user_id=${me.id}`,
+    { method: "GET" },
+    serverToken
+  );
+
+  if (!ownerBoatsRes.ok || !isRecord(ownerBoatsRes.json) || !Array.isArray(ownerBoatsRes.json.boats)) {
+    return NextResponse.json(
+      { ok: false, error: "Could not verify boat ownership", details: ownerBoatsRes.json },
+      { status: 502, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const ownedBoat = ownerBoatsRes.json.boats.find((item) => {
+    return isRecord(item) && item.documentId === documentId;
+  });
+
+  if (!ownedBoat) {
+    return NextResponse.json(
+      { ok: false, error: "Boat not found for this owner" },
+      { status: 404, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const p = parsed.data;
+
+  const updatePayload = {
+    data: {
+      title: p.title,
+      description: p.description ?? "",
+      listing_type: p.listingType,
+      vesselType: p.vesselType,
+      boat_type: boatTypeFromVesselType(p.vesselType),
+      capacity: p.capacity,
+      length_m: p.lengthM ?? null,
+      year: p.year ?? null,
+      engine_hp: p.engineHp ?? null,
+      price_per_hour: p.rentPriceHour ?? null,
+      price_per_day: p.rentPriceDay ?? null,
+      price_per_week: p.rentPriceWeek ?? null,
+      sale_price: p.salePrice ?? null,
+      owner_phone: p.ownerPhone ?? "",
+      ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
+      currency: p.currency ?? "EUR",
+      instant_booking: p.listingType === "rent" ? p.instantBooking : false,
+      publishedAt: null,
+      ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
+        ? {
+            cover: p.imageIds[0],
+            images: p.imageIds,
+          }
+        : {}),
+    },
+  };
+
+  const locale = p.locale || "en";
+
+  const updateRes = await strapiFetchJson(
+    `/api/boats/${documentId}?locale=${encodeURIComponent(locale)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updatePayload),
+    },
+    serverToken
+  );
+
+  if (!updateRes.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Strapi update failed",
+        details: updateRes.json,
+      },
+      { status: 502, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const json = updateRes.json;
+  const data = isRecord(json) && isRecord(json.data) ? json.data : null;
+
+  return NextResponse.json(
+    {
+      ok: true,
+      boat: data
+        ? {
+            id: typeof data.id === "number" ? data.id : null,
+            documentId: typeof data.documentId === "string" ? data.documentId : null,
+          }
+        : null,
+      owner: {
+        id: me.id,
+        username: me.username ?? null,
+        email: me.email ?? null,
+      },
+    },
+    { status: 200, headers: { "cache-control": "no-store" } }
+  );
+}

@@ -226,12 +226,18 @@ type OwnerBoat = {
   documentId?: string;
   title?: string | null;
   slug?: string | null;
+  description?: string | null;
   booking_enabled?: boolean | null;
   contacts_visible?: boolean | null;
   publishedAt?: string | null;
   createdAt?: string | null;
   listing_type?: string | null;
   boat_type?: string | null;
+  vessel_type?: string | null;
+  capacity?: number | null;
+  length_m?: number | null;
+  year?: number | null;
+  engine_hp?: number | null;
   min_rental_hours?: number | null;
   home_marina_id?: number | null;
   home_marina_name?: string | null;
@@ -241,6 +247,8 @@ type OwnerBoat = {
   price_per_hour?: number | null;
   price_per_day?: number | null;
   price_per_week?: number | null;
+  sale_price?: number | null;
+  instant_booking?: boolean | null;
 };
 
 type BookingActivity = {
@@ -301,6 +309,22 @@ type ExperienceFormState = {
   shortDescription: string;
   coverId: number | null;
   coverUrl: string | null;
+};
+
+type BoatEditFormState = {
+  title: string;
+  description: string;
+  capacity: string;
+  lengthM: string;
+  year: string;
+  engineHp: string;
+  homeMarinaId: string;
+  ownerPhone: string;
+  rentPriceHour: string;
+  rentPriceDay: string;
+  rentPriceWeek: string;
+  minRentalHours: string;
+  instantBooking: boolean;
 };
 
 type OwnerBlackout = {
@@ -654,6 +678,11 @@ export default function OwnerDashboardClient() {
   const [experienceBusy, setExperienceBusy] = useState<Record<number, boolean>>({});
   const [experienceUploadBusy, setExperienceUploadBusy] = useState<Record<number, boolean>>({});
   const [experienceForm, setExperienceForm] = useState<Record<number, ExperienceFormState>>({});
+  const [editingBoatDocumentId, setEditingBoatDocumentId] = useState<string | null>(null);
+  const [boatEditForm, setBoatEditForm] = useState<Record<string, BoatEditFormState>>({});
+  const [boatEditSaving, setBoatEditSaving] = useState<Record<string, boolean>>({});
+  const [boatEditError, setBoatEditError] = useState<Record<string, string>>({});
+  const [boatEditSuccess, setBoatEditSuccess] = useState<Record<string, string>>({});
 
 
 
@@ -817,6 +846,42 @@ export default function OwnerDashboardClient() {
     };
   }
 
+  function defaultBoatEditForm(): BoatEditFormState {
+    return {
+      title: "",
+      description: "",
+      capacity: "",
+      lengthM: "",
+      year: "",
+      engineHp: "",
+      homeMarinaId: "",
+      ownerPhone: "",
+      rentPriceHour: "",
+      rentPriceDay: "",
+      rentPriceWeek: "",
+      minRentalHours: "",
+      instantBooking: false,
+    };
+  }
+
+  function boatToEditForm(boat: OwnerBoat): BoatEditFormState {
+    return {
+      title: boat.title ?? "",
+      description: boat.description ?? "",
+      capacity: boat.capacity == null ? "" : String(boat.capacity),
+      lengthM: boat.length_m == null ? "" : String(boat.length_m),
+      year: boat.year == null ? "" : String(boat.year),
+      engineHp: boat.engine_hp == null ? "" : String(boat.engine_hp),
+      homeMarinaId: boat.home_marina_id == null ? "" : String(boat.home_marina_id),
+      ownerPhone: boat.owner_phone ?? "",
+      rentPriceHour: boat.price_per_hour == null ? "" : String(boat.price_per_hour),
+      rentPriceDay: boat.price_per_day == null ? "" : String(boat.price_per_day),
+      rentPriceWeek: boat.price_per_week == null ? "" : String(boat.price_per_week),
+      minRentalHours: boat.min_rental_hours == null ? "" : String(boat.min_rental_hours),
+      instantBooking: boat.instant_booking === true,
+    };
+  }
+
   function getExperienceBoatId(experience: OwnerExperience): number | null {
     const id = experience.boat?.id;
     return typeof id === "number" && Number.isFinite(id) ? id : null;
@@ -825,6 +890,85 @@ export default function OwnerDashboardClient() {
   function formatOwnerExperiencePrice(value: unknown): string {
     const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
     return Number.isFinite(n) ? `${Math.round((n + Number.EPSILON) * 100) / 100} EUR` : "—";
+  }
+
+  async function saveBoatEdit(boat: OwnerBoat) {
+    const documentId = boat.documentId;
+    if (!documentId) return;
+
+    const form = boatEditForm[documentId] || defaultBoatEditForm();
+    const numberOrNull = (value: string): number | null => {
+      const n = Number(String(value || "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+
+    try {
+      setBoatEditSaving((prev) => ({ ...prev, [documentId]: true }));
+      setBoatEditError((prev) => {
+        const next = { ...prev };
+        delete next[documentId];
+        return next;
+      });
+      setBoatEditSuccess((prev) => {
+        const next = { ...prev };
+        delete next[documentId];
+        return next;
+      });
+
+      const res = await fetch("/api/owner/boats", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          documentId,
+          title: form.title,
+          description: form.description,
+          listingType: boat.listing_type || "rent",
+          vesselType: boat.vessel_type || boat.boat_type || "motorboat",
+          capacity: numberOrNull(form.capacity),
+          lengthM: numberOrNull(form.lengthM),
+          year: numberOrNull(form.year),
+          engineHp: numberOrNull(form.engineHp),
+          rentPriceHour: numberOrNull(form.rentPriceHour),
+          rentPriceDay: numberOrNull(form.rentPriceDay),
+          rentPriceWeek: numberOrNull(form.rentPriceWeek),
+          minRentalHours: numberOrNull(form.minRentalHours),
+          salePrice: boat.sale_price ?? null,
+          ownerPhone: form.ownerPhone,
+          homeMarinaId: numberOrNull(form.homeMarinaId),
+          currency: boat.currency || "EUR",
+          instantBooking: form.instantBooking,
+          locale: lang,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "boat_update_failed");
+      }
+
+      setBoatEditSuccess((prev) => ({
+        ...prev,
+        [documentId]: lang === "ru"
+          ? "Изменения сохранены. Лодка отправлена на проверку."
+          : lang === "me"
+            ? "Izmjene su sačuvane. Plovilo je poslato na provjeru."
+            : "Changes saved. The boat was sent for review.",
+      }));
+
+      await refreshDashboard();
+    } catch (e) {
+      setBoatEditError((prev) => ({
+        ...prev,
+        [documentId]: e instanceof Error ? e.message : "boat_update_failed",
+      }));
+    } finally {
+      setBoatEditSaving((prev) => ({
+        ...prev,
+        [documentId]: false,
+      }));
+    }
   }
 
   async function uploadExperienceCover(boatId: number, files: FileList | null) {
@@ -1615,11 +1759,175 @@ useEffect(() => {
 
                     {boat.booking_enabled && boat.slug ? (
                       <div style={{ display: "grid", gap: 14 }}>
-                        <div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                           <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
                             {lang === "ru" ? "Открыть страницу" : lang === "me" ? "Otvori stranicu" : "View public page"}
                           </Link>
+
+                          {boat.documentId ? (
+                            <button
+                              type="button"
+                              className={editingBoatDocumentId === boat.documentId ? "button primary" : "button secondary"}
+                              onClick={() => {
+                                const documentId = boat.documentId || null;
+                                if (!documentId) return;
+
+                                setEditingBoatDocumentId((current) => {
+                                  if (current === documentId) {
+                                    return null;
+                                  }
+
+                                  setBoatEditForm((prev) => ({
+                                    ...prev,
+                                    [documentId]: boatToEditForm(boat),
+                                  }));
+                                  setBoatEditError((prev) => {
+                                    const next = { ...prev };
+                                    delete next[documentId];
+                                    return next;
+                                  });
+                                  setBoatEditSuccess((prev) => {
+                                    const next = { ...prev };
+                                    delete next[documentId];
+                                    return next;
+                                  });
+
+                                  return documentId;
+                                });
+                              }}
+                            >
+                              {editingBoatDocumentId === boat.documentId
+                                ? (lang === "ru" ? "Закрыть редактирование" : lang === "me" ? "Zatvori uređivanje" : "Close edit")
+                                : (lang === "ru" ? "Редактировать" : lang === "me" ? "Uredi" : "Edit")}
+                            </button>
+                          ) : null}
                         </div>
+
+                        {boat.documentId && editingBoatDocumentId === boat.documentId ? (
+                          <div
+                            className="card"
+                            style={{
+                              padding: 14,
+                              background: "rgba(245, 158, 11, 0.08)",
+                              border: "1px solid rgba(245, 158, 11, 0.45)",
+                            }}
+                          >
+                            <strong>{lang === "ru" ? "✏️ Режим редактирования лодки" : lang === "me" ? "✏️ Režim uređivanja plovila" : "✏️ Boat edit mode"}</strong>
+                            <p className="kicker" style={{ margin: "6px 0 12px" }}>
+                              {lang === "ru"
+                                ? "После сохранения лодка снова уйдёт на проверку."
+                                : lang === "me"
+                                  ? "Nakon čuvanja plovilo ponovo ide na provjeru."
+                                  : "After saving, the boat will be sent for review again."}
+                            </p>
+
+                            <div style={{ display: "grid", gap: 10 }}>
+                              <input
+                                value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).title}
+                                onChange={(e) => setBoatEditForm((prev) => ({
+                                  ...prev,
+                                  [boat.documentId!]: {
+                                    ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                    title: e.target.value,
+                                  },
+                                }))}
+                                placeholder={lang === "ru" ? "Название" : lang === "me" ? "Naziv" : "Title"}
+                              />
+
+                              <textarea
+                                value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).description}
+                                onChange={(e) => setBoatEditForm((prev) => ({
+                                  ...prev,
+                                  [boat.documentId!]: {
+                                    ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                    description: e.target.value,
+                                  },
+                                }))}
+                                placeholder={lang === "ru" ? "Описание" : lang === "me" ? "Opis" : "Description"}
+                                rows={4}
+                              />
+
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+                                {[
+                                  ["capacity", lang === "ru" ? "Вместимость" : lang === "me" ? "Kapacitet" : "Capacity"],
+                                  ["lengthM", lang === "ru" ? "Длина, м" : lang === "me" ? "Dužina, m" : "Length, m"],
+                                  ["year", lang === "ru" ? "Год" : lang === "me" ? "Godina" : "Year"],
+                                  ["engineHp", lang === "ru" ? "Мощность, hp" : lang === "me" ? "Snaga, hp" : "Engine, hp"],
+                                  ["homeMarinaId", lang === "ru" ? "ID локации" : lang === "me" ? "ID lokacije" : "Location ID"],
+                                  ["ownerPhone", lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone"],
+                                  ["rentPriceHour", lang === "ru" ? "Цена/час" : lang === "me" ? "Cijena/sat" : "Price/hour"],
+                                  ["rentPriceDay", lang === "ru" ? "Цена/день" : lang === "me" ? "Cijena/dan" : "Price/day"],
+                                  ["rentPriceWeek", lang === "ru" ? "Цена/неделя" : lang === "me" ? "Cijena/nedjelja" : "Price/week"],
+                                  ["minRentalHours", lang === "ru" ? "Мин. часов" : lang === "me" ? "Min. sati" : "Min. hours"],
+                                ].map(([key, label]) => (
+                                  <label key={key} style={{ display: "grid", gap: 4 }}>
+                                    <span className="kicker" style={{ margin: 0 }}>{label}</span>
+                                    <input
+                                      value={(boatEditForm[boat.documentId!] || defaultBoatEditForm())[key as keyof BoatEditFormState] as string}
+                                      onChange={(e) => setBoatEditForm((prev) => ({
+                                        ...prev,
+                                        [boat.documentId!]: {
+                                          ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                          [key]: e.target.value,
+                                        },
+                                      }))}
+                                      placeholder={label}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+
+                              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={(boatEditForm[boat.documentId] || defaultBoatEditForm()).instantBooking}
+                                  onChange={(e) => setBoatEditForm((prev) => ({
+                                    ...prev,
+                                    [boat.documentId!]: {
+                                      ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                      instantBooking: e.target.checked,
+                                    },
+                                  }))}
+                                />
+                                {lang === "ru" ? "Мгновенное бронирование" : lang === "me" ? "Instant rezervacija" : "Instant booking"}
+                              </label>
+
+                              {boatEditError[boat.documentId] ? (
+                                <p className="kicker" style={{ margin: 0, color: "#b91c1c" }}>
+                                  {boatEditError[boat.documentId]}
+                                </p>
+                              ) : null}
+
+                              {boatEditSuccess[boat.documentId] ? (
+                                <p className="kicker" style={{ margin: 0, color: "#15803d" }}>
+                                  {boatEditSuccess[boat.documentId]}
+                                </p>
+                              ) : null}
+
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                <button
+                                  type="button"
+                                  className="button primary"
+                                  disabled={boatEditSaving[boat.documentId] === true}
+                                  onClick={() => saveBoatEdit(boat)}
+                                >
+                                  {boatEditSaving[boat.documentId] === true
+                                    ? (lang === "ru" ? "Сохранение..." : lang === "me" ? "Čuvanje..." : "Saving...")
+                                    : (lang === "ru" ? "Сохранить изменения" : lang === "me" ? "Sačuvaj izmjene" : "Save changes")}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="button secondary"
+                                  disabled={boatEditSaving[boat.documentId] === true}
+                                  onClick={() => setEditingBoatDocumentId(null)}
+                                >
+                                  {lang === "ru" ? "Отмена" : lang === "me" ? "Otkaži" : "Cancel"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
 
                         <div
                           className="card"
