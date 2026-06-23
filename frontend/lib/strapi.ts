@@ -299,26 +299,19 @@ function addDirectExperiencePopulate(qs: string[]) {
 }
 
 async function fetchExperiencesForBoatDocumentId(documentId: string): Promise<NonNullable<Boat["experiences"]>> {
-  const baseQs: string[] = [
+  const qs: string[] = [
     `filters[boat][documentId][$eq]=${encodeURIComponent(documentId)}`,
     "locale=all",
+    "status=published",
   ];
+  addDirectExperiencePopulate(qs);
 
-  for (const status of ["published", "draft", null]) {
-    const qs = [...baseQs];
-    if (status) qs.push(`status=${status}`);
-    addDirectExperiencePopulate(qs);
-
-    try {
-      const json = await strapiFetch<{ data: any[] }>(`/api/experiences?${qs.join("&")}`);
-      const experiences = normalizeExperiences(json.data ?? []);
-      if (experiences.length) return experiences;
-    } catch {
-      continue;
-    }
+  try {
+    const json = await strapiFetch<{ data: any[] }>(`/api/experiences?${qs.join("&")}`);
+    return normalizeExperiences(json.data ?? []);
+  } catch {
+    return [];
   }
-
-  return [];
 }
 
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
