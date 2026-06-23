@@ -315,7 +315,14 @@ async function fetchExperiencesForBoatDocumentId(documentId: string): Promise<No
 }
 
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
-  const qs: string[] = ["populate=*"];
+  const qs: string[] = [
+    "populate[cover][fields][0]=url",
+    "populate[cover][fields][1]=alternativeText",
+    "populate[cover][fields][2]=formats",
+    "populate[images][fields][0]=url",
+    "populate[images][fields][1]=alternativeText",
+    "populate[images][fields][2]=formats",
+  ];
   addExperiencePopulate(qs);
   qs.push("sort=documentId:asc");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
