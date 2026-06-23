@@ -476,6 +476,7 @@ export async function PATCH(req: NextRequest) {
   const updatePayload = {
     data: {
       title: p.title,
+      slug: isRecord(ownedBoat) && typeof ownedBoat.slug === "string" ? ownedBoat.slug : undefined,
       description: p.description ?? "",
       listing_type: p.listingType,
       vesselType: p.vesselType,
