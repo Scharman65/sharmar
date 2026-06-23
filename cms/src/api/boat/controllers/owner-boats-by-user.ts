@@ -26,6 +26,7 @@ export default {
           boats.listing_type,
           boats.capacity,
           boats.length_m,
+          boats.year,
           boats.engine_hp,
           boats.currency,
           boats.price_per_hour,
@@ -37,6 +38,8 @@ export default {
           l.id as home_marina_id,
           l.name as home_marina_name,
           cover.url as cover_url,
+          cover.file_id as cover_file_id,
+          coalesce(images.file_ids, array[]::integer[]) as image_file_ids,
           boats.timezone,
           true as booking_enabled,
           coalesce(boats.instant_booking, false) as instant_booking,
@@ -69,16 +72,34 @@ export default {
         left join public.locations l
           on l.id = bhml.location_id
         left join lateral (
-          select f.url
+          select f.id as file_id, f.url
           from public.files_related_mph frm
           join public.files f
             on f.id = frm.file_id
-          where frm.related_id = boats.id
-            and frm.related_type = 'api::boat.boat'
+          join public.boats media_boats
+            on media_boats.id = frm.related_id
+          where frm.related_type = 'api::boat.boat'
             and frm.field = 'cover'
+            and coalesce(media_boats.document_id, media_boats.slug, media_boats.id::text) = coalesce(boats.document_id, boats.slug, boats.id::text)
           order by frm."order" asc nulls last, frm.id asc
           limit 1
         ) cover on true
+        left join lateral (
+          select array_agg(file_id order by first_order asc nulls last, first_relation_id asc) as file_ids
+          from (
+            select
+              frm.file_id,
+              min(frm."order") as first_order,
+              min(frm.id) as first_relation_id
+            from public.files_related_mph frm
+            join public.boats media_boats
+              on media_boats.id = frm.related_id
+            where frm.related_type = 'api::boat.boat'
+              and frm.field = 'images'
+              and coalesce(media_boats.document_id, media_boats.slug, media_boats.id::text) = coalesce(boats.document_id, boats.slug, boats.id::text)
+            group by frm.file_id
+          ) image_files
+        ) images on true
         where rn = 1
           and (
             boats.published_at is not null

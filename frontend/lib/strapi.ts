@@ -19,6 +19,7 @@ export type Marina = {
 
 export type Boat = {
   id: number;
+  documentId?: string | null;
   slug: string;
   title?: string | null;
   description?: string | null;
@@ -44,6 +45,7 @@ export type Boat = {
   purposes?: { id: number; title?: string | null }[];
   experiences?: {
     id: number;
+    documentId?: string | null;
     title?: string | null;
     slug?: string | null;
     duration_hours?: number | null;
@@ -144,6 +146,7 @@ function normalizeBoat(item: any): Boat | null {
 
   return {
     id,
+    documentId: item.documentId ?? null,
     slug: item.slug ?? String(id),
     title: item.title ?? null,
     description: item.description ?? null,
@@ -183,32 +186,54 @@ function normalizeBoat(item: any): Boat | null {
     purposes: Array.isArray(item.purposes)
       ? item.purposes.map((p: any) => ({ id: p.id, title: p.title ?? null }))
       : [],
-    experiences: Array.isArray(item.experiences)
-      ? item.experiences
-          .slice()
-          .sort((a: any, b: any) => Number(a.sort_order ?? 100) - Number(b.sort_order ?? 100))
-          .slice(0, 3)
-          .map((e: any) => ({
-            id: e.id,
-            title: e.title ?? null,
-            slug: e.slug ?? null,
-            duration_hours: e.duration_hours ?? null,
-            price: e.price ?? null,
-            currency: e.currency ?? null,
-            short_description: e.short_description ?? null,
-            cover: e.cover ? { url: pickBestMediaUrl(e.cover)!, alternativeText: e.cover.alternativeText ?? null } : null,
-            gallery: Array.isArray(e.gallery)
-              ? e.gallery
-                  .map((i: any) => {
-                    const url = pickBestMediaUrl(i);
-                    return url ? { id: i.id, url, alternativeText: i.alternativeText ?? null } : null;
-                  })
-                  .filter(Boolean)
-              : [],
-          }))
-      : [],
+    experiences: normalizeExperiences(item.experiences),
     isDemo: isDemoBoat(item),
   };
+}
+
+function normalizeExperience(e: any): NonNullable<Boat["experiences"]>[number] | null {
+  if (!e || typeof e.id !== "number") return null;
+
+  const coverUrl = pickBestMediaUrl(e.cover);
+
+  return {
+    id: e.id,
+    documentId: e.documentId ?? null,
+    title: e.title ?? null,
+    slug: e.slug ?? null,
+    duration_hours: e.duration_hours ?? null,
+    price: e.price ?? null,
+    currency: e.currency ?? null,
+    short_description: e.short_description ?? null,
+    cover: coverUrl ? { url: coverUrl, alternativeText: e.cover?.alternativeText ?? null } : null,
+    gallery: Array.isArray(e.gallery)
+      ? e.gallery
+          .map((i: any) => {
+            const url = pickBestMediaUrl(i);
+            return url ? { id: i.id, url, alternativeText: i.alternativeText ?? null } : null;
+          })
+          .filter((i: { id: number; url: string; alternativeText?: string | null } | null): i is { id: number; url: string; alternativeText?: string | null } => i !== null)
+      : [],
+  };
+}
+
+function normalizeExperiences(value: any): NonNullable<Boat["experiences"]> {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+
+  return value
+    .slice()
+    .sort((a: any, b: any) => Number(a.sort_order ?? 100) - Number(b.sort_order ?? 100))
+    .map(normalizeExperience)
+    .filter((experience): experience is NonNullable<Boat["experiences"]>[number] => experience !== null)
+    .filter((experience) => {
+      const key = experience.documentId ? `document:${experience.documentId}` : `id:${experience.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
 }
 
 
@@ -241,6 +266,7 @@ function addExperiencePopulate(qs: string[]) {
   qs.push("populate[experiences][fields][4]=currency");
   qs.push("populate[experiences][fields][5]=short_description");
   qs.push("populate[experiences][fields][6]=sort_order");
+  qs.push("populate[experiences][fields][7]=documentId");
   qs.push("populate[experiences][populate][cover][fields][0]=url");
   qs.push("populate[experiences][populate][cover][fields][1]=alternativeText");
   qs.push("populate[experiences][populate][cover][fields][2]=formats");
@@ -249,6 +275,50 @@ function addExperiencePopulate(qs: string[]) {
   qs.push("populate[experiences][populate][gallery][fields][2]=formats");
   qs.push("populate[experiences][filters][is_active][$eq]=true");
   qs.push("populate[experiences][sort][0]=sort_order:asc");
+}
+
+function addDirectExperiencePopulate(qs: string[]) {
+  qs.push("fields[0]=title");
+  qs.push("fields[1]=slug");
+  qs.push("fields[2]=duration_hours");
+  qs.push("fields[3]=price");
+  qs.push("fields[4]=currency");
+  qs.push("fields[5]=short_description");
+  qs.push("fields[6]=sort_order");
+  qs.push("fields[7]=documentId");
+  qs.push("populate[cover][fields][0]=url");
+  qs.push("populate[cover][fields][1]=alternativeText");
+  qs.push("populate[cover][fields][2]=formats");
+  qs.push("populate[gallery][fields][0]=url");
+  qs.push("populate[gallery][fields][1]=alternativeText");
+  qs.push("populate[gallery][fields][2]=formats");
+  qs.push("filters[is_active][$eq]=true");
+  qs.push("sort[0]=sort_order:asc");
+  qs.push("sort[1]=createdAt:desc");
+  qs.push("pagination[pageSize]=20");
+}
+
+async function fetchExperiencesForBoatDocumentId(documentId: string): Promise<NonNullable<Boat["experiences"]>> {
+  const baseQs: string[] = [
+    `filters[boat][documentId][$eq]=${encodeURIComponent(documentId)}`,
+    "locale=all",
+  ];
+
+  for (const status of ["published", "draft", null]) {
+    const qs = [...baseQs];
+    if (status) qs.push(`status=${status}`);
+    addDirectExperiencePopulate(qs);
+
+    try {
+      const json = await strapiFetch<{ data: any[] }>(`/api/experiences?${qs.join("&")}`);
+      const experiences = normalizeExperiences(json.data ?? []);
+      if (experiences.length) return experiences;
+    } catch {
+      continue;
+    }
+  }
+
+  return [];
 }
 
 export async function fetchBoats(locale?: string, filters?: BoatFilters): Promise<Boat[]> {
@@ -286,7 +356,14 @@ export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Bo
     locale
   );
 
-  return json.data?.[0] ? normalizeBoat(json.data[0]) : null;
+  const boat = json.data?.[0] ? normalizeBoat(json.data[0]) : null;
+  if (!boat) return null;
+
+  if (!boat.experiences?.length && boat.documentId) {
+    boat.experiences = await fetchExperiencesForBoatDocumentId(boat.documentId);
+  }
+
+  return boat;
 }
 
 export type AdvancedBoatFilters = {

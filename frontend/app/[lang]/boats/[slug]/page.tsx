@@ -409,7 +409,7 @@ export default async function BoatPage({ params }: Props) {
 
                 return (
                   <div
-                    key={experience.id}
+                    key={experience.documentId ? `document:${experience.documentId}` : `id:${experience.id}`}
                     style={{
                       border: "1px solid rgba(255, 255, 255, 0.12)",
                       borderRadius: 14,

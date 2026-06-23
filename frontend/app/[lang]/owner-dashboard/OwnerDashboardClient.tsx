@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { MARKETPLACE_FEE_RATE, applyMarketplaceFee } from "@/lib/pricing";
 import { OwnerAvailabilityCalendar } from "@/components/owner/OwnerAvailabilityCalendar";
@@ -303,6 +304,8 @@ type UploadedOwnerImage = {
   size?: number | null;
 };
 
+const STRAPI_MEDIA_BASE = (process.env.NEXT_PUBLIC_STRAPI_URL || "https://api.sharmar.me").replace(/\/+$/, "");
+
 type ExperienceFormState = {
   title: string;
   durationHours: string;
@@ -327,6 +330,8 @@ type BoatEditFormState = {
   minRentalHours: string;
   instantBooking: boolean;
 };
+
+type FieldErrors = Record<string, string>;
 
 type OwnerBlackout = {
   id: number;
@@ -523,6 +528,39 @@ function formatCalendarDateLabel(dateKey: string): string {
   }).format(new Date(ms));
 }
 
+function normalizeMediaUrl(url?: string | null): string | null {
+  const clean = typeof url === "string" ? url.trim() : "";
+  if (!clean) return null;
+
+  try {
+    if (clean.startsWith("http://") || clean.startsWith("https://")) {
+      return new URL(clean).toString();
+    }
+
+    if (clean.startsWith("/")) {
+      return new URL(clean, STRAPI_MEDIA_BASE).toString();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function normalizeOwnerExperience(experience: OwnerExperience): OwnerExperience {
+  const coverUrl = normalizeMediaUrl(experience.cover?.url);
+
+  return {
+    ...experience,
+    cover: coverUrl
+      ? {
+          ...experience.cover,
+          url: coverUrl,
+        }
+      : null,
+  };
+}
+
 function groupCalendarEvents(events: OwnerCalendarEvent[]): CalendarEventGroup[] {
   const sorted = [...events].sort((a, b) => getCalendarTimeMs(a) - getCalendarTimeMs(b));
   const groups = new Map<string, OwnerCalendarEvent[]>();
@@ -675,10 +713,12 @@ export default function OwnerDashboardClient() {
   const [experienceBusy, setExperienceBusy] = useState<Record<number, boolean>>({});
   const [experienceUploadBusy, setExperienceUploadBusy] = useState<Record<number, boolean>>({});
   const [experienceForm, setExperienceForm] = useState<Record<number, ExperienceFormState>>({});
+  const [experienceFieldErrors, setExperienceFieldErrors] = useState<Record<number, FieldErrors>>({});
   const [editingBoatDocumentId, setEditingBoatDocumentId] = useState<string | null>(null);
   const [boatEditForm, setBoatEditForm] = useState<Record<string, BoatEditFormState>>({});
   const [boatEditSaving, setBoatEditSaving] = useState<Record<string, boolean>>({});
   const [boatEditError, setBoatEditError] = useState<Record<string, string>>({});
+  const [boatEditFieldErrors, setBoatEditFieldErrors] = useState<Record<string, FieldErrors>>({});
   const [boatEditSuccess, setBoatEditSuccess] = useState<Record<string, string>>({});
 
 
@@ -891,6 +931,63 @@ export default function OwnerDashboardClient() {
     return boat.documentId || String(boat.id || "");
   }
 
+  function getExperienceStableKey(experience: OwnerExperience): string {
+    return experience.documentId?.trim() ? `document:${experience.documentId.trim()}` : `id:${experience.id}`;
+  }
+
+  function dedupeOwnerExperiences(rows: OwnerExperience[]): OwnerExperience[] {
+    const seen = new Set<string>();
+
+    return rows.filter((experience) => {
+      const key = getExperienceStableKey(experience);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function boatFieldFromError(message: string): keyof BoatEditFormState | null {
+    const text = message.toLowerCase();
+    if (text.includes("title")) return "title";
+    if (text.includes("capacity")) return "capacity";
+    if (text.includes("lengthm") || text.includes("length")) return "lengthM";
+    if (text.includes("year")) return "year";
+    if (text.includes("enginehp") || text.includes("engine")) return "engineHp";
+    if (text.includes("rentpricehour")) return "rentPriceHour";
+    if (text.includes("rentpriceday")) return "rentPriceDay";
+    if (text.includes("rentpriceweek")) return "rentPriceWeek";
+    if (text.includes("minrentalhours")) return "minRentalHours";
+    if (text.includes("saleprice")) return "rentPriceHour";
+    if (text.includes("ownerphone")) return "ownerPhone";
+    if (text.includes("homemarina")) return "homeMarinaId";
+    return null;
+  }
+
+  function experienceFieldFromError(message: string): keyof ExperienceFormState | null {
+    const text = message.toLowerCase();
+    if (text.includes("title")) return "title";
+    if (text.includes("duration")) return "durationHours";
+    if (text.includes("price")) return "price";
+    return null;
+  }
+
+  function inputErrorStyle(message?: string): CSSProperties | undefined {
+    return message
+      ? {
+          borderColor: "#dc2626",
+          boxShadow: "0 0 0 1px rgba(220, 38, 38, 0.45)",
+        }
+      : undefined;
+  }
+
+  function fieldErrorMessage(message?: string) {
+    return message ? (
+      <p className="kicker" style={{ margin: 0, color: "#dc2626" }}>
+        {message}
+      </p>
+    ) : null;
+  }
+
   function formatOwnerExperiencePrice(value: unknown): string {
     const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
     return Number.isFinite(n) ? `${Math.round((n + Number.EPSILON) * 100) / 100} EUR` : "—";
@@ -901,14 +998,26 @@ export default function OwnerDashboardClient() {
     if (!documentId) return;
 
     const form = boatEditForm[documentId] || defaultBoatEditForm();
-    const numberOrNull = (value: string): number | null => {
-      const n = Number(String(value || "").trim());
+    const numberOrNull = (value: string, fieldName: keyof BoatEditFormState): number | null => {
+      const clean = String(value ?? "").trim();
+      if (!clean) return null;
+
+      const n = Number(clean);
+      if (!Number.isFinite(n)) {
+        throw new Error(`${fieldName} is invalid`);
+      }
+
       return Number.isFinite(n) ? n : null;
     };
 
     try {
       setBoatEditSaving((prev) => ({ ...prev, [documentId]: true }));
       setBoatEditError((prev) => {
+        const next = { ...prev };
+        delete next[documentId];
+        return next;
+      });
+      setBoatEditFieldErrors((prev) => {
         const next = { ...prev };
         delete next[documentId];
         return next;
@@ -929,17 +1038,17 @@ export default function OwnerDashboardClient() {
           description: form.description,
           listingType: boat.listing_type || "rent",
           vesselType: boat.vessel_type || boat.boat_type || "motorboat",
-          capacity: numberOrNull(form.capacity),
-          lengthM: numberOrNull(form.lengthM),
-          year: numberOrNull(form.year),
-          engineHp: numberOrNull(form.engineHp),
-          rentPriceHour: numberOrNull(form.rentPriceHour),
-          rentPriceDay: numberOrNull(form.rentPriceDay),
-          rentPriceWeek: numberOrNull(form.rentPriceWeek),
-          minRentalHours: numberOrNull(form.minRentalHours),
+          capacity: numberOrNull(form.capacity, "capacity"),
+          lengthM: numberOrNull(form.lengthM, "lengthM"),
+          year: numberOrNull(form.year, "year"),
+          engineHp: numberOrNull(form.engineHp, "engineHp"),
+          rentPriceHour: numberOrNull(form.rentPriceHour, "rentPriceHour"),
+          rentPriceDay: numberOrNull(form.rentPriceDay, "rentPriceDay"),
+          rentPriceWeek: numberOrNull(form.rentPriceWeek, "rentPriceWeek"),
+          minRentalHours: numberOrNull(form.minRentalHours, "minRentalHours"),
           salePrice: boat.sale_price ?? null,
           ownerPhone: form.ownerPhone,
-          homeMarinaId: numberOrNull(form.homeMarinaId),
+          homeMarinaId: numberOrNull(form.homeMarinaId, "homeMarinaId"),
           currency: boat.currency || "EUR",
           instantBooking: form.instantBooking,
           locale: lang,
@@ -964,9 +1073,16 @@ export default function OwnerDashboardClient() {
       await refreshDashboard();
       setEditingBoatDocumentId(null);
     } catch (e) {
+      const message = e instanceof Error ? e.message : "boat_update_failed";
+      const field = boatFieldFromError(message);
+
       setBoatEditError((prev) => ({
         ...prev,
-        [documentId]: e instanceof Error ? e.message : "boat_update_failed",
+        [documentId]: message,
+      }));
+      setBoatEditFieldErrors((prev) => ({
+        ...prev,
+        [documentId]: field ? { [field]: message } : {},
       }));
     } finally {
       setBoatEditSaving((prev) => ({
@@ -1050,13 +1166,15 @@ export default function OwnerDashboardClient() {
         throw new Error(json?.error || "experience_load_failed");
       }
 
-      const rows: OwnerExperience[] = Array.isArray(json?.experiences) ? json.experiences : [];
+      const rows: OwnerExperience[] = Array.isArray(json?.experiences)
+        ? json.experiences.map(normalizeOwnerExperience)
+        : [];
       const grouped: Record<string, OwnerExperience[]> = {};
 
-      rows.forEach((experience) => {
+      dedupeOwnerExperiences(rows).forEach((experience) => {
         const boatKey = getExperienceBoatKey(experience);
         if (!boatKey) return;
-        grouped[boatKey] = [...(grouped[boatKey] || []), experience];
+        grouped[boatKey] = dedupeOwnerExperiences([...(grouped[boatKey] || []), experience]);
       });
 
       setBoatExperiences(grouped);
@@ -1076,6 +1194,11 @@ export default function OwnerDashboardClient() {
         [boatId]: true,
       }));
       setExperienceError(null);
+      setExperienceFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[boatId];
+        return next;
+      });
 
       const res = await fetch("/api/owner/experiences", {
         method: "POST",
@@ -1106,7 +1229,14 @@ export default function OwnerDashboardClient() {
 
       await loadOwnerExperiences();
     } catch (err) {
-      setExperienceError(err instanceof Error ? err.message : "experience_create_failed");
+      const message = err instanceof Error ? err.message : "experience_create_failed";
+      const field = experienceFieldFromError(message);
+
+      setExperienceError(message);
+      setExperienceFieldErrors((prev) => ({
+        ...prev,
+        [boatId]: field ? { [field]: message } : {},
+      }));
     } finally {
       setExperienceBusy((prev) => ({
         ...prev,
@@ -1500,6 +1630,10 @@ useEffect(() => {
             {boats.length ? (
               <div style={{ display: "grid", gap: 14 }}>
                 {boats.map((boat) => (
+                  (() => {
+                    const boatCoverUrl = normalizeMediaUrl(boat.cover_url);
+
+                    return (
                   <div
                     key={boat.documentId || boat.id || boat.slug}
                     className="card"
@@ -1551,7 +1685,14 @@ useEffect(() => {
                     <div className="meta-row">
                       <span>{lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone"}: {boat.owner_phone || "—"}</span>
                       <span>·</span>
-                      <span>{lang === "ru" ? "Обложка" : lang === "me" ? "Naslovna fotografija" : "Cover"}: {boat.cover_url ? "OK" : "—"}</span>
+                      <span>
+                        {lang === "ru" ? "Обложка" : lang === "me" ? "Naslovna fotografija" : "Cover"}:{" "}
+                        {boatCoverUrl ? (
+                          <a href={boatCoverUrl} target="_blank" rel="noreferrer">
+                            {boatCoverUrl}
+                          </a>
+                        ) : "—"}
+                      </span>
                     </div>
 
                     {boat.booking_enabled && boat.slug ? (
@@ -1579,6 +1720,11 @@ useEffect(() => {
                                     [documentId]: boatToEditForm(boat),
                                   }));
                                   setBoatEditError((prev) => {
+                                    const next = { ...prev };
+                                    delete next[documentId];
+                                    return next;
+                                  });
+                                  setBoatEditFieldErrors((prev) => {
                                     const next = { ...prev };
                                     delete next[documentId];
                                     return next;
@@ -1621,15 +1767,26 @@ useEffect(() => {
                             <div style={{ display: "grid", gap: 10 }}>
                               <input
                                 value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).title}
-                                onChange={(e) => setBoatEditForm((prev) => ({
-                                  ...prev,
-                                  [boat.documentId!]: {
-                                    ...(prev[boat.documentId!] || defaultBoatEditForm()),
-                                    title: e.target.value,
-                                  },
-                                }))}
+                                onChange={(e) => {
+                                  setBoatEditForm((prev) => ({
+                                    ...prev,
+                                    [boat.documentId!]: {
+                                      ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                      title: e.target.value,
+                                    },
+                                  }));
+                                  setBoatEditFieldErrors((prev) => ({
+                                    ...prev,
+                                    [boat.documentId!]: {
+                                      ...(prev[boat.documentId!] || {}),
+                                      title: "",
+                                    },
+                                  }));
+                                }}
                                 placeholder={lang === "ru" ? "Название" : lang === "me" ? "Naziv" : "Title"}
+                                style={inputErrorStyle(boatEditFieldErrors[boat.documentId]?.title)}
                               />
+                              {fieldErrorMessage(boatEditFieldErrors[boat.documentId]?.title)}
 
                               <textarea
                                 value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).description}
@@ -1661,15 +1818,26 @@ useEffect(() => {
                                     <span className="kicker" style={{ margin: 0 }}>{label}</span>
                                     <input
                                       value={(boatEditForm[boat.documentId!] || defaultBoatEditForm())[key as keyof BoatEditFormState] as string}
-                                      onChange={(e) => setBoatEditForm((prev) => ({
-                                        ...prev,
-                                        [boat.documentId!]: {
-                                          ...(prev[boat.documentId!] || defaultBoatEditForm()),
-                                          [key]: e.target.value,
-                                        },
-                                      }))}
+                                      onChange={(e) => {
+                                        setBoatEditForm((prev) => ({
+                                          ...prev,
+                                          [boat.documentId!]: {
+                                            ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                            [key]: e.target.value,
+                                          },
+                                        }));
+                                        setBoatEditFieldErrors((prev) => ({
+                                          ...prev,
+                                          [boat.documentId!]: {
+                                            ...(prev[boat.documentId!] || {}),
+                                            [key]: "",
+                                          },
+                                        }));
+                                      }}
                                       placeholder={label}
+                                      style={inputErrorStyle(boatEditFieldErrors[boat.documentId!]?.[key])}
                                     />
+                                    {fieldErrorMessage(boatEditFieldErrors[boat.documentId!]?.[key])}
                                   </label>
                                 ))}
                               </div>
@@ -1759,10 +1927,11 @@ useEffect(() => {
                                 {(boatExperiences[getBoatExperienceKey(boat)] || []).map((experience) => {
                                   const ownerPrice = Number(experience.price);
                                   const customerPrice = applyMarketplaceFee(ownerPrice);
+                                  const coverUrl = normalizeMediaUrl(experience.cover?.url);
 
                                   return (
                                     <div
-                                      key={experience.id}
+                                      key={getExperienceStableKey(experience)}
                                       style={{
                                         padding: 10,
                                         borderRadius: 12,
@@ -1770,10 +1939,10 @@ useEffect(() => {
                                         border: "1px solid rgba(255,255,255,0.08)",
                                       }}
                                     >
-                                      {experience.cover?.url ? (
+                                      {coverUrl ? (
                                         <img
-                                          src={experience.cover.url}
-                                          alt={experience.cover.alternativeText || experience.title || "Route"}
+                                          src={coverUrl}
+                                          alt={experience.cover?.alternativeText || experience.title || "Route"}
                                           style={{
                                             width: "100%",
                                             height: 110,
@@ -1814,14 +1983,26 @@ useEffect(() => {
                                   type="text"
                                   placeholder={lang === "ru" ? "Название маршрута" : lang === "me" ? "Naziv rute" : "Route title"}
                                   value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).title}
-                                  onChange={(e) => setExperienceForm((prev) => ({
-                                    ...prev,
-                                    [Number(boat.id)]: {
-                                      ...(prev[Number(boat.id)] || defaultExperienceForm()),
-                                      title: e.target.value,
-                                    },
-                                  }))}
+                                  onChange={(e) => {
+                                    const boatId = Number(boat.id);
+                                    setExperienceForm((prev) => ({
+                                      ...prev,
+                                      [boatId]: {
+                                        ...(prev[boatId] || defaultExperienceForm()),
+                                        title: e.target.value,
+                                      },
+                                    }));
+                                    setExperienceFieldErrors((prev) => ({
+                                      ...prev,
+                                      [boatId]: {
+                                        ...(prev[boatId] || {}),
+                                        title: "",
+                                      },
+                                    }));
+                                  }}
+                                  style={inputErrorStyle(experienceFieldErrors[Number(boat.id)]?.title)}
                                 />
+                                {fieldErrorMessage(experienceFieldErrors[Number(boat.id)]?.title)}
 
                                 <div
                                   style={{
@@ -1837,14 +2018,26 @@ useEffect(() => {
                                     step="0.5"
                                     placeholder={lang === "ru" ? "Часы" : lang === "me" ? "Sati" : "Hours"}
                                     value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).durationHours}
-                                    onChange={(e) => setExperienceForm((prev) => ({
-                                      ...prev,
-                                      [Number(boat.id)]: {
-                                        ...(prev[Number(boat.id)] || defaultExperienceForm()),
-                                        durationHours: e.target.value,
-                                      },
-                                    }))}
+                                    onChange={(e) => {
+                                      const boatId = Number(boat.id);
+                                      setExperienceForm((prev) => ({
+                                        ...prev,
+                                        [boatId]: {
+                                          ...(prev[boatId] || defaultExperienceForm()),
+                                          durationHours: e.target.value,
+                                        },
+                                      }));
+                                      setExperienceFieldErrors((prev) => ({
+                                        ...prev,
+                                        [boatId]: {
+                                          ...(prev[boatId] || {}),
+                                          durationHours: "",
+                                        },
+                                      }));
+                                    }}
+                                    style={inputErrorStyle(experienceFieldErrors[Number(boat.id)]?.durationHours)}
                                   />
+                                  {fieldErrorMessage(experienceFieldErrors[Number(boat.id)]?.durationHours)}
 
                                   <input
                                     type="number"
@@ -1852,14 +2045,26 @@ useEffect(() => {
                                     step="1"
                                     placeholder={lang === "ru" ? "Цена owner EUR" : lang === "me" ? "Cijena vlasnika EUR" : "Owner price EUR"}
                                     value={(experienceForm[Number(boat.id)] || defaultExperienceForm()).price}
-                                    onChange={(e) => setExperienceForm((prev) => ({
-                                      ...prev,
-                                      [Number(boat.id)]: {
-                                        ...(prev[Number(boat.id)] || defaultExperienceForm()),
-                                        price: e.target.value,
-                                      },
-                                    }))}
+                                    onChange={(e) => {
+                                      const boatId = Number(boat.id);
+                                      setExperienceForm((prev) => ({
+                                        ...prev,
+                                        [boatId]: {
+                                          ...(prev[boatId] || defaultExperienceForm()),
+                                          price: e.target.value,
+                                        },
+                                      }));
+                                      setExperienceFieldErrors((prev) => ({
+                                        ...prev,
+                                        [boatId]: {
+                                          ...(prev[boatId] || {}),
+                                          price: "",
+                                        },
+                                      }));
+                                    }}
+                                    style={inputErrorStyle(experienceFieldErrors[Number(boat.id)]?.price)}
                                   />
+                                  {fieldErrorMessage(experienceFieldErrors[Number(boat.id)]?.price)}
                                 </div>
 
                                 <input
@@ -2096,6 +2301,8 @@ useEffect(() => {
                       </p>
                     )}
                   </div>
+                    );
+                  })()
                 ))}
               </div>
             ) : (

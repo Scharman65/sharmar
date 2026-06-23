@@ -250,22 +250,56 @@ async function getOwnerBoat(boatId: number, ownerId: number, serverToken: string
   return { ok: true as const, boat };
 }
 
-async function countBoatExperiences(boatId: number, serverToken: string): Promise<{ ok: true; count: number } | { ok: false; status: number; error: string; details: unknown }> {
-  const res = await strapiJson(
-    `/api/experiences?filters[boat][id][$eq]=${boatId}&pagination[pageSize]=1`,
-    { method: "GET" },
-    serverToken
-  );
+function getExperienceStableKey(experience: unknown): string | null {
+  if (!isRecord(experience)) return null;
+
+  const documentId = asString(experience.documentId);
+  if (documentId) return `document:${documentId}`;
+
+  const id = extractNumberId(experience.id);
+  return id !== null ? `id:${id}` : null;
+}
+
+function dedupeExperiences(rows: unknown[]): JsonObject[] {
+  const seen = new Set<string>();
+  const deduped: JsonObject[] = [];
+
+  rows.forEach((row, index) => {
+    if (!isRecord(row)) return;
+
+    const key = getExperienceStableKey(row) ?? `row:${index}`;
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    deduped.push(row);
+  });
+
+  return deduped;
+}
+
+async function countBoatExperiences(
+  boat: JsonObject,
+  fallbackBoatId: number,
+  serverToken: string
+): Promise<{ ok: true; count: number } | { ok: false; status: number; error: string; details: unknown }> {
+  const documentId = asString(boat.documentId);
+  const qs = new URLSearchParams();
+  qs.set("pagination[pageSize]", "100");
+
+  if (documentId) {
+    qs.set("filters[boat][documentId][$eq]", documentId);
+  } else {
+    qs.set("filters[boat][id][$eq]", String(fallbackBoatId));
+  }
+
+  const res = await strapiJson(`/api/experiences?${qs.toString()}`, { method: "GET" }, serverToken);
 
   if (!res.ok) {
     return { ok: false, status: 502, error: "Could not count experiences", details: res.json };
   }
 
-  const meta = isRecord(res.json) && isRecord(res.json.meta) ? res.json.meta : null;
-  const pagination = meta && isRecord(meta.pagination) ? meta.pagination : null;
-  const total = pagination ? extractNumberId(pagination.total) : null;
-
-  return { ok: true, count: total ?? 0 };
+  const rows = isRecord(res.json) && Array.isArray(res.json.data) ? res.json.data : [];
+  return { ok: true, count: dedupeExperiences(rows).length };
 }
 
 export async function GET(req: NextRequest) {
@@ -334,6 +368,9 @@ export async function GET(req: NextRequest) {
   qs.append("populate[boat][fields][1]", "documentId");
   qs.append("populate[boat][fields][2]", "title");
   qs.append("populate[boat][fields][3]", "slug");
+  qs.append("populate[cover][fields][0]", "url");
+  qs.append("populate[cover][fields][1]", "alternativeText");
+  qs.append("populate[cover][fields][2]", "formats");
 
   const experiencesRes = await strapiJson(`/api/experiences?${qs.toString()}`, { method: "GET" }, serverToken);
 
@@ -347,7 +384,7 @@ export async function GET(req: NextRequest) {
   const rows = isRecord(experiencesRes.json) && Array.isArray(experiencesRes.json.data) ? experiencesRes.json.data : [];
 
   return NextResponse.json(
-    { ok: true, experiences: rows },
+    { ok: true, experiences: dedupeExperiences(rows) },
     { status: 200, headers: { "cache-control": "no-store" } }
   );
 }
@@ -397,7 +434,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const countRes = await countBoatExperiences(p.boatId, serverToken);
+  const countRes = await countBoatExperiences(boatRes.boat, p.boatId, serverToken);
   if (!countRes.ok) {
     return NextResponse.json(
       { ok: false, error: countRes.error, details: countRes.details },
