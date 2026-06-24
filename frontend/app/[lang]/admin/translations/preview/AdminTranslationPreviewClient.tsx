@@ -36,7 +36,12 @@ type PreviewResponse = {
   experiences?: PreviewExperience[];
   aiPreview?: {
     model?: string;
-    boat?: Record<string, TranslationFields | undefined>;
+    sourceLocale?: string;
+    targetLocales?: string[];
+    boat?: {
+      sourceDocumentId?: string | null;
+      translations?: Record<string, TranslationFields | undefined>;
+    };
     experiences?: Array<{
       sourceDocumentId?: string | null;
       translations?: Record<string, TranslationFields | undefined>;
@@ -64,11 +69,22 @@ type Copy = {
   routeCount: string;
   routes: string;
   model: string;
-  enBoat: string;
-  meBoat: string;
   noRoutes: string;
   noResponse: string;
   errorTitle: string;
+  labels: {
+    sourceLocale: string;
+    targetLocales: string;
+    boatDocumentId: string;
+    documentId: string;
+    sourceDocumentId: string;
+    title: string;
+    description: string;
+    shortDescription: string;
+    fullDescription: string;
+    includedServices: string;
+    meetingPoint: string;
+  };
   errors: Record<string, string>;
 };
 
@@ -93,15 +109,27 @@ const copy: Record<Lang, Copy> = {
     routeCount: "Маршрутов",
     routes: "Маршруты",
     model: "Модель",
-    enBoat: "EN лодка",
-    meBoat: "ME лодка",
     noRoutes: "Маршруты не найдены.",
     noResponse: "Ответ пока не получен.",
     errorTitle: "Ошибка",
+    labels: {
+      sourceLocale: "Исходный язык",
+      targetLocales: "Целевые языки",
+      boatDocumentId: "Boat documentId",
+      documentId: "documentId",
+      sourceDocumentId: "sourceDocumentId",
+      title: "Заголовок",
+      description: "Описание",
+      shortDescription: "Краткое описание",
+      fullDescription: "Полное описание",
+      includedServices: "Включённые услуги",
+      meetingPoint: "Место встречи",
+    },
     errors: {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN не настроен на сервере.",
       unauthorized: "Неверный admin token.",
       boat_not_found: "Лодка с таким documentId не найдена.",
+      source_locale_not_found: "Локализация лодки для выбранного исходного языка не найдена.",
       target_locales_required: "Нужно выбрать хотя бы один целевой язык, отличный от исходного.",
       openai_api_key_missing: "OPENAI_API_KEY не настроен на сервере frontend.",
       openai_request_failed: "Запрос к OpenAI не выполнен.",
@@ -129,15 +157,27 @@ const copy: Record<Lang, Copy> = {
     routeCount: "Routes",
     routes: "Routes",
     model: "Model",
-    enBoat: "EN boat",
-    meBoat: "ME boat",
     noRoutes: "No routes found.",
     noResponse: "No response yet.",
     errorTitle: "Error",
+    labels: {
+      sourceLocale: "Source locale",
+      targetLocales: "Target locales",
+      boatDocumentId: "Boat documentId",
+      documentId: "documentId",
+      sourceDocumentId: "sourceDocumentId",
+      title: "Title",
+      description: "Description",
+      shortDescription: "Short description",
+      fullDescription: "Full description",
+      includedServices: "Included services",
+      meetingPoint: "Meeting point",
+    },
     errors: {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN is not configured on the server.",
       unauthorized: "Invalid admin token.",
       boat_not_found: "Boat with this documentId was not found.",
+      source_locale_not_found: "Boat localization for the selected source locale was not found.",
       target_locales_required: "Select at least one target locale different from the source locale.",
       openai_api_key_missing: "OPENAI_API_KEY is not configured in the frontend runtime.",
       openai_request_failed: "OpenAI request failed.",
@@ -165,15 +205,27 @@ const copy: Record<Lang, Copy> = {
     routeCount: "Ruta",
     routes: "Rute",
     model: "Model",
-    enBoat: "EN brod",
-    meBoat: "ME brod",
     noRoutes: "Rute nijesu pronađene.",
     noResponse: "Još nema odgovora.",
     errorTitle: "Greška",
+    labels: {
+      sourceLocale: "Izvorni jezik",
+      targetLocales: "Ciljni jezici",
+      boatDocumentId: "Boat documentId",
+      documentId: "documentId",
+      sourceDocumentId: "sourceDocumentId",
+      title: "Naslov",
+      description: "Opis",
+      shortDescription: "Kratak opis",
+      fullDescription: "Pun opis",
+      includedServices: "Uključene usluge",
+      meetingPoint: "Mjesto susreta",
+    },
     errors: {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN nije podešen na serveru.",
       unauthorized: "Neispravan admin token.",
       boat_not_found: "Brod sa ovim documentId nije pronađen.",
+      source_locale_not_found: "Lokalizacija broda za izabrani izvorni jezik nije pronađena.",
       target_locales_required: "Izaberite makar jedan ciljni jezik koji nije izvorni.",
       openai_api_key_missing: "OPENAI_API_KEY nije podešen u frontend runtime okruženju.",
       openai_request_failed: "OpenAI zahtjev nije uspio.",
@@ -196,6 +248,11 @@ function targetLocalesForSource(sourceLocale: StrapiLocale): StrapiLocale[] {
   return STRAPI_LOCALES.filter((locale) => locale !== sourceLocale);
 }
 
+function localeLabel(locale: string) {
+  if (locale === "sr-Latn-ME") return "ME";
+  return locale.toUpperCase();
+}
+
 function TextBlock({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="admin-translation-field">
@@ -208,19 +265,21 @@ function TextBlock({ label, value }: { label: string; value: string | null | und
 function LocaleTranslation({
   title,
   value,
+  ui,
 }: {
   title: string;
   value: TranslationFields | undefined;
+  ui: Copy;
 }) {
   return (
     <section className="admin-translation-panel">
       <h3>{title}</h3>
-      <TextBlock label="Title" value={value?.title} />
-      {"description" in (value ?? {}) ? <TextBlock label="Description" value={value?.description} /> : null}
-      {"short_description" in (value ?? {}) ? <TextBlock label="Short description" value={value?.short_description} /> : null}
-      {"full_description" in (value ?? {}) ? <TextBlock label="Full description" value={value?.full_description} /> : null}
-      {"included_services" in (value ?? {}) ? <TextBlock label="Included services" value={value?.included_services} /> : null}
-      {"meeting_point" in (value ?? {}) ? <TextBlock label="Meeting point" value={value?.meeting_point} /> : null}
+      <TextBlock label={ui.labels.title} value={value?.title} />
+      {"description" in (value ?? {}) ? <TextBlock label={ui.labels.description} value={value?.description} /> : null}
+      {"short_description" in (value ?? {}) ? <TextBlock label={ui.labels.shortDescription} value={value?.short_description} /> : null}
+      {"full_description" in (value ?? {}) ? <TextBlock label={ui.labels.fullDescription} value={value?.full_description} /> : null}
+      {"included_services" in (value ?? {}) ? <TextBlock label={ui.labels.includedServices} value={value?.included_services} /> : null}
+      {"meeting_point" in (value ?? {}) ? <TextBlock label={ui.labels.meetingPoint} value={value?.meeting_point} /> : null}
     </section>
   );
 }
@@ -280,6 +339,7 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
 
   const routes = response?.experiences ?? [];
   const aiRoutes = response?.aiPreview?.experiences ?? [];
+  const previewTargetLocales = response?.aiPreview?.targetLocales ?? response?.targetLocales ?? [];
 
   return (
     <div className="admin-translation-shell">
@@ -378,9 +438,9 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         {response?.ok ? (
           <div className="admin-translation-results">
             <dl className="admin-translation-meta">
-              <TextBlock label="Source locale" value={response.sourceLocale} />
-              <TextBlock label="Target locales" value={(response.targetLocales ?? []).join(", ")} />
-              <TextBlock label="Boat documentId" value={response.boat?.documentId} />
+              <TextBlock label={ui.labels.sourceLocale} value={response.sourceLocale} />
+              <TextBlock label={ui.labels.targetLocales} value={(response.targetLocales ?? []).join(", ")} />
+              <TextBlock label={ui.labels.boatDocumentId} value={response.boat?.documentId} />
               <TextBlock label={ui.routeCount} value={String(routes.length)} />
             </dl>
 
@@ -400,8 +460,8 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
                   {routes.map((route, index) => (
                     <section className="admin-translation-panel" key={`${route.documentId ?? "route"}-${index}`}>
                       <h4>{valueOrDash(route.fieldsForTranslation?.title ?? route.title)}</h4>
-                      <TextBlock label="documentId" value={route.documentId} />
-                      <TextBlock label="Short description" value={route.fieldsForTranslation?.short_description} />
+                      <TextBlock label={ui.labels.documentId} value={route.documentId} />
+                      <TextBlock label={ui.labels.shortDescription} value={route.fieldsForTranslation?.short_description} />
                     </section>
                   ))}
                 </div>
@@ -417,10 +477,18 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         <section className="admin-translation-card">
           <h2>{ui.aiResult}</h2>
           <TextBlock label={ui.model} value={response.aiPreview.model} />
+          <TextBlock label={ui.labels.sourceLocale} value={response.aiPreview.sourceLocale} />
+          <TextBlock label={ui.labels.targetLocales} value={previewTargetLocales.join(", ")} />
 
           <div className="admin-translation-grid">
-            <LocaleTranslation title={ui.enBoat} value={response.aiPreview.boat?.en} />
-            <LocaleTranslation title={ui.meBoat} value={response.aiPreview.boat?.["sr-Latn-ME"]} />
+            {previewTargetLocales.map((locale) => (
+              <LocaleTranslation
+                key={locale}
+                title={`${localeLabel(locale)} boat`}
+                value={response.aiPreview?.boat?.translations?.[locale]}
+                ui={ui}
+              />
+            ))}
           </div>
 
           <div>
@@ -428,9 +496,15 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
             <div className="admin-translation-grid">
               {aiRoutes.map((route, index) => (
                 <section className="admin-translation-panel" key={`${route.sourceDocumentId ?? "ai-route"}-${index}`}>
-                  <TextBlock label="sourceDocumentId" value={route.sourceDocumentId} />
-                  <LocaleTranslation title="EN" value={route.translations?.en} />
-                  <LocaleTranslation title="ME" value={route.translations?.["sr-Latn-ME"]} />
+                  <TextBlock label={ui.labels.sourceDocumentId} value={route.sourceDocumentId} />
+                  {previewTargetLocales.map((locale) => (
+                    <LocaleTranslation
+                      key={locale}
+                      title={localeLabel(locale)}
+                      value={route.translations?.[locale]}
+                      ui={ui}
+                    />
+                  ))}
                 </section>
               ))}
             </div>
@@ -444,7 +518,7 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
           gap: 18px;
           width: min(1120px, calc(100vw - 32px));
           margin: 0 auto;
-          padding: 32px 0 54px;
+          padding: 72px 0 54px;
         }
 
         .admin-translation-card {

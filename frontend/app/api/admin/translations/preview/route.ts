@@ -151,10 +151,6 @@ function experienceQueryParams(boatId: number, locale: Locale, status: "draft" |
   ];
 }
 
-function localePriority(sourceLocale: Locale): Locale[] {
-  return Array.from(new Set([sourceLocale, ...ALL_LOCALES]));
-}
-
 function targetLocalesForSource(sourceLocale: Locale): Locale[] {
   return ALL_LOCALES.filter((locale) => locale !== sourceLocale);
 }
@@ -231,14 +227,11 @@ async function scanBoatRows(
 }
 
 async function findSourceBoat(boatDocumentId: string, sourceLocale: Locale): Promise<JsonObject | null> {
-  const localeOrder = localePriority(sourceLocale);
   const statusOrder: Array<"draft" | "published"> = ["draft", "published"];
 
-  for (const locale of localeOrder) {
-    for (const status of statusOrder) {
-      const boat = await fetchBoatCandidate(boatDocumentId, locale, status);
-      if (boat) return boat;
-    }
+  for (const status of statusOrder) {
+    const boat = await fetchBoatCandidate(boatDocumentId, sourceLocale, status);
+    if (boat) return boat;
   }
 
   return null;
@@ -269,14 +262,12 @@ async function findBoatRowsByDocumentId(boatDocumentId: string, sourceLocale: Lo
   const rows: JsonObject[] = [];
   const seen = new Set<string>();
 
-  for (const locale of localePriority(sourceLocale)) {
-    for (const status of ["draft", "published"] as const) {
-      for (const row of await scanBoatRows(locale, status, boatDocumentId)) {
-        const key = `${String(row.id ?? "")}:${asString(row.locale) ?? locale}:${asString(row.publishedAt) ?? status}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        rows.push(row);
-      }
+  for (const status of ["draft", "published"] as const) {
+    for (const row of await scanBoatRows(sourceLocale, status, boatDocumentId)) {
+      const key = `${String(row.id ?? "")}:${asString(row.locale) ?? sourceLocale}:${asString(row.publishedAt) ?? status}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
     }
   }
 
@@ -424,8 +415,16 @@ function buildAiTranslationSchema(targetLocales: Locale[]) {
       boat: {
         type: "object",
         additionalProperties: false,
-        required: targetLocales,
-        properties: localeTranslationProperties(targetLocales, boatTranslationSchema),
+        required: ["sourceDocumentId", "translations"],
+        properties: {
+          sourceDocumentId: nullableStringSchema(),
+          translations: {
+            type: "object",
+            additionalProperties: false,
+            required: targetLocales,
+            properties: localeTranslationProperties(targetLocales, boatTranslationSchema),
+          },
+        },
       },
       experiences: {
         type: "array",
@@ -457,9 +456,13 @@ function buildAiTranslationPrompt(sourcePayload: SourcePayload): string {
     "- Do not change prices, currency, duration, year, capacity, numeric ids, documentId, media, owner relation, route relation, or publish status.",
     "- Do not invent services, guarantees, documents, insurance, availability, safety claims, or extra route details.",
     "- Preserve null and empty source fields as null.",
+    "- Do not invent missing included services, meeting point, or full description.",
     "- Keep boat names, marina names, city names, place names, brand names, and model names unchanged unless there is a clear generic descriptive part.",
-    "- English must be clean marketplace English.",
-    "- sr-Latn-ME must be Montenegrin Latin style.",
+    "- Preserve brand/model names like Tiara Yachts and place names like Sveti Stefan.",
+    "- English should be natural marketplace and tourism English.",
+    "- Montenegrin must be natural Montenegrin Latin for a tourism marketplace, not Serbian Cyrillic and not overly bookish.",
+    "- For Montenegrin, prefer natural terms like \"kruzer\" or \"brod za krstarenje\" over awkward \"krstaš\" where appropriate.",
+    "- For Montenegrin, prefer \"Instagram lokacije\" or \"mjesta idealna za fotografije\" over awkward literal phrasing if context allows.",
     "- The result is only a preview for admin review.",
     "",
     `Source locale: ${sourcePayload.sourceLocale}`,
@@ -529,10 +532,11 @@ function validateExperienceTranslation(value: unknown): value is JsonObject {
 }
 
 function validateAiTranslationPayload(value: unknown, sourcePayload: SourcePayload): value is JsonObject {
-  if (!isRecord(value) || !isRecord(value.boat) || !Array.isArray(value.experiences)) return false;
+  if (!isRecord(value) || !isRecord(value.boat) || !isRecord(value.boat.translations) || !Array.isArray(value.experiences)) return false;
+  if (value.boat.sourceDocumentId !== sourcePayload.boat.documentId) return false;
 
   for (const locale of sourcePayload.targetLocales) {
-    if (!validateLocaleStringFields(value.boat[locale], ["title", "description"])) return false;
+    if (!validateLocaleStringFields(value.boat.translations[locale], ["title", "description"])) return false;
   }
 
   if (value.experiences.length !== sourcePayload.experiences.length) return false;
@@ -593,6 +597,8 @@ async function generateAiPreview(
     ok: true,
     aiPreview: {
       model,
+      sourceLocale: sourcePayload.sourceLocale,
+      targetLocales: sourcePayload.targetLocales,
       boat: parsed.boat,
       experiences: parsed.experiences,
     },
@@ -649,7 +655,7 @@ export async function POST(req: NextRequest) {
     const boat = await findSourceBoat(boatDocumentId, sourceLocale);
     if (!boat) {
       return NextResponse.json(
-        { ok: false, code: "boat_not_found" },
+        { ok: false, code: "source_locale_not_found" },
         { status: 404, headers: { "cache-control": "no-store" } }
       );
     }
