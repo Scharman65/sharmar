@@ -298,7 +298,10 @@ function addDirectExperiencePopulate(qs: string[]) {
   qs.push("pagination[pageSize]=20");
 }
 
-async function fetchExperiencesForBoatDocumentId(documentId: string): Promise<NonNullable<Boat["experiences"]>> {
+async function fetchExperiencesForBoatDocumentId(
+  documentId: string,
+  preferredLocale?: string | null
+): Promise<NonNullable<Boat["experiences"]>> {
   const qs: string[] = [
     `filters[boat][documentId][$eq]=${encodeURIComponent(documentId)}`,
     "locale=all",
@@ -325,7 +328,11 @@ async function fetchExperiencesForBoatDocumentId(documentId: string): Promise<No
     const seen = new Set<string>();
     const experiences: NonNullable<Boat["experiences"]> = [];
 
-    for (const locale of ["en", "ru", "sr-Latn-ME"]) {
+    const localePriority = Array.from(
+      new Set([preferredLocale, "en", "ru", "sr-Latn-ME"].filter(Boolean) as string[])
+    );
+
+    for (const locale of localePriority) {
       const json = await strapiFetch<{ data: any[] }>(
         `/api/boats?${[...boatQs, `locale=${encodeURIComponent(locale)}`].join("&")}`
       );
@@ -397,7 +404,7 @@ export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Bo
   if (!boat) return null;
 
   if (!boat.experiences?.length && boat.documentId) {
-    boat.experiences = await fetchExperiencesForBoatDocumentId(boat.documentId);
+    boat.experiences = await fetchExperiencesForBoatDocumentId(boat.documentId, locale);
   }
 
   return boat;
