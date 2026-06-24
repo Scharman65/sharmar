@@ -308,7 +308,44 @@ async function fetchExperiencesForBoatDocumentId(documentId: string): Promise<No
 
   try {
     const json = await strapiFetch<{ data: any[] }>(`/api/experiences?${qs.join("&")}`);
-    return normalizeExperiences(json.data ?? []);
+    const directExperiences = normalizeExperiences(json.data ?? []);
+    if (directExperiences.length) return directExperiences;
+  } catch {
+    // Fall back below through the boat document when Strapi cannot resolve the relation directly.
+  }
+
+  const boatQs: string[] = [
+    "status=published",
+    "pagination[pageSize]=100",
+    "sort=documentId:asc",
+  ];
+  addExperiencePopulate(boatQs);
+
+  try {
+    const seen = new Set<string>();
+    const experiences: NonNullable<Boat["experiences"]> = [];
+
+    for (const locale of ["en", "ru", "sr-Latn-ME"]) {
+      const json = await strapiFetch<{ data: any[] }>(
+        `/api/boats?${[...boatQs, `locale=${encodeURIComponent(locale)}`].join("&")}`
+      );
+
+      for (const boat of (json.data ?? []).map(normalizeBoat).filter(Boolean) as Boat[]) {
+        if (boat.documentId !== documentId) continue;
+        for (const experience of boat.experiences ?? []) {
+          const key = experience.documentId
+            ? `document:${experience.documentId}`
+            : experience.id
+              ? `id:${experience.id}`
+              : `fallback:${experience.slug ?? ""}:${experience.title ?? ""}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          experiences.push(experience);
+        }
+      }
+    }
+
+    return experiences.slice(0, 3);
   } catch {
     return [];
   }
