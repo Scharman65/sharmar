@@ -6,6 +6,8 @@ type Locale = "ru" | "en" | "sr-Latn-ME";
 const DEFAULT_SOURCE_LOCALE: Locale = "ru";
 const DEFAULT_TARGET_LOCALES: Locale[] = ["en", "sr-Latn-ME"];
 const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const DEFAULT_OPENAI_TRANSLATION_MODEL = "gpt-4.1-mini";
 
 function getStrapiBase(): string {
   return (
@@ -21,6 +23,14 @@ function getServerToken(): string {
 
 function getAdminTranslationToken(): string {
   return (process.env.ADMIN_TRANSLATION_TOKEN || "").trim();
+}
+
+function getOpenAiKey(): string {
+  return (process.env.OPENAI_API_KEY || "").trim();
+}
+
+function getOpenAiTranslationModel(): string {
+  return (process.env.OPENAI_TRANSLATION_MODEL || DEFAULT_OPENAI_TRANSLATION_MODEL).trim();
 }
 
 function isRecord(value: unknown): value is JsonObject {
@@ -359,6 +369,233 @@ function shapeBoat(boat: JsonObject) {
   };
 }
 
+type ShapedBoat = ReturnType<typeof shapeBoat>;
+type ShapedExperience = ReturnType<typeof shapeExperience>;
+type SourcePayload = {
+  ok: true;
+  sourceLocale: Locale;
+  targetLocales: Locale[];
+  boat: ShapedBoat;
+  experiences: ShapedExperience[];
+};
+
+function nullableStringSchema() {
+  return { anyOf: [{ type: "string" }, { type: "null" }] };
+}
+
+function experienceTranslationSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["title", "short_description", "full_description", "included_services", "meeting_point"],
+    properties: {
+      title: { type: "string" },
+      short_description: nullableStringSchema(),
+      full_description: nullableStringSchema(),
+      included_services: nullableStringSchema(),
+      meeting_point: nullableStringSchema(),
+    },
+  };
+}
+
+function localeTranslationProperties(targetLocales: Locale[], schema: JsonObject): JsonObject {
+  return Object.fromEntries(targetLocales.map((locale) => [locale, schema]));
+}
+
+function buildAiTranslationSchema(targetLocales: Locale[]) {
+  const boatTranslationSchema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["title", "description"],
+    properties: {
+      title: { type: "string" },
+      description: { type: "string" },
+    },
+  };
+
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["boat", "experiences"],
+    properties: {
+      boat: {
+        type: "object",
+        additionalProperties: false,
+        required: targetLocales,
+        properties: localeTranslationProperties(targetLocales, boatTranslationSchema),
+      },
+      experiences: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["sourceDocumentId", "translations"],
+          properties: {
+            sourceDocumentId: nullableStringSchema(),
+            translations: {
+              type: "object",
+              additionalProperties: false,
+              required: targetLocales,
+              properties: localeTranslationProperties(targetLocales, experienceTranslationSchema()),
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function buildAiTranslationPrompt(sourcePayload: SourcePayload): string {
+  return [
+    "Translate this yacht marketplace listing for admin review.",
+    "",
+    "Rules:",
+    "- Translate only text fields.",
+    "- Do not change prices, currency, duration, year, capacity, numeric ids, documentId, media, owner relation, route relation, or publish status.",
+    "- Do not invent services, guarantees, documents, insurance, availability, safety claims, or extra route details.",
+    "- Preserve null and empty source fields as null.",
+    "- Keep boat names, marina names, city names, place names, brand names, and model names unchanged unless there is a clear generic descriptive part.",
+    "- English must be clean marketplace English.",
+    "- sr-Latn-ME must be Montenegrin Latin style.",
+    "- The result is only a preview for admin review.",
+    "",
+    `Source locale: ${sourcePayload.sourceLocale}`,
+    `Target locales: ${sourcePayload.targetLocales.join(", ")}`,
+    "",
+    "Source JSON:",
+    JSON.stringify({
+      boat: {
+        documentId: sourcePayload.boat.documentId,
+        fieldsForTranslation: sourcePayload.boat.fieldsForTranslation,
+        fieldsToPreserve: sourcePayload.boat.fieldsToPreserve,
+      },
+      experiences: sourcePayload.experiences.map((experience) => ({
+        documentId: experience.documentId,
+        fieldsForTranslation: experience.fieldsForTranslation,
+        fieldsToPreserve: experience.fieldsToPreserve,
+      })),
+    }),
+  ].join("\n");
+}
+
+function extractOpenAiText(json: unknown): string | null {
+  if (!isRecord(json)) return null;
+  const outputText = asString(json.output_text);
+  if (outputText) return outputText;
+
+  if (!Array.isArray(json.output)) return null;
+  for (const item of json.output) {
+    if (!isRecord(item) || !Array.isArray(item.content)) continue;
+    for (const content of item.content) {
+      if (!isRecord(content)) continue;
+      const text = asString(content.text);
+      if (text) return text;
+    }
+  }
+
+  return null;
+}
+
+function parseAiTranslationPayload(json: unknown): JsonObject | null {
+  const text = extractOpenAiText(json);
+  if (!text) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function validateLocaleStringFields(value: unknown, fields: string[]): value is JsonObject {
+  if (!isRecord(value)) return false;
+  for (const field of fields) {
+    if (typeof value[field] !== "string") return false;
+  }
+  return true;
+}
+
+function validateExperienceTranslation(value: unknown): value is JsonObject {
+  if (!isRecord(value)) return false;
+  if (typeof value.title !== "string") return false;
+  for (const field of ["short_description", "full_description", "included_services", "meeting_point"]) {
+    if (value[field] !== null && typeof value[field] !== "string") return false;
+  }
+  return true;
+}
+
+function validateAiTranslationPayload(value: unknown, sourcePayload: SourcePayload): value is JsonObject {
+  if (!isRecord(value) || !isRecord(value.boat) || !Array.isArray(value.experiences)) return false;
+
+  for (const locale of sourcePayload.targetLocales) {
+    if (!validateLocaleStringFields(value.boat[locale], ["title", "description"])) return false;
+  }
+
+  if (value.experiences.length !== sourcePayload.experiences.length) return false;
+
+  for (let i = 0; i < sourcePayload.experiences.length; i += 1) {
+    const item = value.experiences[i];
+    if (!isRecord(item) || !isRecord(item.translations)) return false;
+    const expectedDocumentId = sourcePayload.experiences[i]?.documentId ?? null;
+    if (item.sourceDocumentId !== expectedDocumentId) return false;
+
+    for (const locale of sourcePayload.targetLocales) {
+      if (!validateExperienceTranslation(item.translations[locale])) return false;
+    }
+  }
+
+  return true;
+}
+
+async function generateAiPreview(
+  sourcePayload: SourcePayload,
+  apiKey: string,
+  model: string
+): Promise<{ ok: true; aiPreview: JsonObject } | { ok: false; code: "openai_request_failed" | "ai_translation_invalid_response" }> {
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      instructions: [
+        "You are a precise translator for a yacht marketplace in Montenegro.",
+        "Return only valid JSON matching the provided schema.",
+        "Never add facts or modify preserved values.",
+      ].join(" "),
+      input: buildAiTranslationPrompt(sourcePayload),
+      text: {
+        format: {
+          type: "json_schema",
+          name: "admin_translation_preview",
+          strict: true,
+          schema: buildAiTranslationSchema(sourcePayload.targetLocales),
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) return { ok: false, code: "openai_request_failed" };
+
+  const json: unknown = await response.json().catch(() => null);
+  const parsed = parseAiTranslationPayload(json);
+  if (!validateAiTranslationPayload(parsed, sourcePayload)) {
+    return { ok: false, code: "ai_translation_invalid_response" };
+  }
+
+  return {
+    ok: true,
+    aiPreview: {
+      model,
+      boat: parsed.boat,
+      experiences: parsed.experiences,
+    },
+  };
+}
+
 export async function POST(req: NextRequest) {
   const configuredToken = getAdminTranslationToken();
   if (!configuredToken) {
@@ -407,7 +644,7 @@ export async function POST(req: NextRequest) {
     }
 
     const experiences = await fetchExperiencesForBoat(boat);
-    const sourcePayload = {
+    const sourcePayload: SourcePayload = {
       ok: true,
       sourceLocale,
       targetLocales,
@@ -416,16 +653,25 @@ export async function POST(req: NextRequest) {
     };
 
     if (generateAi) {
-      if (!process.env.OPENAI_API_KEY?.trim()) {
+      const openAiKey = getOpenAiKey();
+      if (!openAiKey) {
         return NextResponse.json(
           { ok: false, code: "openai_api_key_missing" },
           { status: 503, headers: { "cache-control": "no-store" } }
         );
       }
 
+      const aiResult = await generateAiPreview(sourcePayload, openAiKey, getOpenAiTranslationModel());
+      if (!aiResult.ok) {
+        return NextResponse.json(
+          { ok: false, code: aiResult.code },
+          { status: aiResult.code === "openai_request_failed" ? 502 : 502, headers: { "cache-control": "no-store" } }
+        );
+      }
+
       return NextResponse.json(
-        { ok: false, code: "ai_translation_not_implemented" },
-        { status: 501, headers: { "cache-control": "no-store" } }
+        { ...sourcePayload, aiPreview: aiResult.aiPreview },
+        { headers: { "cache-control": "no-store" } }
       );
     }
 
