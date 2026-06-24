@@ -26,6 +26,7 @@ type PreviewWarning = {
   code?: string;
   sourceDocumentId?: string | null;
   sourceLocale?: string | null;
+  actualLocale?: string | null;
 };
 
 type PreviewResponse = {
@@ -137,6 +138,7 @@ const copy: Record<Lang, Copy> = {
     },
     warnings: {
       experience_source_locale_not_found: "Маршрут связан с лодкой, но локализация маршрута для исходного языка не найдена.",
+      experience_source_locale_inferred_from_linked_row: "Маршрут связан с лодкой, но точная локализация маршрута для исходного языка не найдена. Использована связанная строка маршрута для preview.",
       unknown: "Предупреждение.",
     },
     errors: {
@@ -190,6 +192,7 @@ const copy: Record<Lang, Copy> = {
     },
     warnings: {
       experience_source_locale_not_found: "A route is linked to the boat, but the route localization for the source locale was not found.",
+      experience_source_locale_inferred_from_linked_row: "A route is linked to the boat, but the exact route localization for the source locale was not found. The linked route row was used for preview.",
       unknown: "Warning.",
     },
     errors: {
@@ -243,6 +246,7 @@ const copy: Record<Lang, Copy> = {
     },
     warnings: {
       experience_source_locale_not_found: "Ruta je povezana sa brodom, ali lokalizacija rute za izvorni jezik nije pronađena.",
+      experience_source_locale_inferred_from_linked_row: "Ruta je povezana sa brodom, ali tačna lokalizacija rute za izvorni jezik nije pronađena. Povezani red rute je korišćen za preview.",
       unknown: "Upozorenje.",
     },
     errors: {
@@ -286,7 +290,7 @@ function localeBoatTitle(lang: Lang, locale: string) {
 
 function warningMessage(ui: Copy, warning: PreviewWarning) {
   const message = ui.warnings[warning.code ?? "unknown"] ?? ui.warnings.unknown;
-  const details = [warning.sourceDocumentId, warning.sourceLocale].filter(Boolean).join(" / ");
+  const details = [warning.sourceDocumentId, warning.sourceLocale, warning.actualLocale].filter(Boolean).join(" / ");
   return details ? `${message} (${details})` : message;
 }
 

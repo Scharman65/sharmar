@@ -3,9 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 type JsonObject = Record<string, unknown>;
 type Locale = "ru" | "en" | "sr-Latn-ME";
 type PreviewWarning = {
-  code: "experience_source_locale_not_found";
+  code: "experience_source_locale_not_found" | "experience_source_locale_inferred_from_linked_row";
   sourceDocumentId?: string | null;
   sourceLocale?: Locale;
+  actualLocale?: string | null;
+};
+type ExperienceSourceCandidate = {
+  documentId: string;
+  linkedRows: JsonObject[];
 };
 
 const DEFAULT_SOURCE_LOCALE: Locale = "ru";
@@ -403,25 +408,49 @@ async function scanExperienceRows(
   return matches;
 }
 
-async function discoverExperienceDocumentIds(boat: JsonObject): Promise<string[]> {
-  const discovered = new Set<string>();
+function hasTranslatableExperienceText(experience: JsonObject): boolean {
+  return [
+    experience.title,
+    experience.short_description,
+    experience.full_description,
+    experience.included_services,
+    experience.meeting_point,
+  ].some((value) => asString(value) !== null);
+}
 
-  const addDocumentIds = (experiences: JsonObject[]) => {
-    for (const experience of experiences) {
-      const documentId = asString(experience.documentId);
-      if (documentId) discovered.add(documentId);
-    }
-  };
+function addExperienceCandidates(
+  candidates: Map<string, ExperienceSourceCandidate>,
+  experiences: JsonObject[]
+) {
+  for (const experience of experiences) {
+    const documentId = asString(experience.documentId);
+    if (!documentId) continue;
+
+    const current = candidates.get(documentId) ?? { documentId, linkedRows: [] };
+    current.linkedRows.push(experience);
+    candidates.set(documentId, current);
+  }
+}
+
+function selectLinkedExperienceSource(candidate: ExperienceSourceCandidate, sourceLocale: Locale): JsonObject | null {
+  const usableRows = candidate.linkedRows.filter(hasTranslatableExperienceText);
+  if (!usableRows.length) return null;
+
+  return usableRows.find((row) => row.locale === sourceLocale) ?? usableRows[0] ?? null;
+}
+
+async function discoverExperienceCandidates(boat: JsonObject): Promise<ExperienceSourceCandidate[]> {
+  const candidates = new Map<string, ExperienceSourceCandidate>();
 
   const populated = Array.isArray(boat.experiences)
     ? boat.experiences.map(getAttributes).filter(Boolean) as JsonObject[]
     : [];
-  addDocumentIds(populated);
+  addExperienceCandidates(candidates, populated);
 
   const boatId = asNumber(boat.id);
   const locale = asLocale(boat.locale) ?? DEFAULT_SOURCE_LOCALE;
   if (boatId !== null) {
-    addDocumentIds(await fetchExperiencesByBoatId(boatId, locale));
+    addExperienceCandidates(candidates, await fetchExperiencesByBoatId(boatId, locale));
   }
 
   const boatDocumentId = asString(boat.documentId);
@@ -430,11 +459,11 @@ async function discoverExperienceDocumentIds(boat: JsonObject): Promise<string[]
       const rowBoatId = asNumber(row.id);
       const rowLocale = asLocale(row.locale) ?? locale;
       if (rowBoatId === null) continue;
-      addDocumentIds(await fetchExperiencesByBoatId(rowBoatId, rowLocale));
+      addExperienceCandidates(candidates, await fetchExperiencesByBoatId(rowBoatId, rowLocale));
     }
   }
 
-  return Array.from(discovered);
+  return Array.from(candidates.values());
 }
 
 async function fetchExperiencesForBoat(boat: JsonObject): Promise<{ experiences: JsonObject[]; warnings: PreviewWarning[] }> {
@@ -442,16 +471,28 @@ async function fetchExperiencesForBoat(boat: JsonObject): Promise<{ experiences:
   const experiences: JsonObject[] = [];
   const warnings: PreviewWarning[] = [];
 
-  for (const documentId of await discoverExperienceDocumentIds(boat)) {
-    const experience = await fetchExperienceByDocumentId(documentId, locale);
+  for (const candidate of await discoverExperienceCandidates(boat)) {
+    const experience = await fetchExperienceByDocumentId(candidate.documentId, locale);
     if (experience) {
       experiences.push(experience);
       continue;
     }
 
+    const linkedSource = selectLinkedExperienceSource(candidate, locale);
+    if (linkedSource) {
+      experiences.push(linkedSource);
+      warnings.push({
+        code: "experience_source_locale_inferred_from_linked_row",
+        sourceDocumentId: candidate.documentId,
+        sourceLocale: locale,
+        actualLocale: asString(linkedSource.locale),
+      });
+      continue;
+    }
+
     warnings.push({
       code: "experience_source_locale_not_found",
-      sourceDocumentId: documentId,
+      sourceDocumentId: candidate.documentId,
       sourceLocale: locale,
     });
   }
