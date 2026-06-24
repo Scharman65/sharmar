@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 type JsonObject = Record<string, unknown>;
 type Locale = "ru" | "en" | "sr-Latn-ME";
+type PreviewWarning = {
+  code: "experience_source_locale_not_found";
+  sourceDocumentId?: string | null;
+  sourceLocale?: Locale;
+};
 
 const DEFAULT_SOURCE_LOCALE: Locale = "ru";
 const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
@@ -151,6 +156,36 @@ function experienceQueryParams(boatId: number, locale: Locale, status: "draft" |
   ];
 }
 
+function experienceDocumentQueryParams(
+  experienceDocumentId: string,
+  locale: Locale,
+  status: "draft" | "published"
+): string[] {
+  return [
+    `filters[documentId][$eq]=${encodeURIComponent(experienceDocumentId)}`,
+    `locale=${encodeURIComponent(locale)}`,
+    `status=${status}`,
+    "fields[0]=title",
+    "fields[1]=slug",
+    "fields[2]=short_description",
+    "fields[3]=full_description",
+    "fields[4]=included_services",
+    "fields[5]=meeting_point",
+    "fields[6]=duration_hours",
+    "fields[7]=price",
+    "fields[8]=currency",
+    "fields[9]=max_guests",
+    "fields[10]=sort_order",
+    "fields[11]=is_active",
+    "fields[12]=documentId",
+    "fields[13]=locale",
+    "fields[14]=publishedAt",
+    "sort[0]=sort_order:asc",
+    "sort[1]=createdAt:desc",
+    "pagination[pageSize]=10",
+  ];
+}
+
 function targetLocalesForSource(sourceLocale: Locale): Locale[] {
   return ALL_LOCALES.filter((locale) => locale !== sourceLocale);
 }
@@ -258,16 +293,18 @@ async function fetchExperiencesByBoatId(boatId: number, locale: Locale): Promise
   return rows;
 }
 
-async function findBoatRowsByDocumentId(boatDocumentId: string, sourceLocale: Locale): Promise<JsonObject[]> {
+async function findBoatRowsByDocumentId(boatDocumentId: string): Promise<JsonObject[]> {
   const rows: JsonObject[] = [];
   const seen = new Set<string>();
 
-  for (const status of ["draft", "published"] as const) {
-    for (const row of await scanBoatRows(sourceLocale, status, boatDocumentId)) {
-      const key = `${String(row.id ?? "")}:${asString(row.locale) ?? sourceLocale}:${asString(row.publishedAt) ?? status}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push(row);
+  for (const locale of ALL_LOCALES) {
+    for (const status of ["draft", "published"] as const) {
+      for (const row of await scanBoatRows(locale, status, boatDocumentId)) {
+        const key = `${String(row.id ?? "")}:${asString(row.locale) ?? locale}:${asString(row.publishedAt) ?? status}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push(row);
+      }
     }
   }
 
@@ -288,29 +325,138 @@ function dedupeExperiences(experiences: JsonObject[]): JsonObject[] {
   return deduped;
 }
 
-async function fetchExperiencesForBoat(boat: JsonObject): Promise<JsonObject[]> {
-  const populated = Array.isArray(boat.experiences) ? boat.experiences.map(getAttributes).filter(Boolean) as JsonObject[] : [];
-  if (populated.length) return populated;
+async function fetchExperienceByDocumentId(
+  experienceDocumentId: string,
+  locale: Locale
+): Promise<JsonObject | null> {
+  for (const status of ["draft", "published"] as const) {
+    const res = await strapiGet(
+      withQuery("/api/experiences", experienceDocumentQueryParams(experienceDocumentId, locale, status))
+    );
+    const data = isRecord(res.json) && Array.isArray(res.json.data) ? res.json.data : [];
+
+    for (const item of data) {
+      const experience = getAttributes(item);
+      if (experience && experience.documentId === experienceDocumentId) return experience;
+    }
+  }
+
+  for (const status of ["draft", "published"] as const) {
+    for (const experience of await scanExperienceRows(locale, status, experienceDocumentId)) {
+      return experience;
+    }
+  }
+
+  return null;
+}
+
+async function scanExperienceRows(
+  locale: Locale,
+  status: "draft" | "published",
+  experienceDocumentId?: string
+): Promise<JsonObject[]> {
+  const matches: JsonObject[] = [];
+
+  for (let page = 1; page <= 5; page += 1) {
+    const res = await strapiGet(
+      withQuery("/api/experiences", [
+        `locale=${encodeURIComponent(locale)}`,
+        `status=${status}`,
+        "fields[0]=title",
+        "fields[1]=slug",
+        "fields[2]=short_description",
+        "fields[3]=full_description",
+        "fields[4]=included_services",
+        "fields[5]=meeting_point",
+        "fields[6]=duration_hours",
+        "fields[7]=price",
+        "fields[8]=currency",
+        "fields[9]=max_guests",
+        "fields[10]=sort_order",
+        "fields[11]=is_active",
+        "fields[12]=documentId",
+        "fields[13]=locale",
+        "fields[14]=publishedAt",
+        "sort[0]=sort_order:asc",
+        "sort[1]=createdAt:desc",
+        "pagination[pageSize]=100",
+        `pagination[page]=${page}`,
+      ])
+    );
+
+    const rows = isRecord(res.json) && Array.isArray(res.json.data) ? res.json.data : [];
+    for (const item of rows) {
+      const row = getAttributes(item);
+      if (!row) continue;
+      if (experienceDocumentId && row.documentId !== experienceDocumentId) continue;
+      matches.push(row);
+    }
+
+    const pagination = isRecord(res.json) && isRecord(res.json.meta) && isRecord(res.json.meta.pagination)
+      ? res.json.meta.pagination
+      : null;
+    const pageCount = pagination ? asNumber(pagination.pageCount) : null;
+    if (pageCount !== null && page >= pageCount) break;
+    if (!rows.length) break;
+  }
+
+  return matches;
+}
+
+async function discoverExperienceDocumentIds(boat: JsonObject): Promise<string[]> {
+  const discovered = new Set<string>();
+
+  const addDocumentIds = (experiences: JsonObject[]) => {
+    for (const experience of experiences) {
+      const documentId = asString(experience.documentId);
+      if (documentId) discovered.add(documentId);
+    }
+  };
+
+  const populated = Array.isArray(boat.experiences)
+    ? boat.experiences.map(getAttributes).filter(Boolean) as JsonObject[]
+    : [];
+  addDocumentIds(populated);
 
   const boatId = asNumber(boat.id);
   const locale = asLocale(boat.locale) ?? DEFAULT_SOURCE_LOCALE;
-  if (boatId === null) return [];
-
-  const directRows = await fetchExperiencesByBoatId(boatId, locale);
-  if (directRows.length) return directRows;
-
-  const boatDocumentId = asString(boat.documentId);
-  if (!boatDocumentId) return [];
-
-  const fallbackExperiences: JsonObject[] = [];
-  for (const row of await findBoatRowsByDocumentId(boatDocumentId, locale)) {
-    const rowBoatId = asNumber(row.id);
-    const rowLocale = asLocale(row.locale) ?? locale;
-    if (rowBoatId === null) continue;
-    fallbackExperiences.push(...await fetchExperiencesByBoatId(rowBoatId, rowLocale));
+  if (boatId !== null) {
+    addDocumentIds(await fetchExperiencesByBoatId(boatId, locale));
   }
 
-  return dedupeExperiences(fallbackExperiences);
+  const boatDocumentId = asString(boat.documentId);
+  if (boatDocumentId) {
+    for (const row of await findBoatRowsByDocumentId(boatDocumentId)) {
+      const rowBoatId = asNumber(row.id);
+      const rowLocale = asLocale(row.locale) ?? locale;
+      if (rowBoatId === null) continue;
+      addDocumentIds(await fetchExperiencesByBoatId(rowBoatId, rowLocale));
+    }
+  }
+
+  return Array.from(discovered);
+}
+
+async function fetchExperiencesForBoat(boat: JsonObject): Promise<{ experiences: JsonObject[]; warnings: PreviewWarning[] }> {
+  const locale = asLocale(boat.locale) ?? DEFAULT_SOURCE_LOCALE;
+  const experiences: JsonObject[] = [];
+  const warnings: PreviewWarning[] = [];
+
+  for (const documentId of await discoverExperienceDocumentIds(boat)) {
+    const experience = await fetchExperienceByDocumentId(documentId, locale);
+    if (experience) {
+      experiences.push(experience);
+      continue;
+    }
+
+    warnings.push({
+      code: "experience_source_locale_not_found",
+      sourceDocumentId: documentId,
+      sourceLocale: locale,
+    });
+  }
+
+  return { experiences: dedupeExperiences(experiences), warnings };
 }
 
 function shapeExperience(experience: JsonObject) {
@@ -371,6 +517,7 @@ type SourcePayload = {
   targetLocales: Locale[];
   boat: ShapedBoat;
   experiences: ShapedExperience[];
+  warnings: PreviewWarning[];
 };
 
 function nullableStringSchema() {
@@ -660,13 +807,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const experiences = await fetchExperiencesForBoat(boat);
+    const experienceResult = await fetchExperiencesForBoat(boat);
     const sourcePayload: SourcePayload = {
       ok: true,
       sourceLocale,
       targetLocales,
       boat: shapeBoat(boat),
-      experiences: experiences.map(shapeExperience),
+      experiences: experienceResult.experiences.map(shapeExperience),
+      warnings: experienceResult.warnings,
     };
 
     if (generateAi) {

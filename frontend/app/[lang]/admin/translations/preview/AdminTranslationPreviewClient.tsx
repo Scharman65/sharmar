@@ -22,6 +22,12 @@ type PreviewExperience = {
   fieldsForTranslation?: TranslationFields;
 };
 
+type PreviewWarning = {
+  code?: string;
+  sourceDocumentId?: string | null;
+  sourceLocale?: string | null;
+};
+
 type PreviewResponse = {
   ok?: boolean;
   code?: string;
@@ -34,6 +40,7 @@ type PreviewResponse = {
     fieldsForTranslation?: TranslationFields;
   };
   experiences?: PreviewExperience[];
+  warnings?: PreviewWarning[];
   aiPreview?: {
     model?: string;
     sourceLocale?: string;
@@ -72,6 +79,7 @@ type Copy = {
   noRoutes: string;
   noResponse: string;
   errorTitle: string;
+  warningTitle: string;
   labels: {
     sourceLocale: string;
     targetLocales: string;
@@ -85,6 +93,7 @@ type Copy = {
     includedServices: string;
     meetingPoint: string;
   };
+  warnings: Record<string, string>;
   errors: Record<string, string>;
 };
 
@@ -112,6 +121,7 @@ const copy: Record<Lang, Copy> = {
     noRoutes: "Маршруты не найдены.",
     noResponse: "Ответ пока не получен.",
     errorTitle: "Ошибка",
+    warningTitle: "Предупреждение",
     labels: {
       sourceLocale: "Исходный язык",
       targetLocales: "Целевые языки",
@@ -124,6 +134,10 @@ const copy: Record<Lang, Copy> = {
       fullDescription: "Полное описание",
       includedServices: "Включённые услуги",
       meetingPoint: "Место встречи",
+    },
+    warnings: {
+      experience_source_locale_not_found: "Маршрут связан с лодкой, но локализация маршрута для исходного языка не найдена.",
+      unknown: "Предупреждение.",
     },
     errors: {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN не настроен на сервере.",
@@ -160,6 +174,7 @@ const copy: Record<Lang, Copy> = {
     noRoutes: "No routes found.",
     noResponse: "No response yet.",
     errorTitle: "Error",
+    warningTitle: "Warning",
     labels: {
       sourceLocale: "Source locale",
       targetLocales: "Target locales",
@@ -172,6 +187,10 @@ const copy: Record<Lang, Copy> = {
       fullDescription: "Full description",
       includedServices: "Included services",
       meetingPoint: "Meeting point",
+    },
+    warnings: {
+      experience_source_locale_not_found: "A route is linked to the boat, but the route localization for the source locale was not found.",
+      unknown: "Warning.",
     },
     errors: {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN is not configured on the server.",
@@ -208,6 +227,7 @@ const copy: Record<Lang, Copy> = {
     noRoutes: "Rute nijesu pronađene.",
     noResponse: "Još nema odgovora.",
     errorTitle: "Greška",
+    warningTitle: "Upozorenje",
     labels: {
       sourceLocale: "Izvorni jezik",
       targetLocales: "Ciljni jezici",
@@ -220,6 +240,10 @@ const copy: Record<Lang, Copy> = {
       fullDescription: "Pun opis",
       includedServices: "Uključene usluge",
       meetingPoint: "Mjesto susreta",
+    },
+    warnings: {
+      experience_source_locale_not_found: "Ruta je povezana sa brodom, ali lokalizacija rute za izvorni jezik nije pronađena.",
+      unknown: "Upozorenje.",
     },
     errors: {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN nije podešen na serveru.",
@@ -251,6 +275,19 @@ function targetLocalesForSource(sourceLocale: StrapiLocale): StrapiLocale[] {
 function localeLabel(locale: string) {
   if (locale === "sr-Latn-ME") return "ME";
   return locale.toUpperCase();
+}
+
+function localeBoatTitle(lang: Lang, locale: string) {
+  const label = localeLabel(locale);
+  if (lang === "ru") return `${label} лодка`;
+  if (lang === "me") return `${label} brod`;
+  return `${label} boat`;
+}
+
+function warningMessage(ui: Copy, warning: PreviewWarning) {
+  const message = ui.warnings[warning.code ?? "unknown"] ?? ui.warnings.unknown;
+  const details = [warning.sourceDocumentId, warning.sourceLocale].filter(Boolean).join(" / ");
+  return details ? `${message} (${details})` : message;
 }
 
 function TextBlock({ label, value }: { label: string; value: string | null | undefined }) {
@@ -339,6 +376,7 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
 
   const routes = response?.experiences ?? [];
   const aiRoutes = response?.aiPreview?.experiences ?? [];
+  const warnings = response?.warnings ?? [];
   const previewTargetLocales = response?.aiPreview?.targetLocales ?? response?.targetLocales ?? [];
 
   return (
@@ -429,6 +467,17 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
             <span>{error}</span>
           </div>
         ) : null}
+
+        {warnings.length ? (
+          <div className="admin-translation-warning" role="status">
+            <strong>{ui.warningTitle}</strong>
+            {warnings.map((warning, index) => (
+              <span key={`${warning.code ?? "warning"}-${warning.sourceDocumentId ?? index}`}>
+                {warningMessage(ui, warning)}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="admin-translation-card">
@@ -484,7 +533,7 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
             {previewTargetLocales.map((locale) => (
               <LocaleTranslation
                 key={locale}
-                title={`${localeLabel(locale)} boat`}
+                title={localeBoatTitle(lang, locale)}
                 value={response.aiPreview?.boat?.translations?.[locale]}
                 ui={ui}
               />
@@ -621,6 +670,17 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
           border-radius: 8px;
           background: rgba(255, 80, 80, 0.1);
           color: #ffd2d2;
+          padding: 12px;
+        }
+
+        .admin-translation-warning {
+          display: grid;
+          gap: 4px;
+          margin-top: 16px;
+          border: 1px solid rgba(255, 198, 92, 0.42);
+          border-radius: 8px;
+          background: rgba(255, 174, 54, 0.12);
+          color: #ffe4ac;
           padding: 12px;
         }
 
