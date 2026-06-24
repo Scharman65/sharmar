@@ -395,6 +395,7 @@ export async function POST(req: NextRequest) {
 
   const sourceLocale = isRecord(body) ? asLocale(body.sourceLocale) ?? DEFAULT_SOURCE_LOCALE : DEFAULT_SOURCE_LOCALE;
   const targetLocales = isRecord(body) ? asLocaleArray(body.targetLocales) ?? DEFAULT_TARGET_LOCALES : DEFAULT_TARGET_LOCALES;
+  const generateAi = isRecord(body) && body.generateAi === true;
 
   try {
     const boat = await findSourceBoat(boatDocumentId, sourceLocale);
@@ -406,15 +407,30 @@ export async function POST(req: NextRequest) {
     }
 
     const experiences = await fetchExperiencesForBoat(boat);
+    const sourcePayload = {
+      ok: true,
+      sourceLocale,
+      targetLocales,
+      boat: shapeBoat(boat),
+      experiences: experiences.map(shapeExperience),
+    };
+
+    if (generateAi) {
+      if (!process.env.OPENAI_API_KEY?.trim()) {
+        return NextResponse.json(
+          { ok: false, code: "openai_api_key_missing" },
+          { status: 503, headers: { "cache-control": "no-store" } }
+        );
+      }
+
+      return NextResponse.json(
+        { ok: false, code: "ai_translation_not_implemented" },
+        { status: 501, headers: { "cache-control": "no-store" } }
+      );
+    }
 
     return NextResponse.json(
-      {
-        ok: true,
-        sourceLocale,
-        targetLocales,
-        boat: shapeBoat(boat),
-        experiences: experiences.map(shapeExperience),
-      },
+      sourcePayload,
       { headers: { "cache-control": "no-store" } }
     );
   } catch {
