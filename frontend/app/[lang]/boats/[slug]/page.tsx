@@ -417,6 +417,20 @@ export default async function BoatPage({ params }: Props) {
                       background: "rgba(255, 255, 255, 0.045)",
                     }}
                   >
+                    {experience.cover?.url ? (
+                      <img
+                        src={experience.cover.url}
+                        alt={experience.cover.alternativeText || experience.title || "Route"}
+                        style={{
+                          width: "100%",
+                          height: 140,
+                          objectFit: "cover",
+                          borderRadius: 10,
+                          marginBottom: 10,
+                          background: "rgba(255, 255, 255, 0.08)",
+                        }}
+                      />
+                    ) : null}
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                       <strong>{experience.title ?? (lang === "ru" ? "Маршрут" : lang === "me" ? "Ruta" : "Route")}</strong>
                       <strong>{routePriceLabel}</strong>
