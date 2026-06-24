@@ -5,6 +5,8 @@ import type { Lang } from "@/i18n";
 
 type StrapiLocale = "ru" | "en" | "sr-Latn-ME";
 
+const STRAPI_LOCALES: StrapiLocale[] = ["ru", "en", "sr-Latn-ME"];
+
 type TranslationFields = {
   title?: string | null;
   description?: string | null;
@@ -49,6 +51,7 @@ type Copy = {
   documentId: string;
   sourceLocale: string;
   targetLocales: string;
+  targetLocalesAutomatic: string;
   sourceOnly: string;
   aiPreview: string;
   previewButton: string;
@@ -77,6 +80,7 @@ const copy: Record<Lang, Copy> = {
     documentId: "Boat documentId",
     sourceLocale: "Исходный язык",
     targetLocales: "Целевые языки",
+    targetLocalesAutomatic: "Определяются автоматически по исходному языку.",
     sourceOnly: "Preview source only",
     aiPreview: "Generate AI preview",
     previewButton: "Проверить без AI",
@@ -98,6 +102,7 @@ const copy: Record<Lang, Copy> = {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN не настроен на сервере.",
       unauthorized: "Неверный admin token.",
       boat_not_found: "Лодка с таким documentId не найдена.",
+      target_locales_required: "Нужно выбрать хотя бы один целевой язык, отличный от исходного.",
       openai_api_key_missing: "OPENAI_API_KEY не настроен на сервере frontend.",
       openai_request_failed: "Запрос к OpenAI не выполнен.",
       ai_translation_invalid_response: "AI вернул некорректный JSON.",
@@ -111,6 +116,7 @@ const copy: Record<Lang, Copy> = {
     documentId: "Boat documentId",
     sourceLocale: "Source locale",
     targetLocales: "Target locales",
+    targetLocalesAutomatic: "Selected automatically from the source locale.",
     sourceOnly: "Preview source only",
     aiPreview: "Generate AI preview",
     previewButton: "Проверить без AI",
@@ -132,6 +138,7 @@ const copy: Record<Lang, Copy> = {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN is not configured on the server.",
       unauthorized: "Invalid admin token.",
       boat_not_found: "Boat with this documentId was not found.",
+      target_locales_required: "Select at least one target locale different from the source locale.",
       openai_api_key_missing: "OPENAI_API_KEY is not configured in the frontend runtime.",
       openai_request_failed: "OpenAI request failed.",
       ai_translation_invalid_response: "AI returned invalid JSON.",
@@ -145,6 +152,7 @@ const copy: Record<Lang, Copy> = {
     documentId: "Boat documentId",
     sourceLocale: "Izvorni jezik",
     targetLocales: "Ciljni jezici",
+    targetLocalesAutomatic: "Određuju se automatski na osnovu izvornog jezika.",
     sourceOnly: "Preview source only",
     aiPreview: "Generate AI preview",
     previewButton: "Проверить без AI",
@@ -166,6 +174,7 @@ const copy: Record<Lang, Copy> = {
       admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN nije podešen na serveru.",
       unauthorized: "Neispravan admin token.",
       boat_not_found: "Brod sa ovim documentId nije pronađen.",
+      target_locales_required: "Izaberite makar jedan ciljni jezik koji nije izvorni.",
       openai_api_key_missing: "OPENAI_API_KEY nije podešen u frontend runtime okruženju.",
       openai_request_failed: "OpenAI zahtjev nije uspio.",
       ai_translation_invalid_response: "AI je vratio neispravan JSON.",
@@ -181,6 +190,10 @@ function valueOrDash(value: string | null | undefined) {
 function errorMessage(ui: Copy, code: string | undefined) {
   if (!code) return ui.errors.unknown;
   return ui.errors[code] ?? `${ui.errors.unknown} (${code})`;
+}
+
+function targetLocalesForSource(sourceLocale: StrapiLocale): StrapiLocale[] {
+  return STRAPI_LOCALES.filter((locale) => locale !== sourceLocale);
 }
 
 function TextBlock({ label, value }: { label: string; value: string | null | undefined }) {
@@ -222,7 +235,10 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const targetLocales = useMemo<StrapiLocale[]>(() => ["en", "sr-Latn-ME"], []);
+  const targetLocales = useMemo<StrapiLocale[]>(
+    () => targetLocalesForSource(sourceLocale),
+    [sourceLocale]
+  );
 
   async function submit(nextGenerateAi: boolean) {
     setLoading(true);
@@ -307,14 +323,13 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
 
           <div className="admin-translation-targets">
             <span>{ui.targetLocales}</span>
-            <label>
-              <input type="checkbox" checked readOnly />
-              en
-            </label>
-            <label>
-              <input type="checkbox" checked readOnly />
-              sr-Latn-ME
-            </label>
+            <p>{ui.targetLocalesAutomatic}</p>
+            {targetLocales.map((locale) => (
+              <label key={locale}>
+                <input type="checkbox" checked readOnly />
+                {locale}
+              </label>
+            ))}
           </div>
 
           <div className="admin-translation-mode">
@@ -480,10 +495,16 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         }
 
         .admin-translation-targets label,
+        .admin-translation-targets p,
         .admin-translation-mode label {
           display: flex;
           align-items: center;
           gap: 8px;
+        }
+
+        .admin-translation-targets p {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.58);
         }
 
         .admin-translation-targets input,

@@ -4,7 +4,6 @@ type JsonObject = Record<string, unknown>;
 type Locale = "ru" | "en" | "sr-Latn-ME";
 
 const DEFAULT_SOURCE_LOCALE: Locale = "ru";
-const DEFAULT_TARGET_LOCALES: Locale[] = ["en", "sr-Latn-ME"];
 const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_OPENAI_TRANSLATION_MODEL = "gpt-4.1-mini";
@@ -154,6 +153,10 @@ function experienceQueryParams(boatId: number, locale: Locale, status: "draft" |
 
 function localePriority(sourceLocale: Locale): Locale[] {
   return Array.from(new Set([sourceLocale, ...ALL_LOCALES]));
+}
+
+function targetLocalesForSource(sourceLocale: Locale): Locale[] {
+  return ALL_LOCALES.filter((locale) => locale !== sourceLocale);
 }
 
 async function fetchBoatCandidate(
@@ -631,7 +634,15 @@ export async function POST(req: NextRequest) {
   }
 
   const sourceLocale = isRecord(body) ? asLocale(body.sourceLocale) ?? DEFAULT_SOURCE_LOCALE : DEFAULT_SOURCE_LOCALE;
-  const targetLocales = isRecord(body) ? asLocaleArray(body.targetLocales) ?? DEFAULT_TARGET_LOCALES : DEFAULT_TARGET_LOCALES;
+  const requestedTargetLocales = isRecord(body) ? asLocaleArray(body.targetLocales) : null;
+  const targetLocales = (requestedTargetLocales ?? targetLocalesForSource(sourceLocale))
+    .filter((locale) => locale !== sourceLocale);
+  if (!targetLocales.length) {
+    return NextResponse.json(
+      { ok: false, code: "target_locales_required" },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
   const generateAi = isRecord(body) && body.generateAi === true;
 
   try {
