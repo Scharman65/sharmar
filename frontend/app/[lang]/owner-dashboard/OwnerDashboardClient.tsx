@@ -689,6 +689,7 @@ export default function OwnerDashboardClient() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
   const lang = typeof params?.lang === "string" ? params.lang : "en";
+  const sourceLocale = lang === "me" ? "sr-Latn-ME" : lang;
 
   const [data, setData] = useState<ApiPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1212,7 +1213,8 @@ export default function OwnerDashboardClient() {
           price: Number(form.price),
           shortDescription: form.shortDescription,
           coverId: form.coverId,
-          locale: lang === "me" ? "sr-Latn-ME" : lang,
+          locale: sourceLocale,
+          sourceLocale,
         }),
       });
 

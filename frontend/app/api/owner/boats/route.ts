@@ -109,6 +109,12 @@ function asString(v: unknown): string | null {
   return typeof v === "string" ? v.trim() : null;
 }
 
+function normalizeOwnerLocale(locale: string | null): string | null {
+  if (locale === "me") return "sr-Latn-ME";
+  if (locale === "en" || locale === "ru" || locale === "sr-Latn-ME") return locale;
+  return null;
+}
+
 function asNumber(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
@@ -193,7 +199,8 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const imageIds = asNumberArray(body.imageIds);
   const ownerEmail = asString(body.ownerEmail);
   const currencyRaw = asString(body.currency);
-  const locale = asString(body.locale) || "en";
+  const rawLocale = asString(body.locale);
+  const locale = normalizeOwnerLocale(rawLocale) || "en";
   const instantBooking = body.instantBooking === false ? false : true;
 
   if (!title) return { ok: false, error: "title is required" };
@@ -256,6 +263,10 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const currency: "EUR" = "EUR";
   if (currencyRaw && currencyRaw !== "EUR") {
     return { ok: false, error: "currency must be EUR" };
+  }
+
+  if (rawLocale && !normalizeOwnerLocale(rawLocale)) {
+    return { ok: false, error: "locale is invalid" };
   }
 
   return {

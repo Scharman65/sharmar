@@ -20,6 +20,7 @@ export default {
           boats.document_id as "documentId",
           boats.title,
           boats.slug,
+          boats.locale,
           boats.description,
           boats.boat_type,
           boats.vessel_type,

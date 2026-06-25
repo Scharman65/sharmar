@@ -16,6 +16,7 @@ type CreateExperienceBody = {
   coverId?: number;
   galleryIds?: number[];
   locale?: string;
+  sourceLocale?: string;
 };
 
 type ParsedCreateExperienceBody = {
@@ -31,7 +32,7 @@ type ParsedCreateExperienceBody = {
   sortOrder: number;
   coverId: number | null;
   galleryIds: number[];
-  locale: string;
+  locale: string | null;
 };
 
 function getStrapiBase(): string {
@@ -64,6 +65,12 @@ function getBearerToken(req: NextRequest): string | null {
 
 function asString(v: unknown): string | null {
   return typeof v === "string" && v.trim().length ? v.trim() : null;
+}
+
+function normalizeOwnerLocale(locale: string | null): string | null {
+  if (locale === "me") return "sr-Latn-ME";
+  if (locale === "en" || locale === "ru" || locale === "sr-Latn-ME") return locale;
+  return null;
 }
 
 function asNumber(v: unknown): number | null {
@@ -138,7 +145,8 @@ function parseCreateExperienceBody(body: unknown): { ok: true; data: ParsedCreat
   const sortOrder = body.sortOrder == null ? 100 : asInteger(body.sortOrder);
   const coverId = body.coverId == null ? null : asInteger(body.coverId);
   const galleryIds = asNumberArray(body.galleryIds);
-  const locale = asString(body.locale) || "en";
+  const rawLocale = asString(body.locale) || asString(body.sourceLocale);
+  const locale = normalizeOwnerLocale(rawLocale);
 
   if (!boatId || boatId <= 0) return { ok: false, error: "boatId is required" };
   if (!title) return { ok: false, error: "title is required" };
@@ -157,7 +165,7 @@ function parseCreateExperienceBody(body: unknown): { ok: true; data: ParsedCreat
   }
   if (coverId != null && coverId <= 0) return { ok: false, error: "coverId is invalid" };
   if (galleryIds.length > 10) return { ok: false, error: "Maximum 10 gallery images" };
-  if (!["en", "ru", "sr-Latn-ME", "me"].includes(locale)) {
+  if (rawLocale && !locale) {
     return { ok: false, error: "locale is invalid" };
   }
 
@@ -176,7 +184,7 @@ function parseCreateExperienceBody(body: unknown): { ok: true; data: ParsedCreat
       sortOrder,
       coverId,
       galleryIds,
-      locale: locale === "me" ? "sr-Latn-ME" : locale,
+      locale,
     },
   };
 }
@@ -449,6 +457,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const locale = p.locale || normalizeOwnerLocale(asString(boatRes.boat.locale)) || "en";
+
   const createPayload = {
     data: {
       title: p.title,
@@ -465,7 +475,7 @@ export async function POST(req: NextRequest) {
       is_active: true,
       boat: p.boatId,
       publishedAt: null,
-      locale: p.locale,
+      locale,
       ...(p.coverId ? { cover: p.coverId } : {}),
       ...(p.galleryIds.length ? { gallery: p.galleryIds } : {}),
     },
