@@ -42,6 +42,7 @@ type BoatRow = {
   price_per_day?: number | null;
   price_per_week?: number | null;
   sale_price?: number | null;
+  min_rental_hours?: number | null;
   currency?: string | null;
   instant_booking?: boolean | null;
   contacts_visible?: boolean | null;
@@ -149,7 +150,7 @@ const copy: Record<Lang, {
 }> = {
   en: {
     subtitle: "Admin dashboard",
-    intro: "Read-only Phase 1 cockpit. This page loads operational data but does not save changes.",
+    intro: "Read-only admin cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
     token: "Admin token",
     load: "Load dashboard",
     loading: "Loading...",
@@ -163,7 +164,7 @@ const copy: Record<Lang, {
   },
   ru: {
     subtitle: "Панель администратора",
-    intro: "Read-only Phase 1 cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
+    intro: "Read-only admin cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
     token: "Admin token",
     load: "Загрузить данные",
     loading: "Загрузка...",
@@ -177,7 +178,7 @@ const copy: Record<Lang, {
   },
   me: {
     subtitle: "Admin dashboard",
-    intro: "Read-only Phase 1 cockpit. Podaci se učitavaju samo za pregled, bez čuvanja izmjena.",
+    intro: "Read-only admin cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
     token: "Admin token",
     load: "Load dashboard",
     loading: "Učitavanje...",
@@ -212,6 +213,20 @@ function isAwaitingReview(boat: BoatRow): boolean {
   return boat.state === "draft";
 }
 
+function boatKey(boat: BoatRow, index = 0): string {
+  return [
+    boat.id ?? "no-id",
+    boat.documentId ?? "no-document",
+    boat.locale ?? "no-locale",
+    boat.state ?? "no-state",
+    index,
+  ].join(":");
+}
+
+function yesNo(value: boolean): string {
+  return value ? "yes" : "no";
+}
+
 export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const ui = copy[lang];
   const [adminToken, setAdminToken] = useState("");
@@ -223,6 +238,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [listingType, setListingType] = useState<ListingTypeFilter>("all");
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
+  const [selectedBoatKey, setSelectedBoatKey] = useState<string | null>(null);
 
   async function loadDashboard() {
     setLoading(true);
@@ -297,6 +313,44 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     { label: "Booking requests", value: summary.totalBookingRequests },
     { label: "Payments", value: summary.totalPayments },
   ];
+  const selectedBoat = selectedBoatKey
+    ? boats.find((boat, index) => boatKey(boat, index) === selectedBoatKey) ?? null
+    : null;
+  const selectedBoatDocumentId = selectedBoat?.documentId ?? null;
+  const selectedBoatLocaleVersions = selectedBoatDocumentId
+    ? boats.filter((boat) => boat.documentId === selectedBoatDocumentId)
+    : [];
+  const selectedBoatExperiences = selectedBoatDocumentId
+    ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
+    : [];
+  const selectedBoatHasOwner = Boolean(selectedBoat?.owner_user_id ?? selectedBoat?.created_by_id);
+  const selectedBoatMediaStatus = !selectedBoat
+    ? ""
+    : (selectedBoat.cover_count ?? 0) <= 0
+      ? "Cover image missing"
+      : (selectedBoat.images_count ?? 0) < 3
+        ? "Gallery may be weak"
+        : "Media count looks acceptable";
+  const selectedBoatHasPrice = Boolean(
+    selectedBoat && [
+      selectedBoat.price_per_hour,
+      selectedBoat.price_per_day,
+      selectedBoat.price_per_week,
+      selectedBoat.sale_price,
+    ].some((price) => price !== null && price !== undefined && Number(price) > 0)
+  );
+  const selectedBoatChecklist = selectedBoat ? [
+    { label: "Has title", value: Boolean(selectedBoat.title) },
+    { label: "Has slug", value: Boolean(selectedBoat.slug) },
+    { label: "Has cover", value: (selectedBoat.cover_count ?? 0) > 0 },
+    { label: "Has gallery images", value: (selectedBoat.images_count ?? 0) > 0 },
+    { label: "Has route linked", value: selectedBoatExperiences.length > 0 },
+    { label: "Has price", value: selectedBoatHasPrice },
+    { label: "Has owner link visible", value: selectedBoatHasOwner },
+    { label: "Has EN version", value: selectedBoatLocaleVersions.some((boat) => boat.locale === "en") },
+    { label: "Has RU version", value: selectedBoatLocaleVersions.some((boat) => boat.locale === "ru") },
+    { label: "Has ME version", value: selectedBoatLocaleVersions.some((boat) => boat.locale === "sr-Latn-ME" || boat.locale === "me") },
+  ] : [];
 
   return (
     <main className="admin-shell">
@@ -460,45 +514,217 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <th>instant</th>
                         <th>contacts</th>
                         <th>AI preview</th>
+                        <th>Details</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredBoats.map((boat, index) => (
-                        <tr key={`${boat.documentId ?? boat.id ?? "boat"}-${boat.state ?? "state"}-${index}`}>
-                          <td>{display(boat.id)}</td>
-                          <td className="admin-mono">{display(boat.documentId)}</td>
-                          <td>{display(boat.locale)}</td>
-                          <td>{display(boat.title)}</td>
-                          <td>{display(boat.slug)}</td>
-                          <td>{display(boat.listing_type)}</td>
-                          <td>{display(boat.boat_type || boat.vessel_type)}</td>
-                          <td>{display(boat.owner_user_id ?? boat.created_by_id)}</td>
-                          <td><span className={`admin-state ${boat.state === "published" ? "published" : "draft"}`}>{display(boat.state)}</span></td>
-                          <td>{dateDisplay(boat.created_at)}</td>
-                          <td>{dateDisplay(boat.updated_at)}</td>
-                          <td>{numberDisplay(boat.cover_count)}</td>
-                          <td>{numberDisplay(boat.images_count)}</td>
-                          <td>{numberDisplay(boat.experiences_count)}</td>
-                          <td>{numberDisplay(boat.price_per_hour)}</td>
-                          <td>{numberDisplay(boat.price_per_day)}</td>
-                          <td>{numberDisplay(boat.price_per_week)}</td>
-                          <td>{numberDisplay(boat.sale_price)}</td>
-                          <td>{display(boat.currency)}</td>
-                          <td>{display(boat.instant_booking)}</td>
-                          <td>{display(boat.contacts_visible)}</td>
-                          <td>
-                            {boat.documentId ? (
-                              <Link href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(boat.documentId)}`}>
-                                preview
-                              </Link>
-                            ) : "-"}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredBoats.map((boat, index) => {
+                        const key = boatKey(boat, boats.indexOf(boat));
+
+                        return (
+                          <tr key={`${boat.documentId ?? boat.id ?? "boat"}-${boat.state ?? "state"}-${index}`}>
+                            <td>{display(boat.id)}</td>
+                            <td className="admin-mono">{display(boat.documentId)}</td>
+                            <td>{display(boat.locale)}</td>
+                            <td>{display(boat.title)}</td>
+                            <td>{display(boat.slug)}</td>
+                            <td>{display(boat.listing_type)}</td>
+                            <td>{display(boat.boat_type || boat.vessel_type)}</td>
+                            <td>{display(boat.owner_user_id ?? boat.created_by_id)}</td>
+                            <td><span className={`admin-state ${boat.state === "published" ? "published" : "draft"}`}>{display(boat.state)}</span></td>
+                            <td>{dateDisplay(boat.created_at)}</td>
+                            <td>{dateDisplay(boat.updated_at)}</td>
+                            <td>{numberDisplay(boat.cover_count)}</td>
+                            <td>{numberDisplay(boat.images_count)}</td>
+                            <td>{numberDisplay(boat.experiences_count)}</td>
+                            <td>{numberDisplay(boat.price_per_hour)}</td>
+                            <td>{numberDisplay(boat.price_per_day)}</td>
+                            <td>{numberDisplay(boat.price_per_week)}</td>
+                            <td>{numberDisplay(boat.sale_price)}</td>
+                            <td>{display(boat.currency)}</td>
+                            <td>{display(boat.instant_booking)}</td>
+                            <td>{display(boat.contacts_visible)}</td>
+                            <td>
+                              {boat.documentId ? (
+                                <Link href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(boat.documentId)}`}>
+                                  preview
+                                </Link>
+                              ) : "-"}
+                            </td>
+                            <td>
+                              <button
+                                className="admin-link-button"
+                                type="button"
+                                onClick={() => setSelectedBoatKey(key)}
+                              >
+                                Open
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
+              {selectedBoat ? (
+                <section className="admin-card admin-detail-panel" aria-labelledby="admin-boat-detail-title">
+                  <div className="admin-detail-header">
+                    <div>
+                      <p className="kicker">Read-only moderation</p>
+                      <h3 id="admin-boat-detail-title">Boat moderation detail</h3>
+                      <p>{display(selectedBoat.title)} · <span className="admin-mono">{display(selectedBoat.documentId)}</span></p>
+                    </div>
+                    <button className="admin-secondary-button" type="button" onClick={() => setSelectedBoatKey(null)}>
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="admin-detail-grid">
+                    <section className="admin-detail-section">
+                      <h4>Identity</h4>
+                      <dl className="admin-definition-grid">
+                        <div><dt>id</dt><dd>{display(selectedBoat.id)}</dd></div>
+                        <div><dt>documentId</dt><dd className="admin-mono">{display(selectedBoat.documentId)}</dd></div>
+                        <div><dt>locale</dt><dd>{display(selectedBoat.locale)}</dd></div>
+                        <div><dt>title</dt><dd>{display(selectedBoat.title)}</dd></div>
+                        <div><dt>slug</dt><dd>{display(selectedBoat.slug)}</dd></div>
+                        <div><dt>listing_type</dt><dd>{display(selectedBoat.listing_type)}</dd></div>
+                        <div><dt>boat_type / vessel_type</dt><dd>{display(selectedBoat.boat_type || selectedBoat.vessel_type)}</dd></div>
+                        <div><dt>state</dt><dd>{display(selectedBoat.state)}</dd></div>
+                        <div><dt>created_at</dt><dd>{dateDisplay(selectedBoat.created_at)}</dd></div>
+                        <div><dt>updated_at</dt><dd>{dateDisplay(selectedBoat.updated_at)}</dd></div>
+                      </dl>
+                    </section>
+
+                    <section className="admin-detail-section">
+                      <h4>Owner / trust</h4>
+                      <dl className="admin-definition-grid">
+                        <div><dt>owner_user_id / created_by_id</dt><dd>{display(selectedBoat.owner_user_id ?? selectedBoat.created_by_id)}</dd></div>
+                        <div><dt>contacts_visible</dt><dd>{display(selectedBoat.contacts_visible)}</dd></div>
+                        <div><dt>instant_booking</dt><dd>{display(selectedBoat.instant_booking)}</dd></div>
+                      </dl>
+                      {!selectedBoatHasOwner ? (
+                        <p className="admin-detail-warning">Owner link is not visible in the current dashboard payload.</p>
+                      ) : null}
+                    </section>
+
+                    <section className="admin-detail-section">
+                      <h4>Pricing</h4>
+                      <dl className="admin-definition-grid">
+                        <div><dt>price_per_hour</dt><dd>{numberDisplay(selectedBoat.price_per_hour)}</dd></div>
+                        <div><dt>price_per_day</dt><dd>{numberDisplay(selectedBoat.price_per_day)}</dd></div>
+                        <div><dt>price_per_week</dt><dd>{numberDisplay(selectedBoat.price_per_week)}</dd></div>
+                        <div><dt>sale_price</dt><dd>{numberDisplay(selectedBoat.sale_price)}</dd></div>
+                        <div><dt>currency</dt><dd>{display(selectedBoat.currency)}</dd></div>
+                        <div><dt>min_rental_hours</dt><dd>{selectedBoat.min_rental_hours == null ? "not loaded" : numberDisplay(selectedBoat.min_rental_hours)}</dd></div>
+                      </dl>
+                    </section>
+
+                    <section className="admin-detail-section">
+                      <h4>Media</h4>
+                      <dl className="admin-definition-grid">
+                        <div><dt>cover_count</dt><dd>{numberDisplay(selectedBoat.cover_count)}</dd></div>
+                        <div><dt>images_count</dt><dd>{numberDisplay(selectedBoat.images_count)}</dd></div>
+                        <div><dt>Status</dt><dd>{selectedBoatMediaStatus}</dd></div>
+                      </dl>
+                    </section>
+                  </div>
+
+                  <section className="admin-detail-section">
+                    <h4>Routes / experiences linked to this boat</h4>
+                    {selectedBoatExperiences.length ? (
+                      <div className="admin-table-wrap">
+                        <table className="admin-table admin-table-compact">
+                          <thead>
+                            <tr>
+                              <th>title</th>
+                              <th>documentId</th>
+                              <th>locale</th>
+                              <th>price</th>
+                              <th>duration_hours</th>
+                              <th>is_active</th>
+                              <th>state</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedBoatExperiences.map((experience, index) => (
+                              <tr key={`${experience.documentId ?? "experience"}-${index}`}>
+                                <td>{display(experience.title)}</td>
+                                <td className="admin-mono">{display(experience.documentId)}</td>
+                                <td>{display(experience.locale)}</td>
+                                <td>{numberDisplay(experience.price)}</td>
+                                <td>{numberDisplay(experience.duration_hours)}</td>
+                                <td>{display(experience.is_active)}</td>
+                                <td>{display(experience.state)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : <p className="admin-empty">No linked routes found in loaded dashboard data.</p>}
+                  </section>
+
+                  <section className="admin-detail-section">
+                    <h4>Translation / locale status</h4>
+                    <dl className="admin-definition-grid">
+                      <div><dt>source documentId</dt><dd className="admin-mono">{display(selectedBoat.documentId)}</dd></div>
+                      <div><dt>locale versions</dt><dd>{selectedBoatLocaleVersions.length}</dd></div>
+                      <div>
+                        <dt>AI preview</dt>
+                        <dd>
+                          {selectedBoat.documentId ? (
+                            <Link href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(selectedBoat.documentId)}`}>
+                              Open read-only preview
+                            </Link>
+                          ) : "-"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="admin-table-wrap">
+                      <table className="admin-table admin-table-compact">
+                        <thead>
+                          <tr>
+                            <th>locale</th>
+                            <th>title</th>
+                            <th>slug</th>
+                            <th>state</th>
+                            <th>updated_at</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedBoatLocaleVersions.map((boat, index) => (
+                            <tr key={`${boat.locale ?? "locale"}-${boat.state ?? "state"}-${index}`}>
+                              <td>{display(boat.locale)}</td>
+                              <td>{display(boat.title)}</td>
+                              <td>{display(boat.slug)}</td>
+                              <td>{display(boat.state)}</td>
+                              <td>{dateDisplay(boat.updated_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="admin-detail-section">
+                    <h4>Moderation checklist</h4>
+                    <dl className="admin-definition-grid">
+                      {selectedBoatChecklist.map((item) => (
+                        <div key={item.label}>
+                          <dt>{item.label}</dt>
+                          <dd>{yesNo(item.value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+
+                  <section className="admin-detail-section">
+                    <h4>Next actions placeholder</h4>
+                    <p className="admin-empty">Actions will be added in Phase 2C/2D after backend moderation endpoints are protected.</p>
+                  </section>
+                </section>
+              ) : null}
             </section>
           ) : null}
 
@@ -837,8 +1063,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-header h2,
         .admin-card h2,
         .admin-card h3,
+        .admin-card h4,
         .admin-panel h2,
-        .admin-panel h3 {
+        .admin-panel h3,
+        .admin-panel h4 {
           margin: 0;
         }
 
@@ -946,6 +1174,28 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: #111;
         }
 
+        .admin-link-button,
+        .admin-secondary-button {
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 8px;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .admin-link-button {
+          background: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.9);
+          padding: 7px 10px;
+        }
+
+        .admin-secondary-button {
+          background: white;
+          color: #111;
+          padding: 10px 14px;
+        }
+
         .admin-panel {
           display: grid;
           gap: 16px;
@@ -1019,6 +1269,53 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           gap: 14px;
         }
 
+        .admin-detail-panel {
+          display: grid;
+          gap: 18px;
+          border-color: rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .admin-detail-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .admin-detail-header p {
+          margin: 6px 0 0;
+          color: rgba(255, 255, 255, 0.68);
+        }
+
+        .admin-detail-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .admin-detail-section {
+          display: grid;
+          gap: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.14);
+          padding: 16px;
+        }
+
+        .admin-detail-section h4 {
+          color: rgba(255, 255, 255, 0.88);
+        }
+
+        .admin-detail-warning {
+          border: 1px solid rgba(255, 198, 92, 0.32);
+          border-radius: 8px;
+          background: rgba(255, 174, 54, 0.1);
+          color: #ffe4ac;
+          margin: 0;
+          padding: 10px 12px;
+        }
+
         .admin-table-wrap {
           overflow-x: auto;
           border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1030,6 +1327,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           min-width: 1180px;
           border-collapse: collapse;
           font-size: 13px;
+        }
+
+        .admin-table-compact {
+          min-width: 760px;
         }
 
         .admin-table th,
@@ -1113,8 +1414,13 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
           .admin-load-form,
           .admin-filters,
-          .admin-definition-grid {
+          .admin-definition-grid,
+          .admin-detail-grid {
             grid-template-columns: 1fr;
+          }
+
+          .admin-detail-header {
+            display: grid;
           }
 
           .admin-load-form button {
