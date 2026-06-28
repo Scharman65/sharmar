@@ -7,6 +7,7 @@ import type { Lang } from "@/i18n";
 type StatusFilter = "all" | "draft" | "published" | "awaiting";
 type LocaleFilter = "all" | "ru" | "en" | "sr-Latn-ME";
 type ListingTypeFilter = "all" | "rent" | "sale";
+type AdminSection = "overview" | "boats" | "routes" | "owners" | "bookings" | "payments" | "translations" | "quality" | "system";
 
 type Summary = {
   totalBoats?: number | null;
@@ -59,6 +60,46 @@ type ExperienceRow = {
   state?: string | null;
 };
 
+type OwnerRow = {
+  id?: number | null;
+  user_id?: number | null;
+  email?: string | null;
+  username?: string | null;
+  confirmed?: boolean | null;
+  blocked?: boolean | null;
+  profile_id?: number | null;
+  display_name?: string | null;
+  phone?: string | null;
+  created_at?: string | null;
+};
+
+type BookingRequestRow = {
+  id?: number | null;
+  status?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  boat_title?: string | null;
+  experience_title?: string | null;
+  owner_amount?: number | null;
+  marketplace_fee_amount?: number | null;
+  customer_total_amount?: number | null;
+  currency?: string | null;
+  created_at?: string | null;
+};
+
+type PaymentRow = {
+  id?: number | null;
+  provider?: string | null;
+  status?: string | null;
+  booking_request_id?: number | null;
+  amount?: number | null;
+  currency?: string | null;
+  provider_status?: string | null;
+  last_event_type?: string | null;
+  webhook_received_at?: string | null;
+  created_at?: string | null;
+};
+
 type FeeSettings = {
   defaultMarketplaceFeeRate?: number | null;
   defaultMarketplaceFeePercent?: number | null;
@@ -73,9 +114,24 @@ type DashboardResponse = {
   summary?: Summary;
   boats?: BoatRow[];
   experiences?: ExperienceRow[];
+  owners?: OwnerRow[];
+  bookingRequests?: BookingRequestRow[];
+  payments?: PaymentRow[];
   feeSettings?: FeeSettings;
   warnings?: string[];
 };
+
+const adminSections: Array<{ id: AdminSection; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "boats", label: "Boats" },
+  { id: "routes", label: "Routes" },
+  { id: "owners", label: "Owners" },
+  { id: "bookings", label: "Bookings" },
+  { id: "payments", label: "Payments" },
+  { id: "translations", label: "Translations" },
+  { id: "quality", label: "Quality" },
+  { id: "system", label: "System" },
+];
 
 const copy: Record<Lang, {
   subtitle: string;
@@ -156,11 +212,11 @@ function isAwaitingReview(boat: BoatRow): boolean {
   return boat.state === "draft";
 }
 
-function SummaryCard({ label, value }: { label: string; value: number | string | null | undefined }) {
+function MetricCard({ label, value }: { label: string; value: number | string | null | undefined }) {
   return (
-    <article className="admin-summary-card">
-      <span className="admin-summary-label">{label}</span>
-      <strong className="admin-summary-value">{display(value)}</strong>
+    <article className="admin-metric-card">
+      <span className="admin-metric-label">{label}</span>
+      <strong className="admin-metric-value">{display(value)}</strong>
     </article>
   );
 }
@@ -175,6 +231,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [locale, setLocale] = useState<LocaleFilter>("all");
   const [listingType, setListingType] = useState<ListingTypeFilter>("all");
   const [search, setSearch] = useState("");
+  const [activeSection, setActiveSection] = useState<AdminSection>("overview");
 
   async function loadDashboard() {
     setLoading(true);
@@ -223,6 +280,22 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const summary = data?.summary ?? {};
   const warnings = data?.warnings ?? [];
   const feeSettings = data?.feeSettings;
+  const experiences = data?.experiences ?? [];
+  const owners = data?.owners ?? [];
+  const bookingRequests = data?.bookingRequests ?? [];
+  const payments = data?.payments ?? [];
+  const localeCounts = {
+    ru: boats.filter((boat) => boat.locale === "ru").length,
+    en: boats.filter((boat) => boat.locale === "en").length,
+    me: boats.filter((boat) => boat.locale === "sr-Latn-ME" || boat.locale === "me").length,
+  };
+  const quality = {
+    draftBoats: boats.filter((boat) => boat.state === "draft").length,
+    missingOwner: boats.filter((boat) => boat.owner_user_id == null && boat.created_by_id == null).length,
+    missingTitle: boats.filter((boat) => !boat.title).length,
+    missingSlug: boats.filter((boat) => !boat.slug).length,
+    routesWithoutBoat: experiences.filter((experience) => !experience.boatTitle).length,
+  };
 
   return (
     <main className="admin-shell">
@@ -253,202 +326,493 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
       {data?.ok ? (
         <>
-          <section className="admin-summary-grid">
-            <SummaryCard label="Total boats" value={summary.totalBoats} />
-            <SummaryCard label="Draft boats" value={summary.draftBoats} />
-            <SummaryCard label="Published boats" value={summary.publishedBoats} />
-            <SummaryCard label="Awaiting review" value={summary.boatsAwaitingReview} />
-            <SummaryCard label="Owners" value={summary.totalOwners} />
-            <SummaryCard label="Routes / experiences" value={summary.totalExperiences} />
-            <SummaryCard label="Booking requests" value={summary.totalBookingRequests} />
-            <SummaryCard label="Payments" value={summary.totalPayments} />
-          </section>
+          <nav className="admin-tabs" aria-label="Admin sections">
+            {adminSections.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className={activeSection === section.id ? "active" : ""}
+                aria-pressed={activeSection === section.id}
+                onClick={() => setActiveSection(section.id)}
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
 
-          <section className="admin-card">
-            <div className="admin-section-heading">
-              <h2>{ui.filters}</h2>
-              <span>{filteredBoats.length} / {boats.length}</span>
-            </div>
-            <div className="admin-filters">
-              <label>
-                <span>Status</span>
-                <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
-                  <option value="all">all</option>
-                  <option value="draft">draft</option>
-                  <option value="published">published</option>
-                  <option value="awaiting">awaiting review</option>
-                </select>
-              </label>
-              <label>
-                <span>Locale</span>
-                <select value={locale} onChange={(event) => setLocale(event.target.value as LocaleFilter)}>
-                  <option value="all">all</option>
-                  <option value="ru">ru</option>
-                  <option value="en">en</option>
-                  <option value="sr-Latn-ME">sr-Latn-ME</option>
-                </select>
-              </label>
-              <label>
-                <span>Listing type</span>
-                <select value={listingType} onChange={(event) => setListingType(event.target.value as ListingTypeFilter)}>
-                  <option value="all">all</option>
-                  <option value="rent">rent</option>
-                  <option value="sale">sale</option>
-                </select>
-              </label>
-              <label>
-                <span>Search</span>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="title / documentId / slug"
-                  spellCheck={false}
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="admin-card">
-            <div className="admin-section-heading">
-              <h2>{ui.boats}</h2>
-              <span>{filteredBoats.length}</span>
-            </div>
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>id</th>
-                    <th>documentId</th>
-                    <th>locale</th>
-                    <th>title</th>
-                    <th>slug</th>
-                    <th>listing_type</th>
-                    <th>boat / vessel</th>
-                    <th>owner / created_by</th>
-                    <th>state</th>
-                    <th>created_at</th>
-                    <th>updated_at</th>
-                    <th>cover</th>
-                    <th>images</th>
-                    <th>routes</th>
-                    <th>hour</th>
-                    <th>day</th>
-                    <th>week</th>
-                    <th>sale</th>
-                    <th>currency</th>
-                    <th>instant</th>
-                    <th>contacts</th>
-                    <th>AI preview</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredBoats.map((boat, index) => (
-                    <tr key={`${boat.documentId ?? boat.id ?? "boat"}-${boat.state ?? "state"}-${index}`}>
-                      <td>{display(boat.id)}</td>
-                      <td className="admin-mono">{display(boat.documentId)}</td>
-                      <td>{display(boat.locale)}</td>
-                      <td>{display(boat.title)}</td>
-                      <td>{display(boat.slug)}</td>
-                      <td>{display(boat.listing_type)}</td>
-                      <td>{display(boat.boat_type || boat.vessel_type)}</td>
-                      <td>{display(boat.owner_user_id ?? boat.created_by_id)}</td>
-                      <td><span className={`admin-state ${boat.state === "published" ? "published" : "draft"}`}>{display(boat.state)}</span></td>
-                      <td>{dateDisplay(boat.created_at)}</td>
-                      <td>{dateDisplay(boat.updated_at)}</td>
-                      <td>{numberDisplay(boat.cover_count)}</td>
-                      <td>{numberDisplay(boat.images_count)}</td>
-                      <td>{numberDisplay(boat.experiences_count)}</td>
-                      <td>{numberDisplay(boat.price_per_hour)}</td>
-                      <td>{numberDisplay(boat.price_per_day)}</td>
-                      <td>{numberDisplay(boat.price_per_week)}</td>
-                      <td>{numberDisplay(boat.sale_price)}</td>
-                      <td>{display(boat.currency)}</td>
-                      <td>{display(boat.instant_booking)}</td>
-                      <td>{display(boat.contacts_visible)}</td>
-                      <td>
-                        {boat.documentId ? (
-                          <Link href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(boat.documentId)}`}>
-                            preview
-                          </Link>
-                        ) : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="admin-card">
-            <div className="admin-section-heading">
-              <h2>{ui.routes}</h2>
-              <span>{data.experiences?.length ?? 0}</span>
-            </div>
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>documentId</th>
-                    <th>locale</th>
-                    <th>title</th>
-                    <th>boat documentId</th>
-                    <th>boat title</th>
-                    <th>price</th>
-                    <th>duration_hours</th>
-                    <th>is_active</th>
-                    <th>state</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.experiences ?? []).map((experience, index) => (
-                    <tr key={`${experience.documentId ?? "experience"}-${experience.state ?? "state"}-${index}`}>
-                      <td className="admin-mono">{display(experience.documentId)}</td>
-                      <td>{display(experience.locale)}</td>
-                      <td>{display(experience.title)}</td>
-                      <td className="admin-mono">{display(experience.boatDocumentId)}</td>
-                      <td>{display(experience.boatTitle)}</td>
-                      <td>{numberDisplay(experience.price)}</td>
-                      <td>{numberDisplay(experience.duration_hours)}</td>
-                      <td>{display(experience.is_active)}</td>
-                      <td><span className={`admin-state ${experience.state === "published" ? "published" : "draft"}`}>{display(experience.state)}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="admin-card">
-            <h2>{ui.fees}</h2>
-            <dl className="admin-definition-grid">
-              <div>
-                <dt>Default marketplace fee rate</dt>
-                <dd>{feeSettings?.defaultMarketplaceFeeRate != null ? feeSettings.defaultMarketplaceFeeRate : "-"}</dd>
+          {activeSection === "overview" ? (
+            <section className="admin-panel" aria-labelledby="admin-overview-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-overview-title">Overview</h2>
+                  <p>Read-only operational cockpit for marketplace moderation and monitoring.</p>
+                </div>
               </div>
-              <div>
-                <dt>Default marketplace fee percent</dt>
-                <dd>{feeSettings?.defaultMarketplaceFeePercent != null ? `${feeSettings.defaultMarketplaceFeePercent}%` : "-"}</dd>
+              <div className="admin-metrics-grid">
+                <MetricCard label="Total boats" value={summary.totalBoats} />
+                <MetricCard label="Draft boats" value={summary.draftBoats} />
+                <MetricCard label="Published boats" value={summary.publishedBoats} />
+                <MetricCard label="Awaiting review" value={summary.boatsAwaitingReview} />
+                <MetricCard label="Owners" value={summary.totalOwners} />
+                <MetricCard label="Routes / experiences" value={summary.totalExperiences} />
+                <MetricCard label="Booking requests" value={summary.totalBookingRequests} />
+                <MetricCard label="Payments" value={summary.totalPayments} />
               </div>
-              <div>
-                <dt>Source</dt>
-                <dd>{display(feeSettings?.source)}</dd>
+              <div className="admin-card admin-attention">
+                <h3>Today needs attention</h3>
+                <dl className="admin-definition-grid">
+                  <div>
+                    <dt>Draft boats / awaiting review</dt>
+                    <dd>{numberDisplay(summary.boatsAwaitingReview)}</dd>
+                  </div>
+                  <div>
+                    <dt>Booking requests</dt>
+                    <dd>{numberDisplay(summary.totalBookingRequests)}</dd>
+                  </div>
+                  <div>
+                    <dt>Payments</dt>
+                    <dd>{numberDisplay(summary.totalPayments)}</dd>
+                  </div>
+                  <div>
+                    <dt>Phase</dt>
+                    <dd>Read-only Phase 2A. No changes are saved here.</dd>
+                  </div>
+                </dl>
               </div>
-              <div>
-                <dt>Booking amount fields</dt>
-                <dd>{feeSettings?.bookingFields?.join(", ") || "-"}</dd>
-              </div>
-            </dl>
-            <ul className="admin-notes">
-              {(feeSettings?.notes ?? []).map((note) => <li key={note}>{note}</li>)}
-            </ul>
-          </section>
+            </section>
+          ) : null}
 
-          {warnings.length ? (
-            <section className="admin-card admin-warning">
-              <h2>{ui.warnings}</h2>
-              <ul>
-                {warnings.map((warning) => <li key={warning}>{warning}</li>)}
-              </ul>
+          {activeSection === "boats" ? (
+            <section className="admin-panel" aria-labelledby="admin-boats-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-boats-title">{ui.boats}</h2>
+                  <p>Moderation preparation view. No approve, publish, reject, or delete actions are available yet.</p>
+                </div>
+                <span>{filteredBoats.length} / {boats.length}</span>
+              </div>
+              <div className="admin-card">
+                <div className="admin-section-heading">
+                  <h3>{ui.filters}</h3>
+                  <span>{filteredBoats.length} visible</span>
+                </div>
+                <div className="admin-filters">
+                  <label>
+                    <span>Status</span>
+                    <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
+                      <option value="all">all</option>
+                      <option value="draft">draft</option>
+                      <option value="published">published</option>
+                      <option value="awaiting">awaiting review</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Locale</span>
+                    <select value={locale} onChange={(event) => setLocale(event.target.value as LocaleFilter)}>
+                      <option value="all">all</option>
+                      <option value="ru">ru</option>
+                      <option value="en">en</option>
+                      <option value="sr-Latn-ME">sr-Latn-ME</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Listing type</span>
+                    <select value={listingType} onChange={(event) => setListingType(event.target.value as ListingTypeFilter)}>
+                      <option value="all">all</option>
+                      <option value="rent">rent</option>
+                      <option value="sale">sale</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Search</span>
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="title / documentId / slug"
+                      spellCheck={false}
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="admin-card">
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>id</th>
+                        <th>documentId</th>
+                        <th>locale</th>
+                        <th>title</th>
+                        <th>slug</th>
+                        <th>listing_type</th>
+                        <th>boat / vessel</th>
+                        <th>owner / created_by</th>
+                        <th>state</th>
+                        <th>created_at</th>
+                        <th>updated_at</th>
+                        <th>cover</th>
+                        <th>images</th>
+                        <th>routes</th>
+                        <th>hour</th>
+                        <th>day</th>
+                        <th>week</th>
+                        <th>sale</th>
+                        <th>currency</th>
+                        <th>instant</th>
+                        <th>contacts</th>
+                        <th>AI preview</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredBoats.map((boat, index) => (
+                        <tr key={`${boat.documentId ?? boat.id ?? "boat"}-${boat.state ?? "state"}-${index}`}>
+                          <td>{display(boat.id)}</td>
+                          <td className="admin-mono">{display(boat.documentId)}</td>
+                          <td>{display(boat.locale)}</td>
+                          <td>{display(boat.title)}</td>
+                          <td>{display(boat.slug)}</td>
+                          <td>{display(boat.listing_type)}</td>
+                          <td>{display(boat.boat_type || boat.vessel_type)}</td>
+                          <td>{display(boat.owner_user_id ?? boat.created_by_id)}</td>
+                          <td><span className={`admin-state ${boat.state === "published" ? "published" : "draft"}`}>{display(boat.state)}</span></td>
+                          <td>{dateDisplay(boat.created_at)}</td>
+                          <td>{dateDisplay(boat.updated_at)}</td>
+                          <td>{numberDisplay(boat.cover_count)}</td>
+                          <td>{numberDisplay(boat.images_count)}</td>
+                          <td>{numberDisplay(boat.experiences_count)}</td>
+                          <td>{numberDisplay(boat.price_per_hour)}</td>
+                          <td>{numberDisplay(boat.price_per_day)}</td>
+                          <td>{numberDisplay(boat.price_per_week)}</td>
+                          <td>{numberDisplay(boat.sale_price)}</td>
+                          <td>{display(boat.currency)}</td>
+                          <td>{display(boat.instant_booking)}</td>
+                          <td>{display(boat.contacts_visible)}</td>
+                          <td>
+                            {boat.documentId ? (
+                              <Link href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(boat.documentId)}`}>
+                                preview
+                              </Link>
+                            ) : "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === "routes" ? (
+            <section className="admin-panel" aria-labelledby="admin-routes-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-routes-title">{ui.routes}</h2>
+                  <p>Read-only route inventory for future moderation and translation workflow.</p>
+                </div>
+                <span>{experiences.length}</span>
+              </div>
+              <div className="admin-card">
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>documentId</th>
+                        <th>locale</th>
+                        <th>title</th>
+                        <th>boat documentId</th>
+                        <th>boat title</th>
+                        <th>price</th>
+                        <th>duration_hours</th>
+                        <th>is_active</th>
+                        <th>state</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {experiences.map((experience, index) => (
+                        <tr key={`${experience.documentId ?? "experience"}-${experience.state ?? "state"}-${index}`}>
+                          <td className="admin-mono">{display(experience.documentId)}</td>
+                          <td>{display(experience.locale)}</td>
+                          <td>{display(experience.title)}</td>
+                          <td className="admin-mono">{display(experience.boatDocumentId)}</td>
+                          <td>{display(experience.boatTitle)}</td>
+                          <td>{numberDisplay(experience.price)}</td>
+                          <td>{numberDisplay(experience.duration_hours)}</td>
+                          <td>{display(experience.is_active)}</td>
+                          <td><span className={`admin-state ${experience.state === "published" ? "published" : "draft"}`}>{display(experience.state)}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === "owners" ? (
+            <section className="admin-panel" aria-labelledby="admin-owners-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-owners-title">Owners</h2>
+                  <p>Read-only owner profile and user account overview.</p>
+                </div>
+                <span>{owners.length}</span>
+              </div>
+              {owners.length ? (
+                <div className="admin-card">
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>profile_id</th>
+                          <th>user_id</th>
+                          <th>email</th>
+                          <th>username</th>
+                          <th>display_name</th>
+                          <th>phone</th>
+                          <th>confirmed</th>
+                          <th>blocked</th>
+                          <th>created_at</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {owners.map((owner, index) => (
+                          <tr key={`${owner.profile_id ?? owner.id ?? "owner"}-${index}`}>
+                            <td>{display(owner.profile_id ?? owner.id)}</td>
+                            <td>{display(owner.user_id)}</td>
+                            <td>{display(owner.email)}</td>
+                            <td>{display(owner.username)}</td>
+                            <td>{display(owner.display_name)}</td>
+                            <td>{display(owner.phone)}</td>
+                            <td>{display(owner.confirmed)}</td>
+                            <td>{display(owner.blocked)}</td>
+                            <td>{dateDisplay(owner.created_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : <div className="admin-card admin-empty">No owner rows are available yet.</div>}
+            </section>
+          ) : null}
+
+          {activeSection === "bookings" ? (
+            <section className="admin-panel" aria-labelledby="admin-bookings-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-bookings-title">Bookings</h2>
+                  <p>Read-only booking request queue for future owner/admin workflow.</p>
+                </div>
+                <span>{bookingRequests.length}</span>
+              </div>
+              {bookingRequests.length ? (
+                <div className="admin-card">
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>id</th>
+                          <th>status</th>
+                          <th>customer_name</th>
+                          <th>customer_email</th>
+                          <th>boat_title</th>
+                          <th>experience_title</th>
+                          <th>owner_amount</th>
+                          <th>marketplace_fee_amount</th>
+                          <th>customer_total_amount</th>
+                          <th>currency</th>
+                          <th>created_at</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bookingRequests.map((booking, index) => (
+                          <tr key={`${booking.id ?? "booking"}-${index}`}>
+                            <td>{display(booking.id)}</td>
+                            <td>{display(booking.status)}</td>
+                            <td>{display(booking.customer_name)}</td>
+                            <td>{display(booking.customer_email)}</td>
+                            <td>{display(booking.boat_title)}</td>
+                            <td>{display(booking.experience_title)}</td>
+                            <td>{numberDisplay(booking.owner_amount)}</td>
+                            <td>{numberDisplay(booking.marketplace_fee_amount)}</td>
+                            <td>{numberDisplay(booking.customer_total_amount)}</td>
+                            <td>{display(booking.currency)}</td>
+                            <td>{dateDisplay(booking.created_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : <div className="admin-card admin-empty">No booking requests yet.</div>}
+            </section>
+          ) : null}
+
+          {activeSection === "payments" ? (
+            <section className="admin-panel" aria-labelledby="admin-payments-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-payments-title">Payments</h2>
+                  <p>Read-only payment status view. Capture and refund logic is not exposed here.</p>
+                </div>
+                <span>{payments.length}</span>
+              </div>
+              {payments.length ? (
+                <div className="admin-card">
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>id</th>
+                          <th>provider</th>
+                          <th>status</th>
+                          <th>booking_request_id</th>
+                          <th>amount</th>
+                          <th>currency</th>
+                          <th>provider_status</th>
+                          <th>last_event_type</th>
+                          <th>webhook_received_at</th>
+                          <th>created_at</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.map((payment, index) => (
+                          <tr key={`${payment.id ?? "payment"}-${index}`}>
+                            <td>{display(payment.id)}</td>
+                            <td>{display(payment.provider)}</td>
+                            <td>{display(payment.status)}</td>
+                            <td>{display(payment.booking_request_id)}</td>
+                            <td>{numberDisplay(payment.amount)}</td>
+                            <td>{display(payment.currency)}</td>
+                            <td>{display(payment.provider_status)}</td>
+                            <td>{display(payment.last_event_type)}</td>
+                            <td>{dateDisplay(payment.webhook_received_at)}</td>
+                            <td>{dateDisplay(payment.created_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : <div className="admin-card admin-empty">No payments yet.</div>}
+            </section>
+          ) : null}
+
+          {activeSection === "translations" ? (
+            <section className="admin-panel" aria-labelledby="admin-translations-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-translations-title">Translations</h2>
+                  <p>Translation workflow will manage RU/EN/ME locale versions here.</p>
+                </div>
+              </div>
+              <div className="admin-card">
+                <p>Next phase: generate, review, save draft translations, publish locale versions.</p>
+                <dl className="admin-definition-grid">
+                  <div>
+                    <dt>Boats with locale ru</dt>
+                    <dd>{localeCounts.ru}</dd>
+                  </div>
+                  <div>
+                    <dt>Boats with locale en</dt>
+                    <dd>{localeCounts.en}</dd>
+                  </div>
+                  <div>
+                    <dt>Boats with locale sr-Latn-ME / me</dt>
+                    <dd>{localeCounts.me}</dd>
+                  </div>
+                  <div>
+                    <dt>AI preview</dt>
+                    <dd><Link href={`/${lang}/admin/translations/preview`}>Open read-only preview</Link></dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === "quality" ? (
+            <section className="admin-panel" aria-labelledby="admin-quality-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-quality-title">Quality</h2>
+                  <p>Read-only quality checklist derived from the currently loaded dashboard rows.</p>
+                </div>
+              </div>
+              <div className="admin-card">
+                <dl className="admin-definition-grid">
+                  <div>
+                    <dt>Draft boats</dt>
+                    <dd>{quality.draftBoats}</dd>
+                  </div>
+                  <div>
+                    <dt>Boats missing owner / created_by display</dt>
+                    <dd>{quality.missingOwner}</dd>
+                  </div>
+                  <div>
+                    <dt>Boats missing title</dt>
+                    <dd>{quality.missingTitle}</dd>
+                  </div>
+                  <div>
+                    <dt>Boats missing slug</dt>
+                    <dd>{quality.missingSlug}</dd>
+                  </div>
+                  <div>
+                    <dt>Routes without linked boat title</dt>
+                    <dd>{quality.routesWithoutBoat}</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === "system" ? (
+            <section className="admin-panel" aria-labelledby="admin-system-title">
+              <div className="admin-section-heading">
+                <div>
+                  <h2 id="admin-system-title">System</h2>
+                  <p>Read-only technical status for this admin cockpit.</p>
+                </div>
+              </div>
+              <div className="admin-card">
+                <dl className="admin-definition-grid">
+                  <div>
+                    <dt>Mode</dt>
+                    <dd>Preview / read-only</dd>
+                  </div>
+                  <div>
+                    <dt>Data source</dt>
+                    <dd>Frontend admin API + CMS admin-dashboard summary endpoint</dd>
+                  </div>
+                  <div>
+                    <dt>Default marketplace fee rate</dt>
+                    <dd>{feeSettings?.defaultMarketplaceFeeRate != null ? feeSettings.defaultMarketplaceFeeRate : "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>Default marketplace fee percent</dt>
+                    <dd>{feeSettings?.defaultMarketplaceFeePercent != null ? `${feeSettings.defaultMarketplaceFeePercent}%` : "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>Source</dt>
+                    <dd>{display(feeSettings?.source)}</dd>
+                  </div>
+                  <div>
+                    <dt>Booking amount fields</dt>
+                    <dd>{feeSettings?.bookingFields?.join(", ") || "-"}</dd>
+                  </div>
+                </dl>
+                <div className={warnings.length ? "admin-warning-list" : "admin-empty"}>
+                  <h3>{ui.warnings}</h3>
+                  {warnings.length ? (
+                    <ul>
+                      {warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                    </ul>
+                  ) : <p>No warnings.</p>}
+                </div>
+                <ul className="admin-notes">
+                  {(feeSettings?.notes ?? []).map((note) => <li key={note}>{note}</li>)}
+                </ul>
+              </div>
             </section>
           ) : null}
         </>
@@ -472,7 +836,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
         .admin-header h1,
         .admin-header h2,
-        .admin-card h2 {
+        .admin-card h2,
+        .admin-card h3,
+        .admin-panel h2,
+        .admin-panel h3 {
           margin: 0;
         }
 
@@ -552,37 +919,86 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: #ffe4ac;
         }
 
-        .admin-summary-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
+        .admin-tabs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 8px;
         }
 
-        .admin-summary-card {
-          display: grid;
-          align-content: space-between;
-          gap: 14px;
-          min-height: 112px;
+        .admin-tabs button {
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 8px;
-          background: rgba(255, 255, 255, 0.045);
-          padding: 16px;
+          background: rgba(0, 0, 0, 0.18);
+          color: rgba(255, 255, 255, 0.72);
+          padding: 9px 12px;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
         }
 
-        .admin-summary-label,
+        .admin-tabs button.active {
+          border-color: rgba(255, 255, 255, 0.38);
+          background: rgba(255, 255, 255, 0.92);
+          color: #111;
+        }
+
+        .admin-panel {
+          display: grid;
+          gap: 16px;
+        }
+
+        .admin-section-heading p,
+        .admin-panel p,
+        .admin-empty {
+          color: rgba(255, 255, 255, 0.68);
+          line-height: 1.6;
+        }
+
+        .admin-section-heading p {
+          margin: 6px 0 0;
+        }
+
+        .admin-metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 16px;
+        }
+
+        .admin-metric-card {
+          display: grid;
+          grid-template-rows: auto 1fr;
+          gap: 18px;
+          min-height: 132px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.07);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+          padding: 20px;
+        }
+
+        .admin-metric-label,
         .admin-section-heading span,
         .admin-definition-grid dt {
           color: rgba(255, 255, 255, 0.58);
           font-size: 12px;
         }
 
-        .admin-summary-label {
+        .admin-metric-label {
+          display: block;
           line-height: 1.35;
+          min-height: 18px;
         }
 
-        .admin-summary-value {
+        .admin-metric-value {
+          display: block;
+          align-self: end;
           color: rgba(255, 255, 255, 0.94);
-          font-size: 34px;
+          font-size: 42px;
           font-weight: 800;
           line-height: 1;
           overflow-wrap: anywhere;
@@ -594,6 +1010,11 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           justify-content: space-between;
           gap: 16px;
           margin-bottom: 14px;
+        }
+
+        .admin-attention {
+          display: grid;
+          gap: 14px;
         }
 
         .admin-table-wrap {
@@ -669,8 +1090,22 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           overflow-wrap: anywhere;
         }
 
+        .admin-warning-list {
+          margin-top: 16px;
+          border: 1px solid rgba(255, 198, 92, 0.42);
+          border-radius: 8px;
+          background: rgba(255, 174, 54, 0.12);
+          color: #ffe4ac;
+          padding: 16px;
+        }
+
+        .admin-warning-list ul,
+        .admin-notes {
+          margin-bottom: 0;
+        }
+
         @media (max-width: 860px) {
-          .admin-summary-grid {
+          .admin-metrics-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
@@ -686,8 +1121,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         @media (max-width: 520px) {
-          .admin-summary-grid {
+          .admin-metrics-grid {
             grid-template-columns: 1fr;
+          }
+
+          .admin-metric-value {
+            font-size: 36px;
           }
         }
       `}</style>
