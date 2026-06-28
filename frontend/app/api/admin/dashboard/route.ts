@@ -123,7 +123,6 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
     "populate[cover][fields][0]=id",
     "populate[images][fields][0]=id",
     "populate[experiences][fields][0]=id",
-    "populate[createdBy][fields][0]=id",
   ]);
 }
 
