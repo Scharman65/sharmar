@@ -158,10 +158,10 @@ function isAwaitingReview(boat: BoatRow): boolean {
 
 function SummaryCard({ label, value }: { label: string; value: number | string | null | undefined }) {
   return (
-    <section className="admin-card admin-summary-card">
-      <span>{label}</span>
-      <strong>{display(value)}</strong>
-    </section>
+    <article className="admin-summary-card">
+      <span className="admin-summary-label">{label}</span>
+      <strong className="admin-summary-value">{display(value)}</strong>
+    </article>
   );
 }
 
@@ -262,7 +262,6 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
             <SummaryCard label="Routes / experiences" value={summary.totalExperiences} />
             <SummaryCard label="Booking requests" value={summary.totalBookingRequests} />
             <SummaryCard label="Payments" value={summary.totalPayments} />
-            <SummaryCard label="Default marketplace fee" value={summary.defaultMarketplaceFeePercent != null ? `${summary.defaultMarketplaceFeePercent}%` : null} />
           </section>
 
           <section className="admin-card">
@@ -555,24 +554,38 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
         .admin-summary-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
         }
 
         .admin-summary-card {
           display: grid;
-          gap: 8px;
+          align-content: space-between;
+          gap: 14px;
+          min-height: 112px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.045);
+          padding: 16px;
         }
 
-        .admin-summary-card span,
+        .admin-summary-label,
         .admin-section-heading span,
         .admin-definition-grid dt {
           color: rgba(255, 255, 255, 0.58);
           font-size: 12px;
         }
 
-        .admin-summary-card strong {
-          font-size: 26px;
+        .admin-summary-label {
+          line-height: 1.35;
+        }
+
+        .admin-summary-value {
+          color: rgba(255, 255, 255, 0.94);
+          font-size: 34px;
+          font-weight: 800;
+          line-height: 1;
+          overflow-wrap: anywhere;
         }
 
         .admin-section-heading {
@@ -657,6 +670,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         @media (max-width: 860px) {
+          .admin-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
           .admin-load-form,
           .admin-filters,
           .admin-definition-grid {
@@ -665,6 +682,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
           .admin-load-form button {
             width: 100%;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .admin-summary-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
