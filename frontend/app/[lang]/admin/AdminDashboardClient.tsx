@@ -488,10 +488,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                 </div>
               </div>
               <div className="admin-card">
+                <p className="admin-table-hint">Click Open to inspect a boat in the read-only moderation panel.</p>
                 <div className="admin-table-wrap">
                   <table className="admin-table">
                     <thead>
                       <tr>
+                        <th>Details</th>
                         <th>id</th>
                         <th>documentId</th>
                         <th>locale</th>
@@ -514,7 +516,6 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <th>instant</th>
                         <th>contacts</th>
                         <th>AI preview</th>
-                        <th>Details</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -522,7 +523,20 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         const key = boatKey(boat, boats.indexOf(boat));
 
                         return (
-                          <tr key={`${boat.documentId ?? boat.id ?? "boat"}-${boat.state ?? "state"}-${index}`}>
+                          <tr
+                            className={selectedBoatKey === key ? "selected" : ""}
+                            key={`${boat.documentId ?? boat.id ?? "boat"}-${boat.state ?? "state"}-${index}`}
+                          >
+                            <td>
+                              <button
+                                aria-pressed={selectedBoatKey === key}
+                                className={`admin-link-button ${selectedBoatKey === key ? "active" : ""}`}
+                                type="button"
+                                onClick={() => setSelectedBoatKey(key)}
+                              >
+                                Open
+                              </button>
+                            </td>
                             <td>{display(boat.id)}</td>
                             <td className="admin-mono">{display(boat.documentId)}</td>
                             <td>{display(boat.locale)}</td>
@@ -550,15 +564,6 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                   preview
                                 </Link>
                               ) : "-"}
-                            </td>
-                            <td>
-                              <button
-                                className="admin-link-button"
-                                type="button"
-                                onClick={() => setSelectedBoatKey(key)}
-                              >
-                                Open
-                              </button>
                             </td>
                           </tr>
                         );
@@ -1190,6 +1195,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           padding: 7px 10px;
         }
 
+        .admin-link-button.active {
+          border-color: rgba(255, 255, 255, 0.42);
+          background: rgba(255, 255, 255, 0.18);
+          color: white;
+        }
+
         .admin-secondary-button {
           background: white;
           color: #111;
@@ -1267,6 +1278,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-attention {
           display: grid;
           gap: 14px;
+        }
+
+        .admin-table-hint {
+          margin: 0 0 12px;
+          color: rgba(255, 255, 255, 0.68);
+          font-size: 13px;
         }
 
         .admin-detail-panel {
@@ -1350,6 +1367,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
         .admin-table td {
           color: rgba(255, 255, 255, 0.86);
+        }
+
+        .admin-table tr.selected td {
+          background: rgba(255, 255, 255, 0.055);
         }
 
         .admin-mono {
