@@ -213,6 +213,18 @@ const translations = {
   }
 };
 
+function normalizeOwnerLocale(locale: string | null | undefined): string | null {
+  if (locale === "me") return "sr-Latn-ME";
+  if (locale === "en" || locale === "ru" || locale === "sr-Latn-ME") return locale;
+  return null;
+}
+
+function normalizeUiLocale(locale: string): keyof typeof translations {
+  if (locale === "ru") return "ru";
+  if (locale === "me" || locale === "sr-Latn-ME") return "me";
+  return "en";
+}
+
 
 type UploadedImage = {
   id: number;
@@ -347,7 +359,15 @@ function validate(values: BoatFormValues, mode: BoatFormMode) {
   return errors;
 }
 
-export function BoatForm({ mode, locations = [] }: { mode: BoatFormMode; locations?: BoatFormLocation[] }) {
+export function BoatForm({
+  mode,
+  locations = [],
+  listingLanguage,
+}: {
+  mode: BoatFormMode;
+  locations?: BoatFormLocation[];
+  listingLanguage?: string;
+}) {
   const [values, setValues] = useState<BoatFormValues>(() => defaultValues());
   const [submitted, setSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -358,9 +378,10 @@ export function BoatForm({ mode, locations = [] }: { mode: BoatFormMode; locatio
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const pathname = usePathname();
-  const lang = pathname.split("/")[1] || "en";
-  const ui = translations[lang as keyof typeof translations] || translations.en;
-  const listingLanguage = lang;
+  const pathLang = pathname.split("/")[1] || "en";
+  const uiLang = listingLanguage || pathLang;
+  const ui = translations[normalizeUiLocale(uiLang)] || translations.en;
+  const strapiLocale = normalizeOwnerLocale(uiLang) || "en";
 
   const title = useMemo(() => buildTitle(mode), [mode]);
 
@@ -390,10 +411,10 @@ export function BoatForm({ mode, locations = [] }: { mode: BoatFormMode; locatio
       ownerPhone: values.ownerPhone.trim(),
       homeMarinaId: toNumberOrNull(values.homeMarinaId),
       instantBooking: Boolean(values.instantBooking),
-      locale: listingLanguage,
+      locale: strapiLocale,
       imageIds: uploadedImages.map((image) => image.id),
     }),
-    [values, mode, uploadedImages, listingLanguage]
+    [values, mode, uploadedImages, strapiLocale]
   );
 
 

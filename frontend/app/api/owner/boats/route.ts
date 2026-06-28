@@ -544,7 +544,7 @@ export async function POST(req: NextRequest) {
   };
 
   const createRes = await strapiFetchJson(
-    "/api/boats",
+    "/api/boats?status=draft",
     {
       method: "POST",
       body: JSON.stringify(createPayload),
@@ -716,7 +716,7 @@ export async function PATCH(req: NextRequest) {
   const locale = p.locale || "en";
 
   const updateRes = await strapiFetchJson(
-    `/api/boats/${documentId}?locale=${encodeURIComponent(locale)}`,
+    `/api/boats/${documentId}?locale=${encodeURIComponent(locale)}&status=draft`,
     {
       method: "PUT",
       body: JSON.stringify(updatePayload),

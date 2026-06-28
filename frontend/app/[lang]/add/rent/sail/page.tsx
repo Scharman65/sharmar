@@ -9,5 +9,5 @@ export default async function Page({ params }: PageProps) {
   const { lang } = await params;
   const locations = await fetchLocations(lang);
 
-  return <BoatForm mode={{ kind: "rent", boatType: "sail" }} locations={locations} />;
+  return <BoatForm mode={{ kind: "rent", boatType: "sail" }} locations={locations} listingLanguage={lang} />;
 }
