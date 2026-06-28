@@ -8,6 +8,19 @@ type StrapiLocale = "ru" | "en" | "sr-Latn-ME";
 const PAGE_SIZE = 100;
 const STRAPI_LOCALES: StrapiLocale[] = ["ru", "en", "sr-Latn-ME"];
 
+type CmsAdminSummary = {
+  ok?: boolean;
+  summary?: {
+    totalBookingRequests?: unknown;
+    totalPayments?: unknown;
+    totalOwners?: unknown;
+  };
+  bookingRequests?: unknown[];
+  payments?: unknown[];
+  owners?: unknown[];
+  warnings?: unknown[];
+};
+
 function getStrapiBase(): string {
   return (
     process.env.STRAPI_URL ||
@@ -22,6 +35,10 @@ function getServerToken(): string {
 
 function getAdminToken(): string {
   return (process.env.ADMIN_TRANSLATION_TOKEN || "").trim();
+}
+
+function getCmsAdminSummaryToken(): string {
+  return (process.env.PAYMENTS_ADMIN_TOKEN || process.env.SHARMAR_OWNER_ACTION_TOKEN || "").trim();
 }
 
 function isRecord(value: unknown): value is JsonObject {
@@ -96,6 +113,25 @@ async function strapiGet(path: string, serverToken: string): Promise<{ ok: boole
   return { ok: res.ok, status: res.status, json };
 }
 
+async function cmsAdminSummaryGet(adminToken: string): Promise<{ ok: boolean; status: number; json: unknown }> {
+  const res = await fetch(`${getStrapiBase()}/api/admin-dashboard/summary`, {
+    method: "GET",
+    headers: { "x-admin-token": adminToken },
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  let json: unknown = null;
+
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  return { ok: res.ok, status: res.status, json };
+}
+
 function boatQuery(locale: StrapiLocale, status: RowStatus): string {
   return withQuery("/api/boats", [
     `locale=${encodeURIComponent(locale)}`,
@@ -144,44 +180,6 @@ function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[8]=updatedAt",
     "populate[boat][fields][0]=title",
     "populate[boat][fields][1]=documentId",
-  ]);
-}
-
-function bookingQuery(): string {
-  return withQuery("/api/booking-requests", [
-    `pagination[pageSize]=${PAGE_SIZE}`,
-    "pagination[page]=1",
-    "sort[0]=createdAt:desc",
-    "fields[0]=status",
-    "fields[1]=owner_amount",
-    "fields[2]=marketplace_fee_amount",
-    "fields[3]=customer_total_amount",
-    "fields[4]=currency",
-    "fields[5]=createdAt",
-  ]);
-}
-
-function paymentQuery(): string {
-  return withQuery("/api/payments", [
-    `pagination[pageSize]=${PAGE_SIZE}`,
-    "pagination[page]=1",
-    "sort[0]=createdAt:desc",
-    "fields[0]=provider",
-    "fields[1]=provider_intent_id",
-    "fields[2]=amount_cents",
-    "fields[3]=currency",
-    "fields[4]=status",
-    "fields[5]=createdAt",
-  ]);
-}
-
-function usersQuery(): string {
-  return withQuery("/api/users", [
-    `pagination[pageSize]=${PAGE_SIZE}`,
-    "pagination[page]=1",
-    "fields[0]=id",
-    "fields[1]=username",
-    "fields[2]=email",
   ]);
 }
 
@@ -287,21 +285,6 @@ async function fetchRowsByStatus(
   return { rows, totals };
 }
 
-async function countCollection(path: string, serverToken: string, label: string, warnings: string[]): Promise<number | null> {
-  const res = await strapiGet(path, serverToken);
-  if (!res.ok) {
-    warnings.push(`Could not load ${label}: Strapi ${res.status}`);
-    return null;
-  }
-
-  const total = getTotal(res.json);
-  if (total !== null) return total;
-
-  const rows = Array.isArray(res.json) ? res.json : rowsFromJson(res.json);
-  warnings.push(`${label} count is based on returned rows because Strapi did not return pagination metadata.`);
-  return rows.length;
-}
-
 export async function GET(req: NextRequest) {
   const configuredToken = getAdminToken();
   if (!configuredToken) {
@@ -327,13 +310,28 @@ export async function GET(req: NextRequest) {
   }
 
   const warnings: string[] = [];
-  const [boatResult, experienceResult, ownerCount, bookingCount, paymentCount] = await Promise.all([
+  const cmsAdminToken = getCmsAdminSummaryToken();
+  const [boatResult, experienceResult, cmsSummaryResult] = await Promise.all([
     fetchRowsByStatus(boatQuery, serverToken, warnings),
     fetchRowsByStatus(experienceQuery, serverToken, warnings),
-    countCollection(usersQuery(), serverToken, "owners/users", warnings),
-    countCollection(bookingQuery(), serverToken, "booking requests", warnings),
-    countCollection(paymentQuery(), serverToken, "payments", warnings),
+    cmsAdminToken ? cmsAdminSummaryGet(cmsAdminToken) : Promise.resolve(null),
   ]);
+
+  if (!cmsAdminToken) {
+    warnings.push("CMS admin summary token missing; booking requests/payments/owners not loaded.");
+  }
+
+  let cmsSummary: CmsAdminSummary | null = null;
+  if (cmsSummaryResult) {
+    if (cmsSummaryResult.ok && isRecord(cmsSummaryResult.json)) {
+      cmsSummary = cmsSummaryResult.json as CmsAdminSummary;
+      if (Array.isArray(cmsSummary.warnings)) {
+        warnings.push(...cmsSummary.warnings.filter((warning): warning is string => typeof warning === "string"));
+      }
+    } else {
+      warnings.push(`Could not load CMS admin summary: Strapi ${cmsSummaryResult.status}`);
+    }
+  }
 
   const boats = boatResult.rows.map(({ item, status }) => normalizeBoat(item, status));
   const experiences = experienceResult.rows
@@ -342,6 +340,9 @@ export async function GET(req: NextRequest) {
 
   const draftBoats = boatResult.totals.draft ?? boats.filter((boat) => boat.state === "draft").length;
   const publishedBoats = boatResult.totals.published ?? boats.filter((boat) => boat.state === "published").length;
+  const totalOwners = asNumber(cmsSummary?.summary?.totalOwners) ?? (Array.isArray(cmsSummary?.owners) ? cmsSummary.owners.length : null);
+  const totalBookingRequests = asNumber(cmsSummary?.summary?.totalBookingRequests) ?? (Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests.length : null);
+  const totalPayments = asNumber(cmsSummary?.summary?.totalPayments) ?? (Array.isArray(cmsSummary?.payments) ? cmsSummary.payments.length : null);
 
   return NextResponse.json(
     {
@@ -351,15 +352,18 @@ export async function GET(req: NextRequest) {
         draftBoats,
         publishedBoats,
         boatsAwaitingReview: draftBoats,
-        totalOwners: ownerCount,
+        totalOwners,
         totalExperiences:
           (experienceResult.totals.draft ?? 0) + (experienceResult.totals.published ?? 0),
-        totalBookingRequests: bookingCount,
-        totalPayments: paymentCount,
+        totalBookingRequests,
+        totalPayments,
         defaultMarketplaceFeePercent: MARKETPLACE_FEE_RATE * 100,
       },
       boats,
       experiences,
+      bookingRequests: Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests : [],
+      payments: Array.isArray(cmsSummary?.payments) ? cmsSummary.payments : [],
+      owners: Array.isArray(cmsSummary?.owners) ? cmsSummary.owners : [],
       feeSettings: {
         defaultMarketplaceFeeRate: MARKETPLACE_FEE_RATE,
         defaultMarketplaceFeePercent: MARKETPLACE_FEE_RATE * 100,
