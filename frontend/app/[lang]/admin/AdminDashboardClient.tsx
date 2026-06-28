@@ -212,12 +212,12 @@ function isAwaitingReview(boat: BoatRow): boolean {
   return boat.state === "draft";
 }
 
-function MetricCard({ label, value }: { label: string; value: number | string | null | undefined }) {
+function OverviewMetric({ label, value }: { label: string; value: number | string | null | undefined }) {
   return (
-    <article className="admin-metric-card">
-      <span className="admin-metric-label">{label}</span>
-      <strong className="admin-metric-value">{display(value)}</strong>
-    </article>
+    <div className="admin-overview-metric">
+      <div className="admin-overview-metric-label">{label}</div>
+      <div className="admin-overview-metric-value">{display(value)}</div>
+    </div>
   );
 }
 
@@ -348,15 +348,15 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                   <p>Read-only operational cockpit for marketplace moderation and monitoring.</p>
                 </div>
               </div>
-              <div className="admin-metrics-grid">
-                <MetricCard label="Total boats" value={summary.totalBoats} />
-                <MetricCard label="Draft boats" value={summary.draftBoats} />
-                <MetricCard label="Published boats" value={summary.publishedBoats} />
-                <MetricCard label="Awaiting review" value={summary.boatsAwaitingReview} />
-                <MetricCard label="Owners" value={summary.totalOwners} />
-                <MetricCard label="Routes / experiences" value={summary.totalExperiences} />
-                <MetricCard label="Booking requests" value={summary.totalBookingRequests} />
-                <MetricCard label="Payments" value={summary.totalPayments} />
+              <div className="admin-overview-metrics">
+                <OverviewMetric label="Total boats" value={summary.totalBoats} />
+                <OverviewMetric label="Draft boats" value={summary.draftBoats} />
+                <OverviewMetric label="Published boats" value={summary.publishedBoats} />
+                <OverviewMetric label="Awaiting review" value={summary.boatsAwaitingReview} />
+                <OverviewMetric label="Owners" value={summary.totalOwners} />
+                <OverviewMetric label="Routes / experiences" value={summary.totalExperiences} />
+                <OverviewMetric label="Booking requests" value={summary.totalBookingRequests} />
+                <OverviewMetric label="Payments" value={summary.totalPayments} />
               </div>
               <div className="admin-card admin-attention">
                 <h3>Today needs attention</h3>
@@ -963,42 +963,45 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           margin: 6px 0 0;
         }
 
-        .admin-metrics-grid {
+        .admin-overview-metrics {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 16px;
-        }
-
-        .admin-metric-card {
-          display: grid;
-          grid-template-rows: auto 1fr;
           gap: 18px;
-          min-height: 132px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.07);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-          padding: 20px;
+          width: 100%;
         }
 
-        .admin-metric-label,
+        .admin-overview-metric {
+          display: grid;
+          grid-template-rows: auto auto;
+          align-content: space-between;
+          gap: 22px;
+          min-height: 140px;
+          border: 1px solid rgba(255, 255, 255, 0.22);
+          border-radius: 8px;
+          background: rgba(10, 16, 24, 0.72);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 28px rgba(0, 0, 0, 0.18);
+          padding: 22px;
+        }
+
+        .admin-overview-metric-label,
         .admin-section-heading span,
         .admin-definition-grid dt {
           color: rgba(255, 255, 255, 0.58);
           font-size: 12px;
         }
 
-        .admin-metric-label {
+        .admin-overview-metric-label {
           display: block;
+          width: 100%;
           line-height: 1.35;
-          min-height: 18px;
+          min-height: 20px;
         }
 
-        .admin-metric-value {
+        .admin-overview-metric-value {
           display: block;
-          align-self: end;
+          width: 100%;
           color: rgba(255, 255, 255, 0.94);
-          font-size: 42px;
+          font-size: 46px;
           font-weight: 800;
           line-height: 1;
           overflow-wrap: anywhere;
@@ -1105,7 +1108,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         @media (max-width: 860px) {
-          .admin-metrics-grid {
+          .admin-overview-metrics {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
@@ -1121,11 +1124,11 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         @media (max-width: 520px) {
-          .admin-metrics-grid {
+          .admin-overview-metrics {
             grid-template-columns: 1fr;
           }
 
-          .admin-metric-value {
+          .admin-overview-metric-value {
             font-size: 36px;
           }
         }
