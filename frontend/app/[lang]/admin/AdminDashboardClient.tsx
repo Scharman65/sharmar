@@ -212,15 +212,6 @@ function isAwaitingReview(boat: BoatRow): boolean {
   return boat.state === "draft";
 }
 
-function OverviewMetric({ label, value }: { label: string; value: number | string | null | undefined }) {
-  return (
-    <div className="admin-overview-metric">
-      <div className="admin-overview-metric-label">{label}</div>
-      <div className="admin-overview-metric-value">{display(value)}</div>
-    </div>
-  );
-}
-
 export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const ui = copy[lang];
   const [adminToken, setAdminToken] = useState("");
@@ -296,6 +287,16 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     missingSlug: boats.filter((boat) => !boat.slug).length,
     routesWithoutBoat: experiences.filter((experience) => !experience.boatTitle).length,
   };
+  const overviewMetrics = [
+    { label: "Total boats", value: summary.totalBoats },
+    { label: "Draft boats", value: summary.draftBoats },
+    { label: "Published boats", value: summary.publishedBoats },
+    { label: "Awaiting review", value: summary.boatsAwaitingReview },
+    { label: "Owners", value: summary.totalOwners },
+    { label: "Routes / experiences", value: summary.totalExperiences },
+    { label: "Booking requests", value: summary.totalBookingRequests },
+    { label: "Payments", value: summary.totalPayments },
+  ];
 
   return (
     <main className="admin-shell">
@@ -349,14 +350,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                 </div>
               </div>
               <div className="admin-overview-metrics">
-                <OverviewMetric label="Total boats" value={summary.totalBoats} />
-                <OverviewMetric label="Draft boats" value={summary.draftBoats} />
-                <OverviewMetric label="Published boats" value={summary.publishedBoats} />
-                <OverviewMetric label="Awaiting review" value={summary.boatsAwaitingReview} />
-                <OverviewMetric label="Owners" value={summary.totalOwners} />
-                <OverviewMetric label="Routes / experiences" value={summary.totalExperiences} />
-                <OverviewMetric label="Booking requests" value={summary.totalBookingRequests} />
-                <OverviewMetric label="Payments" value={summary.totalPayments} />
+                {overviewMetrics.map((metric) => (
+                  <div className="admin-overview-metric" key={metric.label}>
+                    <div className="admin-overview-metric-label">{metric.label}</div>
+                    <div className="admin-overview-metric-value">{display(metric.value)}</div>
+                  </div>
+                ))}
               </div>
               <div className="admin-card admin-attention">
                 <h3>Today needs attention</h3>
