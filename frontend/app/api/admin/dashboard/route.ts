@@ -3,8 +3,10 @@ import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
 
 type JsonObject = Record<string, unknown>;
 type RowStatus = "draft" | "published";
+type StrapiLocale = "ru" | "en" | "sr-Latn-ME";
 
 const PAGE_SIZE = 100;
+const STRAPI_LOCALES: StrapiLocale[] = ["ru", "en", "sr-Latn-ME"];
 
 function getStrapiBase(): string {
   return (
@@ -94,9 +96,9 @@ async function strapiGet(path: string, serverToken: string): Promise<{ ok: boole
   return { ok: res.ok, status: res.status, json };
 }
 
-function boatQuery(status: RowStatus): string {
+function boatQuery(locale: StrapiLocale, status: RowStatus): string {
   return withQuery("/api/boats", [
-    "locale=all",
+    `locale=${encodeURIComponent(locale)}`,
     `status=${status}`,
     `pagination[pageSize]=${PAGE_SIZE}`,
     "pagination[page]=1",
@@ -126,9 +128,9 @@ function boatQuery(status: RowStatus): string {
   ]);
 }
 
-function experienceQuery(status: RowStatus): string {
+function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
   return withQuery("/api/experiences", [
-    "locale=all",
+    `locale=${encodeURIComponent(locale)}`,
     `status=${status}`,
     `pagination[pageSize]=${PAGE_SIZE}`,
     "pagination[page]=1",
@@ -242,27 +244,45 @@ function normalizeExperience(item: unknown, status: RowStatus) {
 }
 
 async function fetchRowsByStatus(
-  pathForStatus: (status: RowStatus) => string,
+  pathForLocaleStatus: (locale: StrapiLocale, status: RowStatus) => string,
   serverToken: string,
   warnings: string[]
 ): Promise<{ rows: Array<{ item: unknown; status: RowStatus }>; totals: Record<RowStatus, number | null> }> {
   const rows: Array<{ item: unknown; status: RowStatus }> = [];
-  const totals: Record<RowStatus, number | null> = { draft: null, published: null };
+  const totals: Record<RowStatus, number> = { draft: 0, published: 0 };
+  const seen = new Set<string>();
 
-  for (const status of ["draft", "published"] as const) {
-    const res = await strapiGet(pathForStatus(status), serverToken);
-    if (!res.ok) {
-      warnings.push(`Could not load ${status} rows from ${pathForStatus(status).split("?")[0]}: Strapi ${res.status}`);
-      continue;
-    }
+  for (const locale of STRAPI_LOCALES) {
+    for (const status of ["draft", "published"] as const) {
+      const path = pathForLocaleStatus(locale, status);
+      const res = await strapiGet(path, serverToken);
+      if (!res.ok) {
+        warnings.push(`Could not load ${locale} ${status} rows from ${path.split("?")[0]}: Strapi ${res.status}`);
+        continue;
+      }
 
-    const total = getTotal(res.json);
-    totals[status] = total;
-    const pageRows = rowsFromJson(res.json);
-    rows.push(...pageRows.map((item) => ({ item, status })));
+      const total = getTotal(res.json);
+      if (total !== null) totals[status] += total;
 
-    if (total !== null && total > PAGE_SIZE) {
-      warnings.push(`${pathForStatus(status).split("?")[0]} ${status} count is capped at ${PAGE_SIZE} displayed rows.`);
+      const pageRows = rowsFromJson(res.json);
+      if (total === null) totals[status] += pageRows.length;
+
+      for (const item of pageRows) {
+        const row = getAttributes(item) ?? {};
+        const id = asNumber(row.id);
+        const documentId = asString(row.documentId);
+        const rowLocale = asString(row.locale) ?? locale;
+        const key = id !== null
+          ? `id:${id}:${rowLocale}:${status}`
+          : `document:${documentId ?? "unknown"}:${rowLocale}:${status}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push({ item, status });
+      }
+
+      if (total !== null && total > PAGE_SIZE) {
+        warnings.push(`${path.split("?")[0]} ${locale} ${status} count is capped at ${PAGE_SIZE} displayed rows.`);
+      }
     }
   }
 
