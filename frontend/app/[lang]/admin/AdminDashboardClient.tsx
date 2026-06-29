@@ -8,6 +8,7 @@ type StatusFilter = "all" | "draft" | "published" | "awaiting";
 type LocaleFilter = "all" | "ru" | "en" | "sr-Latn-ME";
 type ListingTypeFilter = "all" | "rent" | "sale";
 type AdminSection = "overview" | "boats" | "routes" | "owners" | "bookings" | "payments" | "translations" | "quality" | "system";
+type RequiredLocale = "ru" | "en" | "me";
 
 type Summary = {
   totalBoats?: number | null;
@@ -141,6 +142,8 @@ const adminSections: Array<{ id: AdminSection; label: string }> = [
   { id: "system", label: "System" },
 ];
 
+const requiredTranslationLocales: RequiredLocale[] = ["ru", "en", "me"];
+
 const copy: Record<Lang, {
   subtitle: string;
   intro: string;
@@ -241,6 +244,30 @@ function BooleanBadge({ label, value, warningOnTrue = false }: { label: string; 
       {label ? `${label} ${display(value)}` : display(value)}
     </span>
   );
+}
+
+function StatusBadge({ children, tone }: { children: string; tone: "positive" | "warning" | "neutral" }) {
+  return <span className={`admin-badge ${tone}`}>{children}</span>;
+}
+
+function normalizeReviewLocale(locale: string | null | undefined): RequiredLocale | null {
+  if (locale === "ru") return "ru";
+  if (locale === "en") return "en";
+  if (locale === "me" || locale === "sr-Latn-ME") return "me";
+  return null;
+}
+
+function containsCyrillic(value: string | null | undefined): boolean {
+  return Boolean(value && /[\u0400-\u04FF]/.test(value));
+}
+
+function translationScriptHint(locale: RequiredLocale, title: string | null | undefined): string | null {
+  if (!title) return null;
+  const hasCyrillic = containsCyrillic(title);
+  if (locale === "en" && hasCyrillic) return "EN title may need translation review.";
+  if (locale === "ru" && !hasCyrillic) return "RU title may need translation review.";
+  if (locale === "me" && hasCyrillic) return "ME title may need Latin-script review.";
+  return null;
 }
 
 function ownerDisplay(boat: BoatRow): string {
@@ -356,6 +383,41 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const selectedBoatLocaleVersions = selectedBoatDocumentId
     ? boats.filter((boat) => boat.documentId === selectedBoatDocumentId)
     : [];
+  const selectedTranslationReviewRows = requiredTranslationLocales.map((reviewLocale) => {
+    const versions = selectedBoatLocaleVersions.filter((boat) => normalizeReviewLocale(boat.locale) === reviewLocale);
+    const primaryVersion = versions[0] ?? null;
+    const states = Array.from(new Set(versions.map((boat) => boat.state).filter(Boolean)));
+    const exists = versions.length > 0;
+    const hasTitle = versions.some((boat) => Boolean(boat.title));
+    const hasSlug = versions.some((boat) => Boolean(boat.slug));
+    const readiness = !exists ? "missing" : hasTitle && hasSlug ? "ready" : "incomplete";
+
+    return {
+      locale: reviewLocale,
+      exists,
+      states,
+      title: primaryVersion?.title ?? null,
+      slug: primaryVersion?.slug ?? null,
+      documentId: primaryVersion?.documentId ?? null,
+      readiness,
+      scriptHint: translationScriptHint(reviewLocale, primaryVersion?.title),
+    };
+  });
+  const selectedTranslationQualityFlags = selectedTranslationReviewRows.flatMap((row) => {
+    const flags: string[] = [];
+    if (!row.exists) flags.push(`Missing ${row.locale.toUpperCase()} version`);
+
+    selectedBoatLocaleVersions
+      .filter((boat) => normalizeReviewLocale(boat.locale) === row.locale)
+      .forEach((boat) => {
+        const label = row.locale.toUpperCase();
+        if (!boat.title) flags.push(`${label} locale version missing title`);
+        if (!boat.slug) flags.push(`${label} locale version missing slug`);
+      });
+
+    if (row.scriptHint) flags.push(row.scriptHint);
+    return flags;
+  });
   const selectedBoatExperiences = selectedBoatDocumentId
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
@@ -778,6 +840,69 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
                   <section className="admin-detail-section">
                     <h4>Translation / locale status</h4>
+                    <div className="admin-translation-review">
+                      <div className="admin-translation-review-heading">
+                        <div>
+                          <h5>Translation review</h5>
+                          <p>AI translation generation, draft saving, and locale publishing will be added in a later protected write phase.</p>
+                        </div>
+                        <div className="admin-translation-required">
+                          {requiredTranslationLocales.map((reviewLocale) => (
+                            <StatusBadge key={reviewLocale} tone="neutral">{reviewLocale}</StatusBadge>
+                          ))}
+                        </div>
+                      </div>
+                      <dl className="admin-definition-grid">
+                        <div><dt>Source documentId</dt><dd className="admin-mono">{display(selectedBoat.documentId)}</dd></div>
+                        <div><dt>Current selected locale</dt><dd>{display(selectedBoat.locale)}</dd></div>
+                        <div><dt>Existing locale versions count</dt><dd>{selectedBoatLocaleVersions.length}</dd></div>
+                        <div><dt>Required locales</dt><dd>{requiredTranslationLocales.join(", ")}</dd></div>
+                      </dl>
+                      <div className="admin-table-wrap">
+                        <table className="admin-table admin-translation-review-table">
+                          <thead>
+                            <tr>
+                              <th>locale</th>
+                              <th>readiness</th>
+                              <th>exists</th>
+                              <th>states</th>
+                              <th>title</th>
+                              <th>slug</th>
+                              <th>documentId</th>
+                              <th>hint</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedTranslationReviewRows.map((row) => (
+                              <tr key={row.locale}>
+                                <td>{row.locale}</td>
+                                <td>
+                                  <StatusBadge tone={row.readiness === "ready" ? "positive" : "warning"}>
+                                    {row.readiness}
+                                  </StatusBadge>
+                                </td>
+                                <td>{yesNo(row.exists)}</td>
+                                <td>{row.states.length ? row.states.join(", ") : "-"}</td>
+                                <td>{display(row.title)}</td>
+                                <td>{display(row.slug)}</td>
+                                <td className="admin-mono">{display(row.documentId)}</td>
+                                <td>{row.scriptHint ?? "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className={selectedTranslationQualityFlags.length ? "admin-translation-flags" : "admin-empty"}>
+                        <h5>Read-only quality flags</h5>
+                        {selectedTranslationQualityFlags.length ? (
+                          <ul>
+                            {selectedTranslationQualityFlags.map((flag, index) => (
+                              <li key={`${flag}-${index}`}>{flag}</li>
+                            ))}
+                          </ul>
+                        ) : <p>No translation quality flags from loaded locale data.</p>}
+                      </div>
+                    </div>
                     <dl className="admin-definition-grid">
                       <div><dt>source documentId</dt><dd className="admin-mono">{display(selectedBoat.documentId)}</dd></div>
                       <div><dt>locale versions</dt><dd>{selectedBoatLocaleVersions.length}</dd></div>
@@ -1467,6 +1592,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: rgba(255, 255, 255, 0.88);
         }
 
+        .admin-detail-section h5 {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.84);
+          font-size: 14px;
+        }
+
         .admin-detail-section p {
           min-width: 0;
           margin: 0;
@@ -1559,6 +1690,73 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: #ffe4ac;
           border-color: rgba(255, 198, 92, 0.32);
           background: rgba(255, 174, 54, 0.1);
+        }
+
+        :global(.admin-badge.neutral) {
+          color: rgba(255, 255, 255, 0.76);
+          border-color: rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .admin-translation-review {
+          display: grid;
+          gap: 14px;
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 14px;
+        }
+
+        .admin-translation-review-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+          min-width: 0;
+        }
+
+        .admin-translation-review-heading > div:first-child {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .admin-translation-review-heading p {
+          color: rgba(255, 255, 255, 0.64);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
+        .admin-translation-required {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 7px;
+          min-width: 0;
+        }
+
+        .admin-translation-review-table {
+          min-width: 920px;
+        }
+
+        .admin-translation-flags {
+          display: grid;
+          gap: 8px;
+          border: 1px solid rgba(255, 198, 92, 0.32);
+          border-radius: 8px;
+          background: rgba(255, 174, 54, 0.1);
+          color: #ffe4ac;
+          padding: 12px;
+        }
+
+        .admin-translation-flags ul {
+          margin: 0;
+          padding-left: 18px;
+        }
+
+        .admin-translation-flags li {
+          margin: 4px 0;
         }
 
         .admin-table-wrap {
@@ -1694,6 +1892,14 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
           .admin-detail-header {
             display: grid;
+          }
+
+          .admin-translation-review-heading {
+            display: grid;
+          }
+
+          .admin-translation-required {
+            justify-content: flex-start;
           }
 
           .admin-load-form button {
