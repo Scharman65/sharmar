@@ -977,18 +977,18 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                       </dl>
                       <div className="admin-source-package">
                         <div className="admin-source-package-heading">
-                          <div>
-                            <h5>Translation source package</h5>
-                            <p>This source package is read-only. It does not call AI and does not save data.</p>
+                          <h5>Translation source package</h5>
+                          <p>This source package is read-only. It does not call AI and does not save data.</p>
+                          <div className="admin-source-package-actions">
+                            <button
+                              className="admin-secondary-button"
+                              type="button"
+                              disabled={translationSourceLoading || !selectedBoat.documentId}
+                              onClick={() => void loadTranslationSourcePackage()}
+                            >
+                              {translationSourceLoading ? "Loading..." : "Load source package"}
+                            </button>
                           </div>
-                          <button
-                            className="admin-link-button"
-                            type="button"
-                            disabled={translationSourceLoading || !selectedBoat.documentId}
-                            onClick={() => void loadTranslationSourcePackage()}
-                          >
-                            {translationSourceLoading ? "Loading..." : "Load source package"}
-                          </button>
                         </div>
                         {translationSourceError ? (
                           <p className="admin-detail-warning">{translationSourceError}</p>
@@ -1930,14 +1930,11 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         .admin-source-package-heading {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 14px;
+          display: grid;
+          gap: 8px;
           min-width: 0;
         }
 
-        .admin-source-package-heading > div:first-child,
         .admin-source-package-result {
           display: grid;
           gap: 8px;
@@ -1948,6 +1945,17 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: rgba(255, 255, 255, 0.64);
           font-size: 13px;
           line-height: 1.55;
+        }
+
+        .admin-source-package-actions {
+          display: flex;
+          justify-content: flex-start;
+          margin-top: 2px;
+        }
+
+        .admin-source-package-actions .admin-secondary-button {
+          width: fit-content;
+          min-width: 180px;
         }
 
         .admin-table-wrap {
