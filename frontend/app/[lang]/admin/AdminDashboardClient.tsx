@@ -9,6 +9,7 @@ type LocaleFilter = "all" | "ru" | "en" | "sr-Latn-ME";
 type ListingTypeFilter = "all" | "rent" | "sale";
 type AdminSection = "overview" | "boats" | "routes" | "owners" | "bookings" | "payments" | "translations" | "quality" | "system";
 type RequiredLocale = "ru" | "en" | "me";
+type StrapiLocale = "ru" | "en" | "sr-Latn-ME";
 
 type Summary = {
   totalBoats?: number | null;
@@ -128,6 +129,34 @@ type DashboardResponse = {
   payments?: PaymentRow[];
   feeSettings?: FeeSettings;
   warnings?: string[];
+};
+
+type TranslationSourcePackage = {
+  readOnly?: boolean;
+  mode?: string;
+  doesCallAi?: boolean;
+  doesSaveData?: boolean;
+  sourceBoatDocumentId?: string | null;
+  sourceLocale?: string | null;
+  requestedTargetLocales?: string[];
+  requiredLocales?: string[];
+  existingBoatLocaleVersions?: Array<{
+    locale?: string;
+    label?: string;
+    exists?: boolean;
+  }>;
+  missingBoatLocales?: string[];
+  sourceBoatFields?: Record<string, string | undefined>;
+  linkedExperiencesCount?: number;
+  warnings?: string[];
+};
+
+type TranslationSourcePackageResponse = {
+  ok?: boolean;
+  code?: string;
+  sourceLocale?: string;
+  targetLocales?: string[];
+  sourcePackage?: TranslationSourcePackage;
 };
 
 const adminSections: Array<{ id: AdminSection; label: string }> = [
@@ -257,6 +286,16 @@ function normalizeReviewLocale(locale: string | null | undefined): RequiredLocal
   return null;
 }
 
+function toStrapiLocale(locale: string | null | undefined): StrapiLocale {
+  if (locale === "en" || locale === "ru" || locale === "sr-Latn-ME") return locale;
+  if (locale === "me") return "sr-Latn-ME";
+  return "ru";
+}
+
+function targetLocalesForSourceLocale(sourceLocale: StrapiLocale): StrapiLocale[] {
+  return ["ru", "en", "sr-Latn-ME"].filter((locale) => locale !== sourceLocale) as StrapiLocale[];
+}
+
 function containsCyrillic(value: string | null | undefined): boolean {
   return Boolean(value && /[\u0400-\u04FF]/.test(value));
 }
@@ -324,6 +363,9 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
   const [selectedBoatKey, setSelectedBoatKey] = useState<string | null>(null);
+  const [translationSourcePackage, setTranslationSourcePackage] = useState<TranslationSourcePackageResponse | null>(null);
+  const [translationSourceLoading, setTranslationSourceLoading] = useState(false);
+  const [translationSourceError, setTranslationSourceError] = useState<string | null>(null);
 
   async function loadDashboard() {
     setLoading(true);
@@ -353,6 +395,45 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void loadDashboard();
+  }
+
+  async function loadTranslationSourcePackage() {
+    if (!selectedBoat?.documentId) {
+      setTranslationSourceError("Boat documentId is required.");
+      return;
+    }
+
+    setTranslationSourceLoading(true);
+    setTranslationSourceError(null);
+    setTranslationSourcePackage(null);
+
+    const sourceLocale = toStrapiLocale(selectedBoat.locale);
+
+    try {
+      const response = await fetch("/api/admin/translations/preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+        body: JSON.stringify({
+          boatDocumentId: selectedBoat.documentId,
+          sourceLocale,
+          targetLocales: targetLocalesForSourceLocale(sourceLocale),
+          generateAi: false,
+        }),
+      });
+      const json: TranslationSourcePackageResponse = await response.json().catch(() => ({ ok: false, code: "unknown" }));
+      setTranslationSourcePackage(json);
+
+      if (!response.ok || json.ok === false) {
+        setTranslationSourceError(json.code ? `Could not load source package (${json.code}).` : "Could not load source package.");
+      }
+    } catch {
+      setTranslationSourceError("Could not load source package.");
+    } finally {
+      setTranslationSourceLoading(false);
+    }
   }
 
   const boats = data?.boats ?? [];
@@ -440,6 +521,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     if (row.scriptHint) flags.push(row.scriptHint);
     return flags;
   });
+  const sourcePackage = translationSourcePackage?.sourcePackage ?? null;
   const selectedBoatExperiences = selectedBoatDocumentId
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
@@ -660,7 +742,11 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                 aria-pressed={selectedBoatKey === key}
                                 className={`admin-link-button ${selectedBoatKey === key ? "active" : ""}`}
                                 type="button"
-                                onClick={() => setSelectedBoatKey(key)}
+                                onClick={() => {
+                                  setSelectedBoatKey(key);
+                                  setTranslationSourcePackage(null);
+                                  setTranslationSourceError(null);
+                                }}
                               >
                                 Open
                               </button>
@@ -708,7 +794,15 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                       <h3 id="admin-boat-detail-title">Boat moderation detail</h3>
                       <p>{display(selectedBoat.title)} · <span className="admin-mono">{display(selectedBoat.documentId)}</span></p>
                     </div>
-                    <button className="admin-secondary-button" type="button" onClick={() => setSelectedBoatKey(null)}>
+                    <button
+                      className="admin-secondary-button"
+                      type="button"
+                      onClick={() => {
+                        setSelectedBoatKey(null);
+                        setTranslationSourcePackage(null);
+                        setTranslationSourceError(null);
+                      }}
+                    >
                       Close
                     </button>
                   </div>
@@ -881,6 +975,49 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <div><dt>Existing locale versions count</dt><dd>{selectedBoatLocaleVersions.length}</dd></div>
                         <div><dt>Required locales</dt><dd>{requiredTranslationLocales.join(", ")}</dd></div>
                       </dl>
+                      <div className="admin-source-package">
+                        <div className="admin-source-package-heading">
+                          <div>
+                            <h5>Translation source package</h5>
+                            <p>This source package is read-only. It does not call AI and does not save data.</p>
+                          </div>
+                          <button
+                            className="admin-link-button"
+                            type="button"
+                            disabled={translationSourceLoading || !selectedBoat.documentId}
+                            onClick={() => void loadTranslationSourcePackage()}
+                          >
+                            {translationSourceLoading ? "Loading..." : "Load source package"}
+                          </button>
+                        </div>
+                        {translationSourceError ? (
+                          <p className="admin-detail-warning">{translationSourceError}</p>
+                        ) : null}
+                        {sourcePackage ? (
+                          <div className="admin-source-package-result">
+                            <dl className="admin-definition-grid">
+                              <div><dt>source locale</dt><dd>{display(sourcePackage.sourceLocale ?? translationSourcePackage?.sourceLocale)}</dd></div>
+                              <div><dt>requested target locales</dt><dd>{(sourcePackage.requestedTargetLocales ?? translationSourcePackage?.targetLocales ?? []).join(", ") || "-"}</dd></div>
+                              <div><dt>existing locale coverage</dt><dd>{(sourcePackage.existingBoatLocaleVersions ?? []).filter((row) => row.exists).map((row) => row.label ?? row.locale).join(", ") || "-"}</dd></div>
+                              <div><dt>missing locales</dt><dd>{(sourcePackage.missingBoatLocales ?? []).join(", ") || "-"}</dd></div>
+                              <div><dt>source fields</dt><dd>{Object.entries(sourcePackage.sourceBoatFields ?? {}).map(([field, status]) => `${field}: ${status}`).join(", ") || "-"}</dd></div>
+                              <div><dt>linked routes count</dt><dd>{numberDisplay(sourcePackage.linkedExperiencesCount)}</dd></div>
+                              <div><dt>mode</dt><dd>{display(sourcePackage.mode)}</dd></div>
+                              <div><dt>AI / save</dt><dd>AI: {yesNo(sourcePackage.doesCallAi === true)} · save: {yesNo(sourcePackage.doesSaveData === true)}</dd></div>
+                            </dl>
+                            <div className={sourcePackage.warnings?.length ? "admin-translation-flags" : "admin-empty"}>
+                              <h5>Source package warnings</h5>
+                              {sourcePackage.warnings?.length ? (
+                                <ul>
+                                  {sourcePackage.warnings.map((warning, index) => (
+                                    <li key={`${warning}-${index}`}>{warning}</li>
+                                  ))}
+                                </ul>
+                              ) : <p>No source package warnings.</p>}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                       <div className="admin-table-wrap">
                         <table className="admin-table admin-translation-review-table">
                           <thead>
@@ -1782,6 +1919,37 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           margin: 4px 0;
         }
 
+        .admin-source-package {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.14);
+          padding: 14px;
+        }
+
+        .admin-source-package-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+          min-width: 0;
+        }
+
+        .admin-source-package-heading > div:first-child,
+        .admin-source-package-result {
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .admin-source-package-heading p {
+          color: rgba(255, 255, 255, 0.64);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
         .admin-table-wrap {
           width: 100%;
           max-width: 100%;
@@ -1918,6 +2086,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           }
 
           .admin-translation-review-heading {
+            display: grid;
+          }
+
+          .admin-source-package-heading {
             display: grid;
           }
 

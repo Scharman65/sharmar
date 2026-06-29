@@ -12,6 +12,8 @@ type ExperienceSourceCandidate = {
   documentId: string;
   linkedRows: JsonObject[];
 };
+type FieldStatus = "exists" | "missing";
+type Readiness = "ready" | "missing" | "incomplete";
 
 const DEFAULT_SOURCE_LOCALE: Locale = "ru";
 const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
@@ -67,6 +69,78 @@ function asNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+function localeDisplay(locale: Locale): "ru" | "en" | "me" {
+  return locale === "sr-Latn-ME" ? "me" : locale;
+}
+
+function fieldStatus(value: string | null | undefined): FieldStatus {
+  return value && value.trim() ? "exists" : "missing";
+}
+
+function readinessFromFields(exists: boolean, fields: Record<string, FieldStatus>): Readiness {
+  if (!exists) return "missing";
+  return Object.values(fields).every((status) => status === "exists") ? "ready" : "incomplete";
+}
+
+function containsCyrillic(value: string | null | undefined): boolean {
+  return Boolean(value && /[\u0400-\u04FF]/.test(value));
+}
+
+function looksLikeBrandOrModelTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  const normalized = title
+    .trim()
+    .replace(/[—–-]/g, " ")
+    .replace(/[^\p{L}\p{N}. ]/gu, " ")
+    .replace(/\s+/g, " ");
+  if (!normalized) return false;
+
+  const words = normalized.split(" ");
+  const hasLatin = /[A-Za-z]/.test(normalized);
+  const hasCyrillic = containsCyrillic(normalized);
+  const hasBrandCase = words.some((word) => /^[A-Z][A-Za-z0-9.]*$/.test(word));
+  const hasModelNumber = /\d/.test(normalized);
+  const isShort = words.length <= 4 && normalized.length <= 32;
+  const isKnownDemoName = words[0]?.toLowerCase() === "demo";
+
+  return hasLatin && !hasCyrillic && isShort && (hasBrandCase || hasModelNumber || isKnownDemoName);
+}
+
+function titleScriptHint(locale: Locale, title: string | null | undefined): string | null {
+  if (!title) return null;
+  const hasCyrillic = containsCyrillic(title);
+  if (locale === "en" && hasCyrillic) return "EN title contains Cyrillic and may need translation review.";
+  if (locale === "sr-Latn-ME" && hasCyrillic) return "ME title contains Cyrillic and may need Latin-script review.";
+  if (locale === "ru" && !hasCyrillic && !looksLikeBrandOrModelTitle(title)) {
+    return "RU title may need manual review; boat names may intentionally stay untranslated.";
+  }
+  return null;
+}
+
+function slugifyLatin(input: string | null | undefined, fallback: string): string {
+  const base = (input || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+
+  return base || fallback;
+}
+
+function slugCandidates(title: string | null | undefined, documentId: string | null | undefined, locale: Locale) {
+  const shortDocumentId = (documentId || "document").slice(0, 8).toLowerCase();
+  const localeKey = localeDisplay(locale);
+  const latinOnly = slugifyLatin(title, `boat-${shortDocumentId}-${localeKey}`);
+
+  return {
+    latinOnly,
+    deterministicCollisionSafe: `${latinOnly}-${localeKey}-${shortDocumentId}`,
+    strategy: "Preview only. Check collisions before save; do not reserve or overwrite existing slugs.",
+  };
 }
 
 function withQuery(path: string, params: string[]): string {
@@ -305,6 +379,24 @@ async function findBoatRowsByDocumentId(boatDocumentId: string): Promise<JsonObj
   for (const locale of ALL_LOCALES) {
     for (const status of ["draft", "published"] as const) {
       for (const row of await scanBoatRows(locale, status, boatDocumentId)) {
+        const key = `${String(row.id ?? "")}:${asString(row.locale) ?? locale}:${asString(row.publishedAt) ?? status}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push(row);
+      }
+    }
+  }
+
+  return rows;
+}
+
+async function findExperienceRowsByDocumentId(experienceDocumentId: string): Promise<JsonObject[]> {
+  const rows: JsonObject[] = [];
+  const seen = new Set<string>();
+
+  for (const locale of ALL_LOCALES) {
+    for (const status of ["draft", "published"] as const) {
+      for (const row of await scanExperienceRows(locale, status, experienceDocumentId)) {
         const key = `${String(row.id ?? "")}:${asString(row.locale) ?? locale}:${asString(row.publishedAt) ?? status}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -560,6 +652,160 @@ type SourcePayload = {
   experiences: ShapedExperience[];
   warnings: PreviewWarning[];
 };
+
+function rowState(row: JsonObject): "draft" | "published" {
+  return asString(row.publishedAt) ? "published" : "draft";
+}
+
+function boatFieldStatuses(row: JsonObject | null) {
+  return {
+    title: fieldStatus(row ? asString(row.title) : null),
+    description: fieldStatus(row ? asString(row.description) : null),
+    slug: fieldStatus(row ? asString(row.slug) : null),
+  };
+}
+
+function experienceFieldStatuses(row: JsonObject | null) {
+  return {
+    title: fieldStatus(row ? asString(row.title) : null),
+    short_description: fieldStatus(row ? asString(row.short_description) : null),
+    full_description: fieldStatus(row ? asString(row.full_description) : null),
+    included_services: fieldStatus(row ? asString(row.included_services) : null),
+    meeting_point: fieldStatus(row ? asString(row.meeting_point) : null),
+    slug: fieldStatus(row ? asString(row.slug) : null),
+  };
+}
+
+function primaryLocaleRow(rows: JsonObject[], locale: Locale): JsonObject | null {
+  const localeRows = rows.filter((row) => asLocale(row.locale) === locale);
+  return localeRows.find((row) => !asString(row.publishedAt)) ?? localeRows[0] ?? null;
+}
+
+function boatLocaleReview(row: JsonObject | null, locale: Locale, sourceDocumentId: string | null) {
+  const fields = boatFieldStatuses(row);
+  const hint = titleScriptHint(locale, row ? asString(row.title) : null);
+
+  return {
+    locale,
+    label: localeDisplay(locale),
+    exists: Boolean(row),
+    readiness: readinessFromFields(Boolean(row), {
+      title: fields.title,
+      slug: fields.slug,
+    }),
+    state: row ? rowState(row) : null,
+    documentId: row ? asString(row.documentId) : sourceDocumentId,
+    title: row ? asString(row.title) : null,
+    slug: row ? asString(row.slug) : null,
+    fields,
+    scriptHint: hint,
+    slugCandidates: slugCandidates(row ? asString(row.title) : null, sourceDocumentId, locale),
+  };
+}
+
+function experienceLocaleReview(row: JsonObject | null, locale: Locale, sourceDocumentId: string | null) {
+  const fields = experienceFieldStatuses(row);
+  const hint = titleScriptHint(locale, row ? asString(row.title) : null);
+
+  return {
+    locale,
+    label: localeDisplay(locale),
+    exists: Boolean(row),
+    readiness: readinessFromFields(Boolean(row), {
+      title: fields.title,
+      slug: fields.slug,
+    }),
+    state: row ? rowState(row) : null,
+    documentId: row ? asString(row.documentId) : sourceDocumentId,
+    title: row ? asString(row.title) : null,
+    slug: row ? asString(row.slug) : null,
+    fields,
+    scriptHint: hint,
+    slugCandidates: slugCandidates(row ? asString(row.title) : null, sourceDocumentId, locale),
+  };
+}
+
+async function buildSourcePackage(params: {
+  boat: JsonObject;
+  boatDocumentId: string;
+  sourceLocale: Locale;
+  targetLocales: Locale[];
+  experiences: JsonObject[];
+  warnings: PreviewWarning[];
+}) {
+  const boatRows = await findBoatRowsByDocumentId(params.boatDocumentId);
+  const boatLocaleVersions = ALL_LOCALES.map((locale) => boatLocaleReview(
+    primaryLocaleRow(boatRows, locale),
+    locale,
+    params.boatDocumentId
+  ));
+  const missingBoatLocales = boatLocaleVersions
+    .filter((row) => !row.exists)
+    .map((row) => row.locale);
+  const sourceBoatFields = boatFieldStatuses(params.boat);
+  const packageWarnings = [
+    ...missingBoatLocales.map((locale) => `Missing boat locale: ${localeDisplay(locale)}`),
+    ...boatLocaleVersions.flatMap((row) => row.scriptHint ? [row.scriptHint] : []),
+    ...params.warnings.map((warning) => warning.code),
+  ];
+
+  const linkedExperiences = await Promise.all(params.experiences.map(async (experience) => {
+    const documentId = asString(experience.documentId);
+    const rows = documentId ? await findExperienceRowsByDocumentId(documentId) : [experience];
+    const localeVersions = ALL_LOCALES.map((locale) => experienceLocaleReview(
+      primaryLocaleRow(rows, locale),
+      locale,
+      documentId
+    ));
+    const missingLocales = localeVersions.filter((row) => !row.exists).map((row) => row.locale);
+    const incompleteFields = localeVersions.flatMap((row) => {
+      if (!row.exists) return [`${localeDisplay(row.locale).toUpperCase()} route locale missing`];
+      return Object.entries(row.fields)
+        .filter(([, status]) => status === "missing")
+        .map(([field]) => `${localeDisplay(row.locale).toUpperCase()} route ${field} missing`);
+    });
+
+    packageWarnings.push(
+      ...missingLocales.map((locale) => `Missing route locale ${localeDisplay(locale)} for ${documentId ?? "unknown route"}`),
+      ...localeVersions.flatMap((row) => row.scriptHint ? [row.scriptHint] : [])
+    );
+
+    return {
+      sourceDocumentId: documentId,
+      sourceLocale: asLocale(experience.locale) ?? params.sourceLocale,
+      sourceFields: experienceFieldStatuses(experience),
+      localeVersions,
+      missingLocales,
+      incompleteFields,
+    };
+  }));
+
+  return {
+    readOnly: true,
+    mode: "source-only",
+    doesCallAi: false,
+    doesSaveData: false,
+    sourceBoatDocumentId: params.boatDocumentId,
+    sourceLocale: params.sourceLocale,
+    requestedTargetLocales: params.targetLocales,
+    requiredLocales: ALL_LOCALES,
+    existingBoatLocaleVersions: boatLocaleVersions,
+    missingBoatLocales,
+    boatReadiness: boatLocaleVersions.map(({ locale, label, exists, readiness, fields, scriptHint, slugCandidates }) => ({
+      locale,
+      label,
+      exists,
+      readiness,
+      fields,
+      scriptHint,
+      slugCandidates,
+    })),
+    sourceBoatFields,
+    linkedExperiences,
+    linkedExperiencesCount: linkedExperiences.length,
+    warnings: Array.from(new Set(packageWarnings)),
+  };
+}
 
 function nullableStringSchema() {
   return { anyOf: [{ type: "string" }, { type: "null" }] };
@@ -881,8 +1127,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const sourcePackage = await buildSourcePackage({
+      boat,
+      boatDocumentId,
+      sourceLocale,
+      targetLocales,
+      experiences: experienceResult.experiences,
+      warnings: experienceResult.warnings,
+    });
+
     return NextResponse.json(
-      sourcePayload,
+      { ...sourcePayload, sourcePackage },
       { headers: { "cache-control": "no-store" } }
     );
   } catch {
