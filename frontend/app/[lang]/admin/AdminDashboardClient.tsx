@@ -1395,6 +1395,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-detail-panel {
           display: grid;
           gap: 18px;
+          min-width: 0;
           border-color: rgba(255, 255, 255, 0.18);
           background: rgba(255, 255, 255, 0.06);
         }
@@ -1404,11 +1405,13 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           align-items: flex-start;
           justify-content: space-between;
           gap: 16px;
+          min-width: 0;
         }
 
         .admin-detail-header p {
           margin: 6px 0 0;
           color: rgba(255, 255, 255, 0.68);
+          overflow-wrap: anywhere;
         }
 
         .admin-detail-summary {
@@ -1441,21 +1444,33 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
         .admin-detail-grid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
           gap: 14px;
+          min-width: 0;
         }
 
         .admin-detail-section {
           display: grid;
           gap: 12px;
+          min-width: 0;
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 8px;
           background: rgba(0, 0, 0, 0.14);
           padding: 16px;
         }
 
+        .admin-detail-grid .admin-detail-section:nth-child(2) {
+          grid-column: 1 / -1;
+        }
+
         .admin-detail-section h4 {
           color: rgba(255, 255, 255, 0.88);
+        }
+
+        .admin-detail-section p {
+          min-width: 0;
+          margin: 0;
+          overflow-wrap: anywhere;
         }
 
         .admin-detail-warning {
@@ -1470,6 +1485,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-owner-card {
           display: grid;
           gap: 13px;
+          min-width: 0;
           border: 1px solid rgba(255, 255, 255, 0.13);
           border-radius: 8px;
           background: rgba(255, 255, 255, 0.045);
@@ -1484,6 +1500,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-owner-main {
           display: grid;
           gap: 5px;
+          min-width: 0;
         }
 
         .admin-owner-main strong {
@@ -1498,17 +1515,20 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           font-size: 13px;
           line-height: 1.55;
           overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-owner-badges {
           display: flex;
           flex-wrap: wrap;
           gap: 7px;
+          min-width: 0;
         }
 
         .admin-owner-cross-check {
           display: grid;
           gap: 10px;
+          min-width: 0;
           border-top: 1px solid rgba(255, 255, 255, 0.08);
           padding-top: 12px;
         }
@@ -1524,7 +1544,9 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           font-size: 12px;
           font-weight: 700;
           line-height: 1.2;
-          white-space: nowrap;
+          max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
         }
 
         :global(.admin-badge.positive) {
@@ -1540,9 +1562,16 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         .admin-table-wrap {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
           overflow-x: auto;
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 8px;
+        }
+
+        .admin-detail-section .admin-table-wrap {
+          overscroll-behavior-x: contain;
         }
 
         .admin-table {
@@ -1556,6 +1585,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           min-width: 760px;
         }
 
+        .admin-detail-section .admin-table-compact {
+          min-width: 720px;
+        }
+
         .admin-table th,
         .admin-table td {
           padding: 10px 11px;
@@ -1563,6 +1596,16 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           text-align: left;
           vertical-align: top;
           white-space: nowrap;
+        }
+
+        .admin-detail-section .admin-table th,
+        .admin-detail-section .admin-table td {
+          white-space: normal;
+        }
+
+        .admin-detail-section .admin-table .admin-mono {
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-table th {
@@ -1612,12 +1655,14 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-definition-grid div {
           display: grid;
           gap: 5px;
+          min-width: 0;
           margin: 0;
         }
 
         .admin-definition-grid dd {
           margin: 0;
           overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-warning-list {
