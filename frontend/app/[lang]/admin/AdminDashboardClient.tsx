@@ -261,11 +261,33 @@ function containsCyrillic(value: string | null | undefined): boolean {
   return Boolean(value && /[\u0400-\u04FF]/.test(value));
 }
 
+function looksLikeBrandOrModelTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  const normalized = title
+    .trim()
+    .replace(/[—–-]/g, " ")
+    .replace(/[^\p{L}\p{N}. ]/gu, " ")
+    .replace(/\s+/g, " ");
+  if (!normalized) return false;
+
+  const words = normalized.split(" ");
+  const hasLatin = /[A-Za-z]/.test(normalized);
+  const hasCyrillic = containsCyrillic(normalized);
+  const hasBrandCase = words.some((word) => /^[A-Z][A-Za-z0-9.]*$/.test(word));
+  const hasModelNumber = /\d/.test(normalized);
+  const isShort = words.length <= 4 && normalized.length <= 32;
+  const isKnownDemoName = words[0]?.toLowerCase() === "demo";
+
+  return hasLatin && !hasCyrillic && isShort && (hasBrandCase || hasModelNumber || isKnownDemoName);
+}
+
 function translationScriptHint(locale: RequiredLocale, title: string | null | undefined): string | null {
   if (!title) return null;
   const hasCyrillic = containsCyrillic(title);
   if (locale === "en" && hasCyrillic) return "EN title may need translation review.";
-  if (locale === "ru" && !hasCyrillic) return "RU title may need translation review.";
+  if (locale === "ru" && !hasCyrillic && !looksLikeBrandOrModelTitle(title)) {
+    return "RU title may need manual review; boat names may intentionally stay untranslated.";
+  }
   if (locale === "me" && hasCyrillic) return "ME title may need Latin-script review.";
   return null;
 }
@@ -845,6 +867,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <div>
                           <h5>Translation review</h5>
                           <p>AI translation generation, draft saving, and locale publishing will be added in a later protected write phase.</p>
+                          <p>Boat names and model names may intentionally remain untranslated.</p>
                         </div>
                         <div className="admin-translation-required">
                           {requiredTranslationLocales.map((reviewLocale) => (
