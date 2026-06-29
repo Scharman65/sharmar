@@ -147,6 +147,14 @@ type TranslationSourcePackage = {
   }>;
   missingBoatLocales?: string[];
   sourceBoatFields?: Record<string, string | undefined>;
+  linkedExperiences?: Array<{
+    sourceDocumentId?: string | null;
+    localeVersions?: Array<{
+      locale?: string;
+      label?: string;
+      title?: string | null;
+    }>;
+  }>;
   linkedExperiencesCount?: number;
   warnings?: string[];
 };
@@ -286,6 +294,15 @@ function normalizeReviewLocale(locale: string | null | undefined): RequiredLocal
   return null;
 }
 
+function displayLocale(locale: string | null | undefined): string {
+  if (locale === "sr-Latn-ME") return "me";
+  return display(locale);
+}
+
+function displayLocaleList(locales: Array<string | null | undefined> | undefined): string {
+  return locales?.length ? locales.map(displayLocale).join(", ") : "-";
+}
+
 function toStrapiLocale(locale: string | null | undefined): StrapiLocale {
   if (locale === "en" || locale === "ru" || locale === "sr-Latn-ME") return locale;
   if (locale === "me") return "sr-Latn-ME";
@@ -329,6 +346,37 @@ function translationScriptHint(locale: RequiredLocale, title: string | null | un
   }
   if (locale === "me" && hasCyrillic) return "ME title may need Latin-script review.";
   return null;
+}
+
+function routeTitleForWarning(sourcePackage: TranslationSourcePackage | null, documentId: string): string | null {
+  const route = sourcePackage?.linkedExperiences?.find((experience) => experience.sourceDocumentId === documentId);
+  const versionWithTitle = route?.localeVersions?.find((version) => version.title?.trim());
+  return versionWithTitle?.title?.trim() || null;
+}
+
+function formatSourcePackageWarning(warning: string, sourcePackage: TranslationSourcePackage | null): string {
+  if (warning === "experience_source_locale_inferred_from_linked_row") {
+    return "Route source locale was inferred from the linked route row.";
+  }
+
+  const missingBoatLocale = /^Missing boat locale: (.+)$/.exec(warning);
+  if (missingBoatLocale) {
+    return `Boat is missing ${displayLocale(missingBoatLocale[1]).toUpperCase()} version.`;
+  }
+
+  const missingRouteLocale = /^Missing route locale (.+) for (.+)$/.exec(warning);
+  if (missingRouteLocale) {
+    const locale = displayLocale(missingRouteLocale[1]).toUpperCase();
+    const documentId = missingRouteLocale[2];
+    const title = routeTitleForWarning(sourcePackage, documentId);
+    return title ? `Route "${title}" is missing ${locale} version.` : `Route is missing ${locale} version.`;
+  }
+
+  if (warning === "EN title contains Cyrillic and may need translation review.") {
+    return "EN route title contains Cyrillic and needs translation review.";
+  }
+
+  return warning.replaceAll("sr-Latn-ME", "me");
 }
 
 function ownerDisplay(boat: BoatRow): string {
@@ -996,10 +1044,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         {sourcePackage ? (
                           <div className="admin-source-package-result">
                             <dl className="admin-definition-grid">
-                              <div><dt>source locale</dt><dd>{display(sourcePackage.sourceLocale ?? translationSourcePackage?.sourceLocale)}</dd></div>
-                              <div><dt>requested target locales</dt><dd>{(sourcePackage.requestedTargetLocales ?? translationSourcePackage?.targetLocales ?? []).join(", ") || "-"}</dd></div>
-                              <div><dt>existing locale coverage</dt><dd>{(sourcePackage.existingBoatLocaleVersions ?? []).filter((row) => row.exists).map((row) => row.label ?? row.locale).join(", ") || "-"}</dd></div>
-                              <div><dt>missing locales</dt><dd>{(sourcePackage.missingBoatLocales ?? []).join(", ") || "-"}</dd></div>
+                              <div><dt>source locale</dt><dd>{displayLocale(sourcePackage.sourceLocale ?? translationSourcePackage?.sourceLocale)}</dd></div>
+                              <div><dt>requested target locales</dt><dd>{displayLocaleList(sourcePackage.requestedTargetLocales ?? translationSourcePackage?.targetLocales)}</dd></div>
+                              <div><dt>existing locale coverage</dt><dd>{displayLocaleList((sourcePackage.existingBoatLocaleVersions ?? []).filter((row) => row.exists).map((row) => row.label ?? row.locale))}</dd></div>
+                              <div><dt>missing locales</dt><dd>{displayLocaleList(sourcePackage.missingBoatLocales)}</dd></div>
                               <div><dt>source fields</dt><dd>{Object.entries(sourcePackage.sourceBoatFields ?? {}).map(([field, status]) => `${field}: ${status}`).join(", ") || "-"}</dd></div>
                               <div><dt>linked routes count</dt><dd>{numberDisplay(sourcePackage.linkedExperiencesCount)}</dd></div>
                               <div><dt>mode</dt><dd>{display(sourcePackage.mode)}</dd></div>
@@ -1010,7 +1058,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                               {sourcePackage.warnings?.length ? (
                                 <ul>
                                   {sourcePackage.warnings.map((warning, index) => (
-                                    <li key={`${warning}-${index}`}>{warning}</li>
+                                    <li key={`${warning}-${index}`}>{formatSourcePackageWarning(warning, sourcePackage)}</li>
                                   ))}
                                 </ul>
                               ) : <p>No source package warnings.</p>}
