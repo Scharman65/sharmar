@@ -234,6 +234,15 @@ function yesNo(value: boolean): string {
   return value ? "yes" : "no";
 }
 
+function BooleanBadge({ label, value, warningOnTrue = false }: { label: string; value: boolean | null | undefined; warningOnTrue?: boolean }) {
+  const isWarning = warningOnTrue ? value === true : value !== true;
+  return (
+    <span className={`admin-badge ${isWarning ? "warning" : "positive"}`}>
+      {label ? `${label} ${display(value)}` : display(value)}
+    </span>
+  );
+}
+
 function ownerDisplay(boat: BoatRow): string {
   return display(
     boat.owner_display_name
@@ -351,6 +360,14 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
   const selectedBoatHasOwner = selectedBoat ? hasOwnerDisplay(selectedBoat) : false;
+  const selectedOwnerUserId = selectedBoat?.owner_user_id ?? selectedBoat?.created_by_id ?? null;
+  const selectedOwnerEmail = selectedBoat?.owner_email?.trim().toLowerCase() ?? null;
+  const selectedOwnerFromOwnersList = selectedBoat
+    ? owners.find((owner) => selectedBoat.owner_profile_id != null && owner.profile_id === selectedBoat.owner_profile_id)
+      ?? owners.find((owner) => selectedOwnerUserId != null && owner.user_id === selectedOwnerUserId)
+      ?? owners.find((owner) => selectedOwnerEmail && owner.email?.trim().toLowerCase() === selectedOwnerEmail)
+      ?? null
+    : null;
   const selectedBoatMediaStatus = !selectedBoat
     ? ""
     : (selectedBoat.cover_count ?? 0) <= 0
@@ -612,6 +629,41 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                     </button>
                   </div>
 
+                  <div className="admin-detail-summary" aria-label="Boat moderation summary">
+                    <div>
+                      <span>Boat title</span>
+                      <strong>{display(selectedBoat.title)}</strong>
+                    </div>
+                    <div>
+                      <span>documentId</span>
+                      <strong className="admin-mono">{display(selectedBoat.documentId)}</strong>
+                    </div>
+                    <div>
+                      <span>locale</span>
+                      <strong>{display(selectedBoat.locale)}</strong>
+                    </div>
+                    <div>
+                      <span>state</span>
+                      <strong>{display(selectedBoat.state)}</strong>
+                    </div>
+                    <div>
+                      <span>owner</span>
+                      <strong>{ownerDisplay(selectedBoat)}</strong>
+                    </div>
+                    <div>
+                      <span>media</span>
+                      <strong>{selectedBoatMediaStatus}</strong>
+                    </div>
+                    <div>
+                      <span>routes</span>
+                      <strong>{selectedBoatExperiences.length}</strong>
+                    </div>
+                    <div>
+                      <span>locale versions</span>
+                      <strong>{selectedBoatLocaleVersions.length}</strong>
+                    </div>
+                  </div>
+
                   <div className="admin-detail-grid">
                     <section className="admin-detail-section">
                       <h4>Identity</h4>
@@ -631,21 +683,41 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
                     <section className="admin-detail-section">
                       <h4>Owner / trust</h4>
-                      <dl className="admin-definition-grid">
-                        <div><dt>owner_user_id / created_by_id</dt><dd>{display(selectedBoat.owner_user_id ?? selectedBoat.created_by_id)}</dd></div>
-                        <div><dt>owner_profile_id</dt><dd>{display(selectedBoat.owner_profile_id)}</dd></div>
-                        <div><dt>owner_display_name</dt><dd>{display(selectedBoat.owner_display_name)}</dd></div>
-                        <div><dt>owner_email</dt><dd>{display(selectedBoat.owner_email)}</dd></div>
-                        <div><dt>owner_username</dt><dd>{display(selectedBoat.owner_username)}</dd></div>
-                        <div><dt>owner_phone</dt><dd>{display(selectedBoat.owner_phone)}</dd></div>
-                        <div><dt>owner_confirmed</dt><dd>{display(selectedBoat.owner_confirmed)}</dd></div>
-                        <div><dt>owner_blocked</dt><dd>{display(selectedBoat.owner_blocked)}</dd></div>
-                        <div><dt>contacts_visible</dt><dd>{display(selectedBoat.contacts_visible)}</dd></div>
-                        <div><dt>instant_booking</dt><dd>{display(selectedBoat.instant_booking)}</dd></div>
-                      </dl>
                       {!selectedBoatHasOwner ? (
                         <p className="admin-detail-warning">Owner link is not visible in the current dashboard payload.</p>
-                      ) : null}
+                      ) : (
+                        <div className={`admin-owner-card ${selectedBoat.owner_blocked ? "blocked" : ""}`}>
+                          <div className="admin-owner-main">
+                            <strong>{display(selectedBoat.owner_display_name)}</strong>
+                            <span>{display(selectedBoat.owner_email)} · {display(selectedBoat.owner_username)}</span>
+                          </div>
+                          <div className="admin-owner-badges">
+                            <BooleanBadge label="confirmed" value={selectedBoat.owner_confirmed} />
+                            <BooleanBadge label="blocked" value={selectedBoat.owner_blocked} warningOnTrue />
+                            <BooleanBadge label="contacts_visible" value={selectedBoat.contacts_visible} />
+                            <BooleanBadge label="instant_booking" value={selectedBoat.instant_booking} />
+                          </div>
+                          <dl className="admin-definition-grid">
+                            <div><dt>Owner display name</dt><dd>{display(selectedBoat.owner_display_name)}</dd></div>
+                            <div><dt>Owner email</dt><dd>{display(selectedBoat.owner_email)}</dd></div>
+                            <div><dt>Owner username</dt><dd>{display(selectedBoat.owner_username)}</dd></div>
+                            <div><dt>Owner phone</dt><dd>{display(selectedBoat.owner_phone)}</dd></div>
+                            <div><dt>owner_user_id / created_by_id</dt><dd>{display(selectedBoat.owner_user_id ?? selectedBoat.created_by_id)}</dd></div>
+                            <div><dt>owner_profile_id</dt><dd>{display(selectedBoat.owner_profile_id)}</dd></div>
+                          </dl>
+                        </div>
+                      )}
+                      <div className="admin-owner-cross-check">
+                        <span>Owner found in Owners tab: <strong>{yesNo(Boolean(selectedOwnerFromOwnersList))}</strong></span>
+                        {selectedOwnerFromOwnersList ? (
+                          <dl className="admin-definition-grid">
+                            <div><dt>profile_id</dt><dd>{display(selectedOwnerFromOwnersList.profile_id)}</dd></div>
+                            <div><dt>user_id</dt><dd>{display(selectedOwnerFromOwnersList.user_id)}</dd></div>
+                            <div><dt>email</dt><dd>{display(selectedOwnerFromOwnersList.email)}</dd></div>
+                            <div><dt>display_name</dt><dd>{display(selectedOwnerFromOwnersList.display_name)}</dd></div>
+                          </dl>
+                        ) : null}
+                      </div>
                     </section>
 
                     <section className="admin-detail-section">
@@ -752,7 +824,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                       {selectedBoatChecklist.map((item) => (
                         <div key={item.label}>
                           <dt>{item.label}</dt>
-                          <dd>{yesNo(item.value)}</dd>
+                          <dd><BooleanBadge label="" value={item.value} /></dd>
                         </div>
                       ))}
                     </dl>
@@ -760,7 +832,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
                   <section className="admin-detail-section">
                     <h4>Next actions placeholder</h4>
-                    <p className="admin-empty">Actions will be added in Phase 2C/2D after backend moderation endpoints are protected.</p>
+                    <p className="admin-empty">Actions will be added after backend moderation endpoints are protected. Publish, reject, request changes, and AI translation save actions are intentionally not available in this read-only phase.</p>
                   </section>
                 </section>
               ) : null}
@@ -1339,6 +1411,34 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: rgba(255, 255, 255, 0.68);
         }
 
+        .admin-detail-summary {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .admin-detail-summary div {
+          display: grid;
+          gap: 5px;
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.16);
+          padding: 11px 12px;
+        }
+
+        .admin-detail-summary span {
+          color: rgba(255, 255, 255, 0.56);
+          font-size: 12px;
+        }
+
+        .admin-detail-summary strong {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 13px;
+          line-height: 1.35;
+          overflow-wrap: anywhere;
+        }
+
         .admin-detail-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1365,6 +1465,78 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           color: #ffe4ac;
           margin: 0;
           padding: 10px 12px;
+        }
+
+        .admin-owner-card {
+          display: grid;
+          gap: 13px;
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.045);
+          padding: 14px;
+        }
+
+        .admin-owner-card.blocked {
+          border-color: rgba(255, 198, 92, 0.42);
+          background: rgba(255, 174, 54, 0.1);
+        }
+
+        .admin-owner-main {
+          display: grid;
+          gap: 5px;
+        }
+
+        .admin-owner-main strong {
+          color: rgba(255, 255, 255, 0.94);
+          font-size: 16px;
+          overflow-wrap: anywhere;
+        }
+
+        .admin-owner-main span,
+        .admin-owner-cross-check {
+          color: rgba(255, 255, 255, 0.68);
+          font-size: 13px;
+          line-height: 1.55;
+          overflow-wrap: anywhere;
+        }
+
+        .admin-owner-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+        }
+
+        .admin-owner-cross-check {
+          display: grid;
+          gap: 10px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          padding-top: 12px;
+        }
+
+        :global(.admin-badge) {
+          display: inline-flex;
+          align-items: center;
+          width: fit-content;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 999px;
+          padding: 3px 8px;
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+
+        :global(.admin-badge.positive) {
+          color: #baf7c9;
+          border-color: rgba(101, 255, 146, 0.28);
+          background: rgba(101, 255, 146, 0.08);
+        }
+
+        :global(.admin-badge.warning) {
+          color: #ffe4ac;
+          border-color: rgba(255, 198, 92, 0.32);
+          background: rgba(255, 174, 54, 0.1);
         }
 
         .admin-table-wrap {
@@ -1470,6 +1642,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           .admin-load-form,
           .admin-filters,
           .admin-definition-grid,
+          .admin-detail-summary,
           .admin-detail-grid {
             grid-template-columns: 1fr;
           }
