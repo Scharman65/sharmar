@@ -240,6 +240,56 @@ async function loadOwners(warnings: string[]) {
   }
 }
 
+async function loadBoatOwnerLinks(warnings: string[]) {
+  try {
+    const result = await strapi.db.connection.raw(
+      `
+      select
+        b.id as boat_id,
+        b.document_id as boat_document_id,
+        b.locale as boat_locale,
+        b.owner_user_id,
+        b.created_by_id,
+        op.id as owner_profile_id,
+        u.email as owner_email,
+        u.username as owner_username,
+        nullif(trim(concat(coalesce(op.first_name, ''), ' ', coalesce(op.last_name, ''))), '') as owner_display_name,
+        op.phone as owner_phone,
+        u.confirmed as owner_confirmed,
+        u.blocked as owner_blocked
+      from public.boats b
+      left join public.up_users u
+        on u.id = coalesce(b.owner_user_id, b.created_by_id)
+      left join public.owner_profiles_user_lnk opul
+        on opul.user_id = u.id
+      left join public.owner_profiles op
+        on op.id = opul.owner_profile_id
+      order by b.updated_at desc nulls last, b.id desc
+      limit ?
+      `,
+      [ROW_LIMIT * 5]
+    );
+
+    return rawRows(result).map((row) => ({
+      boat_id: nullableNumber(row.boat_id),
+      boat_document_id: nullableString(row.boat_document_id),
+      boat_locale: nullableString(row.boat_locale),
+      owner_user_id: nullableNumber(row.owner_user_id),
+      created_by_id: nullableNumber(row.created_by_id),
+      owner_profile_id: nullableNumber(row.owner_profile_id),
+      owner_email: nullableString(row.owner_email),
+      owner_username: nullableString(row.owner_username),
+      owner_display_name: nullableString(row.owner_display_name),
+      owner_phone: nullableString(row.owner_phone),
+      owner_confirmed: nullableBoolean(row.owner_confirmed),
+      owner_blocked: nullableBoolean(row.owner_blocked),
+    }));
+  } catch (error) {
+    warnings.push("Could not load boat owner links.");
+    return [];
+  }
+}
+
 export default {
   async summary(ctx) {
     const expectedToken = adminToken();
@@ -263,10 +313,11 @@ export default {
     }
 
     const warnings: string[] = [];
-    const [bookingRequests, payments, owners, totalBookingRequests, totalPayments, totalOwners] = await Promise.all([
+    const [bookingRequests, payments, owners, boatOwnerLinks, totalBookingRequests, totalPayments, totalOwners] = await Promise.all([
       loadBookingRequests(warnings),
       loadPayments(warnings),
       loadOwners(warnings),
+      loadBoatOwnerLinks(warnings),
       countTable("public.booking_requests", warnings, "booking requests"),
       countTable("public.payments", warnings, "payments"),
       countTable("public.owner_profiles", warnings, "owners"),
@@ -279,6 +330,7 @@ export default {
       bookingRequests,
       payments,
       owners,
+      boatOwnerLinks,
       summary: {
         totalBookingRequests: totalBookingRequests ?? bookingRequests.length,
         totalPayments: totalPayments ?? payments.length,

@@ -18,7 +18,23 @@ type CmsAdminSummary = {
   bookingRequests?: unknown[];
   payments?: unknown[];
   owners?: unknown[];
+  boatOwnerLinks?: unknown[];
   warnings?: unknown[];
+};
+
+type BoatOwnerLink = {
+  boat_id: number | null;
+  boat_document_id: string | null;
+  boat_locale: string | null;
+  owner_user_id: number | null;
+  created_by_id: number | null;
+  owner_profile_id: number | null;
+  owner_email: string | null;
+  owner_username: string | null;
+  owner_display_name: string | null;
+  owner_phone: string | null;
+  owner_confirmed: boolean | null;
+  owner_blocked: boolean | null;
 };
 
 function getStrapiBase(): string {
@@ -217,6 +233,75 @@ function normalizeBoat(item: unknown, status: RowStatus) {
   };
 }
 
+function normalizeBoatOwnerLink(item: unknown): BoatOwnerLink | null {
+  if (!isRecord(item)) return null;
+
+  return {
+    boat_id: asNumber(item.boat_id),
+    boat_document_id: asString(item.boat_document_id),
+    boat_locale: asString(item.boat_locale),
+    owner_user_id: asNumber(item.owner_user_id),
+    created_by_id: asNumber(item.created_by_id),
+    owner_profile_id: asNumber(item.owner_profile_id),
+    owner_email: asString(item.owner_email),
+    owner_username: asString(item.owner_username),
+    owner_display_name: asString(item.owner_display_name),
+    owner_phone: asString(item.owner_phone),
+    owner_confirmed: asBoolean(item.owner_confirmed),
+    owner_blocked: asBoolean(item.owner_blocked),
+  };
+}
+
+function boatOwnerDocumentLocaleKey(documentId: string | null | undefined, locale: string | null | undefined): string | null {
+  return documentId && locale ? `${documentId}:${locale}` : null;
+}
+
+function mergeBoatOwnerLinks<T extends {
+  id: number | null;
+  documentId: string | null;
+  locale: string | null;
+  owner_user_id?: number | null;
+  created_by_id?: number | null;
+}>(
+  boats: T[],
+  rawLinks: unknown[] | undefined
+) {
+  const links = (rawLinks ?? [])
+    .map(normalizeBoatOwnerLink)
+    .filter((link): link is BoatOwnerLink => Boolean(link));
+
+  const byId = new Map<number, BoatOwnerLink>();
+  const byDocumentLocale = new Map<string, BoatOwnerLink>();
+
+  for (const link of links) {
+    if (link.boat_id !== null) byId.set(link.boat_id, link);
+
+    const documentLocaleKey = boatOwnerDocumentLocaleKey(link.boat_document_id, link.boat_locale);
+    if (documentLocaleKey) byDocumentLocale.set(documentLocaleKey, link);
+  }
+
+  return boats.map((boat) => {
+    const documentLocaleKey = boatOwnerDocumentLocaleKey(boat.documentId, boat.locale);
+    const link = (documentLocaleKey ? byDocumentLocale.get(documentLocaleKey) : null)
+      ?? (boat.id !== null ? byId.get(boat.id) : null);
+
+    if (!link) return boat;
+
+    return {
+      ...boat,
+      owner_user_id: link.owner_user_id ?? boat.owner_user_id ?? null,
+      created_by_id: link.created_by_id ?? boat.created_by_id ?? null,
+      owner_profile_id: link.owner_profile_id,
+      owner_email: link.owner_email,
+      owner_username: link.owner_username,
+      owner_display_name: link.owner_display_name,
+      owner_phone: link.owner_phone,
+      owner_confirmed: link.owner_confirmed,
+      owner_blocked: link.owner_blocked,
+    };
+  });
+}
+
 function normalizeExperience(item: unknown, status: RowStatus) {
   const row = getAttributes(item) ?? {};
   const boat = getFirstRelated(row.boat);
@@ -333,7 +418,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const boats = boatResult.rows.map(({ item, status }) => normalizeBoat(item, status));
+  const boats = mergeBoatOwnerLinks(
+    boatResult.rows.map(({ item, status }) => normalizeBoat(item, status)),
+    cmsSummary?.boatOwnerLinks
+  );
   const experiences = experienceResult.rows
     .map(({ item, status }) => normalizeExperience(item, status))
     .slice(0, 50);

@@ -32,6 +32,13 @@ type BoatRow = {
   vessel_type?: string | null;
   owner_user_id?: number | null;
   created_by_id?: number | null;
+  owner_profile_id?: number | null;
+  owner_email?: string | null;
+  owner_username?: string | null;
+  owner_display_name?: string | null;
+  owner_phone?: string | null;
+  owner_confirmed?: boolean | null;
+  owner_blocked?: boolean | null;
   state?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -227,6 +234,26 @@ function yesNo(value: boolean): string {
   return value ? "yes" : "no";
 }
 
+function ownerDisplay(boat: BoatRow): string {
+  return display(
+    boat.owner_display_name
+      ?? boat.owner_email
+      ?? boat.owner_username
+      ?? boat.owner_user_id
+      ?? boat.created_by_id
+  );
+}
+
+function hasOwnerDisplay(boat: BoatRow): boolean {
+  return Boolean(
+    boat.owner_user_id
+      ?? boat.created_by_id
+      ?? boat.owner_display_name
+      ?? boat.owner_email
+      ?? boat.owner_username
+  );
+}
+
 export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const ui = copy[lang];
   const [adminToken, setAdminToken] = useState("");
@@ -298,7 +325,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   };
   const quality = {
     draftBoats: boats.filter((boat) => boat.state === "draft").length,
-    missingOwner: boats.filter((boat) => boat.owner_user_id == null && boat.created_by_id == null).length,
+    missingOwner: boats.filter((boat) => !hasOwnerDisplay(boat)).length,
     missingTitle: boats.filter((boat) => !boat.title).length,
     missingSlug: boats.filter((boat) => !boat.slug).length,
     routesWithoutBoat: experiences.filter((experience) => !experience.boatTitle).length,
@@ -323,7 +350,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const selectedBoatExperiences = selectedBoatDocumentId
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
-  const selectedBoatHasOwner = Boolean(selectedBoat?.owner_user_id ?? selectedBoat?.created_by_id);
+  const selectedBoatHasOwner = selectedBoat ? hasOwnerDisplay(selectedBoat) : false;
   const selectedBoatMediaStatus = !selectedBoat
     ? ""
     : (selectedBoat.cover_count ?? 0) <= 0
@@ -544,7 +571,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             <td>{display(boat.slug)}</td>
                             <td>{display(boat.listing_type)}</td>
                             <td>{display(boat.boat_type || boat.vessel_type)}</td>
-                            <td>{display(boat.owner_user_id ?? boat.created_by_id)}</td>
+                            <td>{ownerDisplay(boat)}</td>
                             <td><span className={`admin-state ${boat.state === "published" ? "published" : "draft"}`}>{display(boat.state)}</span></td>
                             <td>{dateDisplay(boat.created_at)}</td>
                             <td>{dateDisplay(boat.updated_at)}</td>
@@ -606,6 +633,13 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                       <h4>Owner / trust</h4>
                       <dl className="admin-definition-grid">
                         <div><dt>owner_user_id / created_by_id</dt><dd>{display(selectedBoat.owner_user_id ?? selectedBoat.created_by_id)}</dd></div>
+                        <div><dt>owner_profile_id</dt><dd>{display(selectedBoat.owner_profile_id)}</dd></div>
+                        <div><dt>owner_display_name</dt><dd>{display(selectedBoat.owner_display_name)}</dd></div>
+                        <div><dt>owner_email</dt><dd>{display(selectedBoat.owner_email)}</dd></div>
+                        <div><dt>owner_username</dt><dd>{display(selectedBoat.owner_username)}</dd></div>
+                        <div><dt>owner_phone</dt><dd>{display(selectedBoat.owner_phone)}</dd></div>
+                        <div><dt>owner_confirmed</dt><dd>{display(selectedBoat.owner_confirmed)}</dd></div>
+                        <div><dt>owner_blocked</dt><dd>{display(selectedBoat.owner_blocked)}</dd></div>
                         <div><dt>contacts_visible</dt><dd>{display(selectedBoat.contacts_visible)}</dd></div>
                         <div><dt>instant_booking</dt><dd>{display(selectedBoat.instant_booking)}</dd></div>
                       </dl>
