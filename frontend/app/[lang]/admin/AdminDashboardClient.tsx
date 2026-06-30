@@ -428,8 +428,15 @@ function aiPreviewErrorMessage(code: string | undefined): string {
 }
 
 function slugCandidateText(candidate: { latinOnly?: string; deterministicCollisionSafe?: string } | null | undefined): string {
-  if (!candidate) return "Slug candidates are available after loading the source package.";
-  return candidate.deterministicCollisionSafe || candidate.latinOnly || "Slug candidates are available after loading the source package.";
+  if (!candidate) return "Load source package to see draft slug reference.";
+  const value = candidate.deterministicCollisionSafe || candidate.latinOnly;
+  if (!value) return "Load source package to see draft slug reference.";
+  const cleaned = value
+    .replaceAll("-en-en-", "-en-")
+    .replaceAll("-me-me-", "-me-")
+    .replaceAll("-ru-ru-", "-ru-");
+
+  return `draft: ${cleaned}`;
 }
 
 function boatSlugCandidate(sourcePackage: TranslationSourcePackage | null, locale: string): string {
@@ -1200,6 +1207,9 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         ) : null}
                         {aiPreview ? (
                           <div className="admin-ai-preview-result">
+                            {!translationAiError ? (
+                              <p className="admin-ai-preview-success">AI preview generated successfully. Nothing was saved.</p>
+                            ) : null}
                             <dl className="admin-definition-grid">
                               <div><dt>model</dt><dd>{display(aiPreview.model)}</dd></div>
                               <div><dt>source locale</dt><dd>{displayLocale(aiPreview.sourceLocale)}</dd></div>
@@ -1216,7 +1226,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                     <dl className="admin-definition-grid">
                                       <div><dt>title</dt><dd>{display(translation?.title)}</dd></div>
                                       <div><dt>description</dt><dd>{display(translation?.description)}</dd></div>
-                                      <div><dt>slug candidate</dt><dd>{boatSlugCandidate(sourcePackage, targetLocale)}</dd></div>
+                                      <div><dt>draft slug reference</dt><dd>{boatSlugCandidate(sourcePackage, targetLocale)}</dd></div>
                                     </dl>
                                   </section>
                                 );
@@ -1243,7 +1253,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                               <div><dt>full_description</dt><dd>{display(translation?.full_description)}</dd></div>
                                               <div><dt>included_services</dt><dd>{display(translation?.included_services)}</dd></div>
                                               <div><dt>meeting_point</dt><dd>{display(translation?.meeting_point)}</dd></div>
-                                              <div><dt>slug candidate</dt><dd>{routeSlugCandidate(sourcePackage, route.sourceDocumentId, targetLocale)}</dd></div>
+                                              <div><dt>draft slug reference</dt><dd>{routeSlugCandidate(sourcePackage, route.sourceDocumentId, targetLocale)}</dd></div>
                                             </dl>
                                           </section>
                                         );
@@ -2226,9 +2236,17 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           line-height: 1.55;
         }
 
+        .admin-ai-preview-success {
+          border: 1px solid rgba(101, 255, 146, 0.28);
+          border-radius: 8px;
+          background: rgba(101, 255, 146, 0.08);
+          color: #baf7c9;
+          padding: 10px 12px;
+        }
+
         .admin-ai-preview-grid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: 1fr;
           gap: 12px;
           min-width: 0;
         }
