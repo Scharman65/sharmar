@@ -1126,7 +1126,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                       <div className="admin-translation-review-heading">
                         <div>
                           <h5>Translation review</h5>
-                          <p>AI translation generation, draft saving, and locale publishing will be added in a later protected write phase.</p>
+                          <p>AI preview is available. Draft saving and locale publishing will be added in a later protected write phase.</p>
                           <p>Boat names and model names may intentionally remain untranslated.</p>
                         </div>
                         <div className="admin-translation-required">
@@ -2251,6 +2251,18 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           min-width: 0;
         }
 
+        .admin-ai-preview-result > .admin-definition-grid {
+          min-width: 0;
+        }
+
+        .admin-ai-preview-result > .admin-definition-grid dd,
+        .admin-ai-preview-card dd {
+          min-width: 0;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          white-space: pre-wrap;
+        }
+
         .admin-ai-preview-card {
           display: grid;
           gap: 10px;
@@ -2263,6 +2275,16 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
         .admin-ai-preview-card.nested {
           background: rgba(255, 255, 255, 0.035);
+        }
+
+        .admin-ai-preview-card .admin-definition-grid {
+          grid-template-columns: 1fr;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .admin-ai-preview-card .admin-definition-grid div {
+          min-width: 0;
         }
 
         .admin-table-wrap {
