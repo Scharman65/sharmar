@@ -144,6 +144,11 @@ type TranslationSourcePackage = {
     locale?: string;
     label?: string;
     exists?: boolean;
+    slugCandidates?: {
+      latinOnly?: string;
+      deterministicCollisionSafe?: string;
+      strategy?: string;
+    };
   }>;
   missingBoatLocales?: string[];
   sourceBoatFields?: Record<string, string | undefined>;
@@ -153,6 +158,11 @@ type TranslationSourcePackage = {
       locale?: string;
       label?: string;
       title?: string | null;
+      slugCandidates?: {
+        latinOnly?: string;
+        deterministicCollisionSafe?: string;
+        strategy?: string;
+      };
     }>;
   }>;
   linkedExperiencesCount?: number;
@@ -165,6 +175,33 @@ type TranslationSourcePackageResponse = {
   sourceLocale?: string;
   targetLocales?: string[];
   sourcePackage?: TranslationSourcePackage;
+};
+
+type TranslationFields = {
+  title?: string | null;
+  description?: string | null;
+  short_description?: string | null;
+  full_description?: string | null;
+  included_services?: string | null;
+  meeting_point?: string | null;
+};
+
+type TranslationAiPreviewResponse = {
+  ok?: boolean;
+  code?: string;
+  aiPreview?: {
+    model?: string;
+    sourceLocale?: string;
+    targetLocales?: string[];
+    boat?: {
+      sourceDocumentId?: string | null;
+      translations?: Record<string, TranslationFields | undefined>;
+    };
+    experiences?: Array<{
+      sourceDocumentId?: string | null;
+      translations?: Record<string, TranslationFields | undefined>;
+    }>;
+  };
 };
 
 const adminSections: Array<{ id: AdminSection; label: string }> = [
@@ -299,6 +336,10 @@ function displayLocale(locale: string | null | undefined): string {
   return display(locale);
 }
 
+function displayLocaleLabel(locale: string | null | undefined): string {
+  return displayLocale(locale).toUpperCase();
+}
+
 function displayLocaleList(locales: Array<string | null | undefined> | undefined): string {
   return locales?.length ? locales.map(displayLocale).join(", ") : "-";
 }
@@ -379,6 +420,29 @@ function formatSourcePackageWarning(warning: string, sourcePackage: TranslationS
   return warning.replaceAll("sr-Latn-ME", "me");
 }
 
+function aiPreviewErrorMessage(code: string | undefined): string {
+  if (code === "openai_api_key_missing") return "OpenAI key is missing on the server. AI preview cannot run yet.";
+  if (code === "openai_request_failed") return "OpenAI request failed. Try again later.";
+  if (code === "ai_translation_invalid_response") return "AI response was invalid. Try again.";
+  return code ? `Could not generate AI preview (${code}).` : "Could not generate AI preview.";
+}
+
+function slugCandidateText(candidate: { latinOnly?: string; deterministicCollisionSafe?: string } | null | undefined): string {
+  if (!candidate) return "Slug candidates are available after loading the source package.";
+  return candidate.deterministicCollisionSafe || candidate.latinOnly || "Slug candidates are available after loading the source package.";
+}
+
+function boatSlugCandidate(sourcePackage: TranslationSourcePackage | null, locale: string): string {
+  const row = sourcePackage?.existingBoatLocaleVersions?.find((version) => version.locale === locale || version.label === displayLocale(locale));
+  return slugCandidateText(row?.slugCandidates);
+}
+
+function routeSlugCandidate(sourcePackage: TranslationSourcePackage | null, routeDocumentId: string | null | undefined, locale: string): string {
+  const route = sourcePackage?.linkedExperiences?.find((experience) => experience.sourceDocumentId === routeDocumentId);
+  const row = route?.localeVersions?.find((version) => version.locale === locale || version.label === displayLocale(locale));
+  return slugCandidateText(row?.slugCandidates);
+}
+
 function ownerDisplay(boat: BoatRow): string {
   return display(
     boat.owner_display_name
@@ -414,6 +478,9 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [translationSourcePackage, setTranslationSourcePackage] = useState<TranslationSourcePackageResponse | null>(null);
   const [translationSourceLoading, setTranslationSourceLoading] = useState(false);
   const [translationSourceError, setTranslationSourceError] = useState<string | null>(null);
+  const [translationAiPreview, setTranslationAiPreview] = useState<TranslationAiPreviewResponse | null>(null);
+  const [translationAiLoading, setTranslationAiLoading] = useState(false);
+  const [translationAiError, setTranslationAiError] = useState<string | null>(null);
 
   async function loadDashboard() {
     setLoading(true);
@@ -481,6 +548,45 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
       setTranslationSourceError("Could not load source package.");
     } finally {
       setTranslationSourceLoading(false);
+    }
+  }
+
+  async function generateTranslationAiPreview() {
+    if (!selectedBoat?.documentId) {
+      setTranslationAiError("Boat documentId is required.");
+      return;
+    }
+
+    setTranslationAiLoading(true);
+    setTranslationAiError(null);
+    setTranslationAiPreview(null);
+
+    const sourceLocale = toStrapiLocale(selectedBoat.locale);
+
+    try {
+      const response = await fetch("/api/admin/translations/preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+        body: JSON.stringify({
+          boatDocumentId: selectedBoat.documentId,
+          sourceLocale,
+          targetLocales: targetLocalesForSourceLocale(sourceLocale),
+          generateAi: true,
+        }),
+      });
+      const json: TranslationAiPreviewResponse = await response.json().catch(() => ({ ok: false, code: "unknown" }));
+      setTranslationAiPreview(json);
+
+      if (!response.ok || json.ok === false || !json.aiPreview) {
+        setTranslationAiError(aiPreviewErrorMessage(json.code));
+      }
+    } catch {
+      setTranslationAiError(aiPreviewErrorMessage(undefined));
+    } finally {
+      setTranslationAiLoading(false);
     }
   }
 
@@ -570,6 +676,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     return flags;
   });
   const sourcePackage = translationSourcePackage?.sourcePackage ?? null;
+  const aiPreview = translationAiPreview?.aiPreview ?? null;
   const selectedBoatExperiences = selectedBoatDocumentId
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
@@ -794,6 +901,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                   setSelectedBoatKey(key);
                                   setTranslationSourcePackage(null);
                                   setTranslationSourceError(null);
+                                  setTranslationAiPreview(null);
+                                  setTranslationAiError(null);
                                 }}
                               >
                                 Open
@@ -849,6 +958,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         setSelectedBoatKey(null);
                         setTranslationSourcePackage(null);
                         setTranslationSourceError(null);
+                        setTranslationAiPreview(null);
+                        setTranslationAiError(null);
                       }}
                     >
                       Close
@@ -1063,6 +1174,85 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                 </ul>
                               ) : <p>No source package warnings.</p>}
                             </div>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="admin-ai-preview">
+                        <div className="admin-ai-preview-heading">
+                          <h5>AI translation preview</h5>
+                          <p>This generates a preview only. It does not save or publish translations.</p>
+                          <div className="admin-source-package-actions">
+                            <button
+                              className="admin-secondary-button"
+                              type="button"
+                              disabled={translationAiLoading || !selectedBoat.documentId}
+                              onClick={() => void generateTranslationAiPreview()}
+                            >
+                              {translationAiLoading ? "Generating..." : "Generate AI preview"}
+                            </button>
+                          </div>
+                        </div>
+                        <dl className="admin-definition-grid">
+                          <div><dt>Safety</dt><dd>AI preview only · save: no · publish: no</dd></div>
+                        </dl>
+                        {translationAiError ? (
+                          <p className="admin-detail-warning">{translationAiError}</p>
+                        ) : null}
+                        {aiPreview ? (
+                          <div className="admin-ai-preview-result">
+                            <dl className="admin-definition-grid">
+                              <div><dt>model</dt><dd>{display(aiPreview.model)}</dd></div>
+                              <div><dt>source locale</dt><dd>{displayLocale(aiPreview.sourceLocale)}</dd></div>
+                              <div><dt>target locales</dt><dd>{displayLocaleList(aiPreview.targetLocales)}</dd></div>
+                              <div><dt>boat sourceDocumentId</dt><dd className="admin-mono">{display(aiPreview.boat?.sourceDocumentId)}</dd></div>
+                            </dl>
+                            <div className="admin-ai-preview-grid">
+                              {(aiPreview.targetLocales ?? []).map((targetLocale) => {
+                                const translation = aiPreview.boat?.translations?.[targetLocale];
+
+                                return (
+                                  <section className="admin-ai-preview-card" key={`boat-${targetLocale}`}>
+                                    <h6>{displayLocaleLabel(targetLocale)} boat</h6>
+                                    <dl className="admin-definition-grid">
+                                      <div><dt>title</dt><dd>{display(translation?.title)}</dd></div>
+                                      <div><dt>description</dt><dd>{display(translation?.description)}</dd></div>
+                                      <div><dt>slug candidate</dt><dd>{boatSlugCandidate(sourcePackage, targetLocale)}</dd></div>
+                                    </dl>
+                                  </section>
+                                );
+                              })}
+                            </div>
+                            {aiPreview.experiences?.length ? (
+                              <div className="admin-ai-preview-routes">
+                                <h6>Route translations</h6>
+                                {aiPreview.experiences.map((route, routeIndex) => (
+                                  <section className="admin-ai-preview-card" key={`${route.sourceDocumentId ?? "route"}-${routeIndex}`}>
+                                    <dl className="admin-definition-grid">
+                                      <div><dt>route sourceDocumentId</dt><dd className="admin-mono">{display(route.sourceDocumentId)}</dd></div>
+                                    </dl>
+                                    <div className="admin-ai-preview-grid">
+                                      {(aiPreview.targetLocales ?? []).map((targetLocale) => {
+                                        const translation = route.translations?.[targetLocale];
+
+                                        return (
+                                          <section className="admin-ai-preview-card nested" key={`${route.sourceDocumentId ?? routeIndex}-${targetLocale}`}>
+                                            <h6>{displayLocaleLabel(targetLocale)}</h6>
+                                            <dl className="admin-definition-grid">
+                                              <div><dt>title</dt><dd>{display(translation?.title)}</dd></div>
+                                              <div><dt>short_description</dt><dd>{display(translation?.short_description)}</dd></div>
+                                              <div><dt>full_description</dt><dd>{display(translation?.full_description)}</dd></div>
+                                              <div><dt>included_services</dt><dd>{display(translation?.included_services)}</dd></div>
+                                              <div><dt>meeting_point</dt><dd>{display(translation?.meeting_point)}</dd></div>
+                                              <div><dt>slug candidate</dt><dd>{routeSlugCandidate(sourcePackage, route.sourceDocumentId, targetLocale)}</dd></div>
+                                            </dl>
+                                          </section>
+                                        );
+                                      })}
+                                    </div>
+                                  </section>
+                                ))}
+                              </div>
+                            ) : <p className="admin-empty">No linked route translations returned.</p>}
                           </div>
                         ) : null}
                       </div>
@@ -1806,6 +1996,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           font-size: 14px;
         }
 
+        .admin-detail-section h6 {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 13px;
+        }
+
         .admin-detail-section p {
           min-width: 0;
           margin: 0;
@@ -2006,6 +2202,51 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           min-width: 180px;
         }
 
+        .admin-ai-preview {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+          border: 1px solid rgba(101, 255, 146, 0.18);
+          border-radius: 8px;
+          background: rgba(101, 255, 146, 0.035);
+          padding: 14px;
+        }
+
+        .admin-ai-preview-heading,
+        .admin-ai-preview-result,
+        .admin-ai-preview-routes {
+          display: grid;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .admin-ai-preview-heading p {
+          color: rgba(255, 255, 255, 0.64);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
+        .admin-ai-preview-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          min-width: 0;
+        }
+
+        .admin-ai-preview-card {
+          display: grid;
+          gap: 10px;
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.14);
+          padding: 12px;
+        }
+
+        .admin-ai-preview-card.nested {
+          background: rgba(255, 255, 255, 0.035);
+        }
+
         .admin-table-wrap {
           width: 100%;
           max-width: 100%;
@@ -2134,6 +2375,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           .admin-definition-grid,
           .admin-detail-summary,
           .admin-detail-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .admin-ai-preview-grid {
             grid-template-columns: 1fr;
           }
 
