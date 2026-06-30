@@ -204,6 +204,34 @@ type TranslationAiPreviewResponse = {
   };
 };
 
+type TranslationDryRunPlan = {
+  documentId?: string | null;
+  locale?: string | null;
+  action?: string | null;
+  draftExists?: boolean;
+  publishedExists?: boolean;
+  fieldsToWrite?: string[];
+  fieldsSkipped?: string[];
+  relationPlan?: string | null;
+  draftSlugPlan?: string | null;
+  blocked?: boolean;
+  warnings?: string[];
+};
+
+type TranslationDryRunResponse = {
+  ok?: boolean;
+  code?: string;
+  mode?: string;
+  doesWrite?: boolean;
+  boatDocumentId?: string | null;
+  sourceLocale?: string | null;
+  targetLocales?: string[];
+  boat?: TranslationDryRunPlan[];
+  experiences?: TranslationDryRunPlan[];
+  blockers?: string[];
+  warnings?: string[];
+};
+
 const adminSections: Array<{ id: AdminSection; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "boats", label: "Boats" },
@@ -427,6 +455,15 @@ function aiPreviewErrorMessage(code: string | undefined): string {
   return code ? `Could not generate AI preview (${code}).` : "Could not generate AI preview.";
 }
 
+function dryRunErrorMessage(code: string | undefined): string {
+  if (code === "admin_translation_token_missing") return "Admin translation token is missing on the server.";
+  if (code === "unauthorized") return "Admin token is invalid.";
+  if (code === "dry_run_required") return "Dry-run mode is required.";
+  if (code === "invalid_dry_run_payload") return "Dry-run payload is invalid.";
+  if (code === "dry_run_planner_failed") return "Dry-run planner failed. Try again later.";
+  return code ? `Dry run failed (${code}).` : "Dry run failed. Try again.";
+}
+
 function slugCandidateText(candidate: { latinOnly?: string; deterministicCollisionSafe?: string } | null | undefined): string {
   if (!candidate) return "Load source package to see draft slug reference.";
   const value = candidate.deterministicCollisionSafe || candidate.latinOnly;
@@ -488,6 +525,9 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [translationAiPreview, setTranslationAiPreview] = useState<TranslationAiPreviewResponse | null>(null);
   const [translationAiLoading, setTranslationAiLoading] = useState(false);
   const [translationAiError, setTranslationAiError] = useState<string | null>(null);
+  const [translationDryRun, setTranslationDryRun] = useState<TranslationDryRunResponse | null>(null);
+  const [translationDryRunLoading, setTranslationDryRunLoading] = useState(false);
+  const [translationDryRunError, setTranslationDryRunError] = useState<string | null>(null);
 
   async function loadDashboard() {
     setLoading(true);
@@ -567,6 +607,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationAiLoading(true);
     setTranslationAiError(null);
     setTranslationAiPreview(null);
+    setTranslationDryRun(null);
+    setTranslationDryRunError(null);
 
     const sourceLocale = toStrapiLocale(selectedBoat.locale);
 
@@ -594,6 +636,53 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
       setTranslationAiError(aiPreviewErrorMessage(undefined));
     } finally {
       setTranslationAiLoading(false);
+    }
+  }
+
+  async function runTranslationSaveDraftDryRun() {
+    if (!selectedBoat?.documentId || !aiPreview) {
+      setTranslationDryRunError("AI preview is required before dry run.");
+      return;
+    }
+
+    setTranslationDryRunLoading(true);
+    setTranslationDryRunError(null);
+    setTranslationDryRun(null);
+
+    const sourceLocale = toStrapiLocale(aiPreview.sourceLocale ?? selectedBoat.locale);
+    const targetLocales = (aiPreview.targetLocales?.length ? aiPreview.targetLocales : targetLocalesForSourceLocale(sourceLocale))
+      .map(toStrapiLocale)
+      .filter((item, index, list) => item !== sourceLocale && list.indexOf(item) === index);
+
+    try {
+      const response = await fetch("/api/admin/translations/save-draft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+        body: JSON.stringify({
+          boatDocumentId: selectedBoat.documentId,
+          sourceLocale,
+          targetLocales,
+          dryRun: true,
+          overwrite: false,
+          aiPreview: {
+            boat: aiPreview.boat,
+            experiences: aiPreview.experiences ?? [],
+          },
+        }),
+      });
+      const json: TranslationDryRunResponse = await response.json().catch(() => ({ ok: false, code: "unknown" }));
+      setTranslationDryRun(json);
+
+      if (!response.ok || json.ok === false) {
+        setTranslationDryRunError(dryRunErrorMessage(json.code));
+      }
+    } catch {
+      setTranslationDryRunError(dryRunErrorMessage(undefined));
+    } finally {
+      setTranslationDryRunLoading(false);
     }
   }
 
@@ -910,6 +999,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                   setTranslationSourceError(null);
                                   setTranslationAiPreview(null);
                                   setTranslationAiError(null);
+                                  setTranslationDryRun(null);
+                                  setTranslationDryRunError(null);
                                 }}
                               >
                                 Open
@@ -967,6 +1058,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         setTranslationSourceError(null);
                         setTranslationAiPreview(null);
                         setTranslationAiError(null);
+                        setTranslationDryRun(null);
+                        setTranslationDryRunError(null);
                       }}
                     >
                       Close
@@ -1265,6 +1358,102 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             ) : <p className="admin-empty">No linked route translations returned.</p>}
                           </div>
                         ) : null}
+                        <div className="admin-dry-run-preview">
+                          <div className="admin-ai-preview-heading">
+                            <h5>Save draft dry run</h5>
+                            <p>This checks what would be saved later. It does not write, publish, or change data.</p>
+                            <div className="admin-source-package-actions">
+                              <button
+                                className="admin-secondary-button"
+                                type="button"
+                                disabled={translationDryRunLoading || !aiPreview || !selectedBoat.documentId}
+                                onClick={() => void runTranslationSaveDraftDryRun()}
+                              >
+                                {translationDryRunLoading ? "Checking..." : "Dry run save draft"}
+                              </button>
+                            </div>
+                          </div>
+                          <dl className="admin-definition-grid">
+                            <div><dt>Safety</dt><dd>Dry run only · write: no · publish: no</dd></div>
+                          </dl>
+                          {translationDryRunError ? (
+                            <p className="admin-detail-warning">{translationDryRunError}</p>
+                          ) : null}
+                          {translationDryRun?.ok ? (
+                            <div className="admin-dry-run-result">
+                              <dl className="admin-definition-grid">
+                                <div><dt>mode</dt><dd>{display(translationDryRun.mode)}</dd></div>
+                                <div><dt>write</dt><dd>{yesNo(translationDryRun.doesWrite === true)}</dd></div>
+                                <div><dt>source locale</dt><dd>{displayLocale(translationDryRun.sourceLocale)}</dd></div>
+                                <div><dt>target locales</dt><dd>{displayLocaleList(translationDryRun.targetLocales)}</dd></div>
+                              </dl>
+                              <div className="admin-ai-preview-routes">
+                                <h6>Boat planned actions</h6>
+                                {translationDryRun.boat?.length ? (
+                                  <div className="admin-ai-preview-grid">
+                                    {translationDryRun.boat.map((plan) => (
+                                      <section className="admin-ai-preview-card nested" key={`dry-boat-${plan.locale}`}>
+                                        <h6>{displayLocaleLabel(plan.locale)} boat</h6>
+                                        <dl className="admin-definition-grid">
+                                          <div><dt>action</dt><dd>{display(plan.action)}</dd></div>
+                                          <div><dt>draft exists</dt><dd>{yesNo(plan.draftExists === true)}</dd></div>
+                                          <div><dt>published exists</dt><dd>{yesNo(plan.publishedExists === true)}</dd></div>
+                                          <div><dt>fields to write later</dt><dd>{plan.fieldsToWrite?.length ? plan.fieldsToWrite.join(", ") : "-"}</dd></div>
+                                          <div><dt>fields skipped</dt><dd>{plan.fieldsSkipped?.length ? plan.fieldsSkipped.join(", ") : "-"}</dd></div>
+                                          <div><dt>blocked</dt><dd>{yesNo(plan.blocked === true)}</dd></div>
+                                          <div><dt>warnings</dt><dd>{plan.warnings?.length ? plan.warnings.join(" ") : "-"}</dd></div>
+                                        </dl>
+                                      </section>
+                                    ))}
+                                  </div>
+                                ) : <p className="admin-empty">No boat dry-run actions.</p>}
+                              </div>
+                              <div className="admin-ai-preview-routes">
+                                <h6>Route planned actions</h6>
+                                {translationDryRun.experiences?.length ? (
+                                  <div className="admin-ai-preview-grid">
+                                    {translationDryRun.experiences.map((plan, index) => (
+                                      <section className="admin-ai-preview-card nested" key={`dry-route-${plan.documentId ?? index}-${plan.locale}`}>
+                                        <h6>{displayLocaleLabel(plan.locale)} route</h6>
+                                        <dl className="admin-definition-grid">
+                                          <div><dt>documentId</dt><dd className="admin-mono">{display(plan.documentId)}</dd></div>
+                                          <div><dt>action</dt><dd>{display(plan.action)}</dd></div>
+                                          <div><dt>draft exists</dt><dd>{yesNo(plan.draftExists === true)}</dd></div>
+                                          <div><dt>published exists</dt><dd>{yesNo(plan.publishedExists === true)}</dd></div>
+                                          <div><dt>fields to write later</dt><dd>{plan.fieldsToWrite?.length ? plan.fieldsToWrite.join(", ") : "-"}</dd></div>
+                                          <div><dt>draft slug plan</dt><dd>{display(plan.draftSlugPlan)}</dd></div>
+                                          <div><dt>relation plan</dt><dd>{display(plan.relationPlan)}</dd></div>
+                                          <div><dt>blocked</dt><dd>{yesNo(plan.blocked === true)}</dd></div>
+                                          <div><dt>warnings</dt><dd>{plan.warnings?.length ? plan.warnings.join(" ") : "-"}</dd></div>
+                                        </dl>
+                                      </section>
+                                    ))}
+                                  </div>
+                                ) : <p className="admin-empty">No route dry-run actions.</p>}
+                              </div>
+                              <div className={translationDryRun.blockers?.length ? "admin-translation-flags" : "admin-empty"}>
+                                <h6>Blockers</h6>
+                                {translationDryRun.blockers?.length ? (
+                                  <ul>
+                                    {translationDryRun.blockers.map((blocker, index) => (
+                                      <li key={`${blocker}-${index}`}>{blocker}</li>
+                                    ))}
+                                  </ul>
+                                ) : <p>No dry-run blockers.</p>}
+                              </div>
+                              <div className={translationDryRun.warnings?.length ? "admin-translation-flags" : "admin-empty"}>
+                                <h6>Warnings</h6>
+                                {translationDryRun.warnings?.length ? (
+                                  <ul>
+                                    {translationDryRun.warnings.map((warning, index) => (
+                                      <li key={`${warning}-${index}`}>{warning}</li>
+                                    ))}
+                                  </ul>
+                                ) : <p>No dry-run warnings.</p>}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="admin-table-wrap">
                         <table className="admin-table admin-translation-review-table">
@@ -2286,6 +2475,22 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         }
 
         .admin-ai-preview-card .admin-definition-grid div {
+          min-width: 0;
+        }
+
+        .admin-dry-run-preview {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.025);
+          padding: 12px;
+        }
+
+        .admin-dry-run-result {
+          display: grid;
+          gap: 12px;
           min-width: 0;
         }
 
