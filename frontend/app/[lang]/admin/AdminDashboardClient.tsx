@@ -2258,6 +2258,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-ai-preview-result > .admin-definition-grid dd,
         .admin-ai-preview-card dd {
           min-width: 0;
+          max-width: 860px;
+          line-height: 1.6;
           overflow-wrap: anywhere;
           word-break: break-word;
           white-space: pre-wrap;
