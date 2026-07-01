@@ -48,7 +48,7 @@ const BOAT_UID = "api::boat.boat";
 const EXPERIENCE_UID = "api::experience.experience";
 const BOAT_ALLOWED_FIELDS = ["title", "description"] as const;
 const EXPERIENCE_ALLOWED_FIELDS = ["title", "short_description", "full_description", "included_services", "meeting_point"] as const;
-const BOAT_SKIPPED_FIELDS = ["slug", "publishedAt", "owner_user_id", "owner contacts", "contacts_visible", "verified_listing", "featured_listing", "reviewed_at", "prices", "currency", "capacity", "year", "engine", "media", "marina", "brand", "extras", "purposes"];
+const BOAT_SKIPPED_FIELDS = ["publishedAt", "owner_user_id", "owner contacts", "contacts_visible", "verified_listing", "featured_listing", "reviewed_at", "prices", "currency", "capacity", "year", "engine", "media", "marina", "brand", "extras", "purposes"];
 const EXPERIENCE_SKIPPED_FIELDS = ["publishedAt", "price", "currency", "duration_hours", "max_guests", "sort_order", "is_active", "cover", "gallery", "existing published rows"];
 
 function isRecord(value: unknown): value is JsonObject {
@@ -107,6 +107,15 @@ function draftSlug(title: string | null | undefined, documentId: string, locale:
     .replace(/-ru-ru-/g, "-ru-");
 }
 
+function boatDraftSlug(title: string | null | undefined, documentId: string, locale: Locale): string {
+  const shortDocumentId = documentId.slice(0, 8).toLowerCase();
+  const core = slugifyLatin(title, `boat-${shortDocumentId}-${localeLabel(locale)}`);
+  return `${core}-${localeLabel(locale)}-${shortDocumentId}`
+    .replace(/-en-en-/g, "-en-")
+    .replace(/-me-me-/g, "-me-")
+    .replace(/-ru-ru-/g, "-ru-");
+}
+
 function shapeExistingRow(row: JsonObject | null): ExistingRow | null {
   if (!row) return null;
   return {
@@ -159,6 +168,14 @@ async function experienceSlugExists(slug: string, locale: Locale, sourceDocument
     const row: JsonObject = isRecord(item) ? item : {};
     return asString(row.slug) === slug && asString(row.documentId) !== sourceDocumentId;
   });
+}
+
+async function findSourceBoatSlug(documentId: string, sourceLocale: Locale): Promise<string | null> {
+  const draft = await findBoatRow(documentId, sourceLocale, "draft");
+  if (draft?.slug) return draft.slug;
+
+  const published = await findBoatRow(documentId, sourceLocale, "published");
+  return published?.slug ?? null;
 }
 
 function planFields(
@@ -268,17 +285,24 @@ async function writeExperienceDraft(plan: DraftPlan, data: JsonObject): Promise<
   return findExperienceRow(plan.documentId, plan.locale, "draft");
 }
 
-async function planBoatLocale(documentId: string, locale: Locale, translation: JsonObject, overwrite: boolean): Promise<DraftPlan> {
+async function planBoatLocale(documentId: string, locale: Locale, sourceLocale: Locale, translation: JsonObject, overwrite: boolean): Promise<DraftPlan> {
   const [draft, published] = await Promise.all([
     findBoatRow(documentId, locale, "draft"),
     findBoatRow(documentId, locale, "published"),
   ]);
   const fieldPlan = planFields(BOAT_ALLOWED_FIELDS, draft, translation, overwrite);
   const warnings: string[] = [];
+  let slugPlan: string | null = null;
   if (published) warnings.push("Published version exists and will not be changed.");
   if (!draft && !asString(translation.title)) {
     fieldPlan.blocked = true;
     warnings.push("Missing title for new boat draft locale.");
+  }
+  if (!draft?.slug) {
+    slugPlan = await findSourceBoatSlug(documentId, sourceLocale)
+      ?? boatDraftSlug(asString(translation.title), documentId, locale);
+    fieldPlan.fieldsToWrite.push("slug");
+    fieldPlan.fieldPlans.push({ field: "slug", status: "would-write", existingValuePresent: false });
   }
 
   return {
@@ -289,11 +313,12 @@ async function planBoatLocale(documentId: string, locale: Locale, translation: J
     publishedExists: Boolean(published),
     draftId: draft?.id ?? null,
     publishedId: published?.id ?? null,
-    fieldsToWrite: fieldPlan.fieldsToWrite,
+    fieldsToWrite: Array.from(new Set(fieldPlan.fieldsToWrite)),
     fieldsSkipped: BOAT_SKIPPED_FIELDS,
     fieldPlans: fieldPlan.fieldPlans,
     blocked: fieldPlan.blocked,
     warnings,
+    draftSlugPlan: slugPlan,
   };
 }
 
@@ -362,7 +387,7 @@ export default () => ({
     const safeTargetLocales = targetLocales.filter((locale) => ALL_LOCALES.includes(locale) && locale !== sourceLocale);
     const boatPlans = await Promise.all(safeTargetLocales.map((locale) => {
       const translation = aiBoatTranslations[locale];
-      return planBoatLocale(boatDocumentId, locale, isRecord(translation) ? translation : {}, false);
+      return planBoatLocale(boatDocumentId, locale, sourceLocale, isRecord(translation) ? translation : {}, false);
     }));
     const boatPlanByLocale = new Map(boatPlans.map((plan) => [plan.locale, plan]));
 
@@ -418,10 +443,13 @@ export default () => ({
     for (const plan of boatPlans) {
       const translation = aiBoatTranslations[plan.locale];
       const data = pickAllowedData(isRecord(translation) ? translation : {}, plan.fieldsToWrite);
+      const currentDraft = await findBoatRow(plan.documentId, plan.locale, "draft");
+      if (plan.draftSlugPlan && plan.fieldsToWrite.includes("slug") && !currentDraft?.slug) {
+        data.slug = plan.draftSlugPlan;
+      }
       if (!Object.keys(data).length) {
         skipped.push(`Boat ${localeLabel(plan.locale)}: no draft field changes.`);
-        const existingDraft = await findBoatRow(plan.documentId, plan.locale, "draft");
-        if (existingDraft) targetBoatDraftByLocale.set(plan.locale, existingDraft);
+        if (currentDraft) targetBoatDraftByLocale.set(plan.locale, currentDraft);
         continue;
       }
 
