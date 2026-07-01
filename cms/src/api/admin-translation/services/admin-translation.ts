@@ -194,9 +194,8 @@ function planFields(
     const existingValue = existingDraft ? existingDraft[field as keyof ExistingRow] : null;
     const existingValuePresent = normalizeText(existingValue).length > 0;
 
-    if (existingDraft && existingValuePresent && valuesDiffer(existingValue, plannedValue) && !overwrite) {
-      blocked = true;
-      fieldPlans.push({ field, status: "blocked-overwrite-required", existingValuePresent });
+    if (existingDraft && existingValuePresent && !overwrite) {
+      fieldPlans.push({ field, status: "would-skip", existingValuePresent });
       continue;
     }
 
@@ -511,6 +510,10 @@ export default () => ({
 
       const data = pickAllowedData(input.translation, plan.fieldsToWrite);
       if (plan.draftSlugPlan && plan.fieldsToWrite.includes("slug")) data.slug = plan.draftSlugPlan;
+      if (!Object.keys(data).length && plan.draftExists) {
+        skipped.push(`Route ${plan.documentId} ${localeLabel(plan.locale)}: no draft field changes.`);
+        continue;
+      }
       data.boat = {
         documentId: targetBoatDraft.documentId,
         locale: plan.locale,
