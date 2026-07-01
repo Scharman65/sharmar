@@ -844,13 +844,15 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   });
   const sourcePackage = translationSourcePackage?.sourcePackage ?? null;
   const aiPreview = translationAiPreview?.aiPreview ?? null;
+  const hasTranslationSaveBlockers = Boolean(translationDryRun?.blockers?.length);
   const canSaveTranslationDraft = Boolean(
     aiPreview &&
     translationDryRun?.ok === true &&
     translationDryRun.mode === "dry-run" &&
     translationDryRun.doesWrite === false &&
-    !(translationDryRun.blockers?.length)
+    !hasTranslationSaveBlockers
   );
+  const saveDraftButtonLabel = hasTranslationSaveBlockers ? "Blocked by dry-run" : "Save draft translation";
   const selectedBoatExperiences = selectedBoatDocumentId
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
@@ -1544,10 +1546,15 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                   disabled={translationSaveDraftLoading || !canSaveTranslationDraft}
                                   onClick={() => void saveTranslationDraft()}
                                 >
-                                  {translationSaveDraftLoading ? "Saving..." : "Save draft translation"}
+                                  {translationSaveDraftLoading ? "Saving..." : saveDraftButtonLabel}
                                 </button>
                               </div>
                             </div>
+                            {hasTranslationSaveBlockers ? (
+                              <p className="admin-detail-warning">Save draft is blocked because dry-run found overwrite blockers.</p>
+                            ) : aiPreview && !translationDryRun ? (
+                              <p className="admin-empty">Run dry-run before saving draft.</p>
+                            ) : null}
                             <dl className="admin-definition-grid">
                               <div><dt>Safety</dt><dd>Save draft only · publish: no</dd></div>
                               <div><dt>Overwrite</dt><dd>no</dd></div>
