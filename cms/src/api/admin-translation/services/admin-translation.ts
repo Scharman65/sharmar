@@ -1,0 +1,395 @@
+type JsonObject = Record<string, unknown>;
+type Locale = "ru" | "en" | "sr-Latn-ME";
+type PlannerAction = "create-draft-locale" | "update-existing-draft" | "blocked-overwrite-required";
+type ExistingRow = {
+  id: number | null;
+  documentId: string | null;
+  locale: string | null;
+  publishedAt: string | null;
+  title: string | null;
+  slug: string | null;
+  description?: string | null;
+  short_description?: string | null;
+  full_description?: string | null;
+  included_services?: string | null;
+  meeting_point?: string | null;
+};
+type FieldPlan = {
+  field: string;
+  status: "would-write" | "would-skip" | "blocked-overwrite-required";
+  existingValuePresent: boolean;
+};
+type DraftPlan = {
+  documentId: string;
+  locale: Locale;
+  action: PlannerAction;
+  draftExists: boolean;
+  publishedExists: boolean;
+  draftId: number | null;
+  publishedId: number | null;
+  fieldsToWrite: string[];
+  fieldsSkipped: string[];
+  fieldPlans: FieldPlan[];
+  blocked: boolean;
+  warnings: string[];
+  draftSlugPlan?: string | null;
+  relationPlan?: "connect-to-target-locale-boat-draft-later";
+};
+
+const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
+const BOAT_UID = "api::boat.boat";
+const EXPERIENCE_UID = "api::experience.experience";
+const BOAT_ALLOWED_FIELDS = ["title", "description"] as const;
+const EXPERIENCE_ALLOWED_FIELDS = ["title", "short_description", "full_description", "included_services", "meeting_point"] as const;
+const BOAT_SKIPPED_FIELDS = ["slug", "publishedAt", "owner_user_id", "owner contacts", "contacts_visible", "verified_listing", "featured_listing", "reviewed_at", "prices", "currency", "capacity", "year", "engine", "media", "marina", "brand", "extras", "purposes"];
+const EXPERIENCE_SKIPPED_FIELDS = ["publishedAt", "price", "currency", "duration_hours", "max_guests", "sort_order", "is_active", "cover", "gallery", "existing published rows"];
+
+function isRecord(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function asNumber(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+function asLocale(value: unknown): Locale | null {
+  return value === "ru" || value === "en" || value === "sr-Latn-ME" ? value : null;
+}
+
+function asLocaleArray(value: unknown): Locale[] | null {
+  if (!Array.isArray(value)) return null;
+  const locales = value.map(asLocale).filter((item): item is Locale => item !== null);
+  return locales.length ? Array.from(new Set(locales)) : null;
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function valuesDiffer(existingValue: unknown, plannedValue: unknown): boolean {
+  return normalizeText(existingValue) !== normalizeText(plannedValue);
+}
+
+function localeLabel(locale: Locale): string {
+  return locale === "sr-Latn-ME" ? "me" : locale;
+}
+
+function slugifyLatin(input: string | null | undefined, fallback: string): string {
+  const base = (input || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+
+  return base || fallback;
+}
+
+function draftSlug(title: string | null | undefined, documentId: string, locale: Locale): string {
+  const shortDocumentId = documentId.slice(0, 8).toLowerCase();
+  const core = slugifyLatin(title, `route-${shortDocumentId}-${localeLabel(locale)}`);
+  return `${core}-${localeLabel(locale)}-${shortDocumentId}`
+    .replace(/-en-en-/g, "-en-")
+    .replace(/-me-me-/g, "-me-")
+    .replace(/-ru-ru-/g, "-ru-");
+}
+
+function shapeExistingRow(row: JsonObject | null): ExistingRow | null {
+  if (!row) return null;
+  return {
+    id: asNumber(row.id),
+    documentId: asString(row.documentId),
+    locale: asString(row.locale),
+    publishedAt: asString(row.publishedAt),
+    title: asString(row.title),
+    slug: asString(row.slug),
+    description: asString(row.description),
+    short_description: asString(row.short_description),
+    full_description: asString(row.full_description),
+    included_services: asString(row.included_services),
+    meeting_point: asString(row.meeting_point),
+  };
+}
+
+async function findBoatRow(documentId: string, locale: Locale, status: "draft" | "published"): Promise<ExistingRow | null> {
+  const row = await strapi.documents(BOAT_UID as never).findOne({
+    documentId,
+    locale,
+    status,
+    fields: ["id", "documentId", "locale", "publishedAt", "title", "slug", "description"],
+  } as never);
+
+  return shapeExistingRow(isRecord(row) ? row : null);
+}
+
+async function findExperienceRow(documentId: string, locale: Locale, status: "draft" | "published"): Promise<ExistingRow | null> {
+  const row = await strapi.documents(EXPERIENCE_UID as never).findOne({
+    documentId,
+    locale,
+    status,
+    fields: ["id", "documentId", "locale", "publishedAt", "title", "slug", "description", "short_description", "full_description", "included_services", "meeting_point"],
+  } as never);
+
+  return shapeExistingRow(isRecord(row) ? row : null);
+}
+
+async function experienceSlugExists(slug: string, locale: Locale, sourceDocumentId: string): Promise<boolean> {
+  const rows = await strapi.documents(EXPERIENCE_UID as never).findMany({
+    locale,
+    status: "draft",
+    filters: { slug: { $eq: slug } },
+    fields: ["documentId", "slug"],
+    pagination: { pageSize: 5 },
+  } as never);
+
+  return (Array.isArray(rows) ? rows : []).some((item) => {
+    const row: JsonObject = isRecord(item) ? item : {};
+    return asString(row.slug) === slug && asString(row.documentId) !== sourceDocumentId;
+  });
+}
+
+function planFields(
+  allowedFields: readonly string[],
+  existingDraft: ExistingRow | null,
+  translation: JsonObject,
+  overwrite: boolean
+): { fieldsToWrite: string[]; fieldPlans: FieldPlan[]; blocked: boolean } {
+  const fieldsToWrite: string[] = [];
+  const fieldPlans: FieldPlan[] = [];
+  let blocked = false;
+
+  for (const field of allowedFields) {
+    const plannedValue = translation[field];
+    if (plannedValue === undefined) continue;
+    const existingValue = existingDraft ? existingDraft[field as keyof ExistingRow] : null;
+    const existingValuePresent = normalizeText(existingValue).length > 0;
+
+    if (existingDraft && existingValuePresent && valuesDiffer(existingValue, plannedValue) && !overwrite) {
+      blocked = true;
+      fieldPlans.push({ field, status: "blocked-overwrite-required", existingValuePresent });
+      continue;
+    }
+
+    if (!existingDraft || !existingValuePresent || valuesDiffer(existingValue, plannedValue)) {
+      fieldsToWrite.push(field);
+      fieldPlans.push({ field, status: "would-write", existingValuePresent });
+    } else {
+      fieldPlans.push({ field, status: "would-skip", existingValuePresent });
+    }
+  }
+
+  return { fieldsToWrite, fieldPlans, blocked };
+}
+
+function pickAllowedData(translation: JsonObject, fieldsToWrite: string[]): JsonObject {
+  const data: JsonObject = {};
+  for (const field of fieldsToWrite) {
+    const value = translation[field];
+    if (typeof value === "string") data[field] = value.trim();
+  }
+  return data;
+}
+
+async function planBoatLocale(documentId: string, locale: Locale, translation: JsonObject, overwrite: boolean): Promise<DraftPlan> {
+  const [draft, published] = await Promise.all([
+    findBoatRow(documentId, locale, "draft"),
+    findBoatRow(documentId, locale, "published"),
+  ]);
+  const fieldPlan = planFields(BOAT_ALLOWED_FIELDS, draft, translation, overwrite);
+  const warnings: string[] = [];
+  if (published) warnings.push("Published version exists and will not be changed.");
+  if (!draft && !asString(translation.title)) {
+    fieldPlan.blocked = true;
+    warnings.push("Missing title for new boat draft locale.");
+  }
+
+  return {
+    documentId,
+    locale,
+    action: fieldPlan.blocked ? "blocked-overwrite-required" : draft ? "update-existing-draft" : "create-draft-locale",
+    draftExists: Boolean(draft),
+    publishedExists: Boolean(published),
+    draftId: draft?.id ?? null,
+    publishedId: published?.id ?? null,
+    fieldsToWrite: fieldPlan.fieldsToWrite,
+    fieldsSkipped: BOAT_SKIPPED_FIELDS,
+    fieldPlans: fieldPlan.fieldPlans,
+    blocked: fieldPlan.blocked,
+    warnings,
+  };
+}
+
+async function planExperienceLocale(documentId: string, locale: Locale, translation: JsonObject, overwrite: boolean, targetBoatPlan: DraftPlan | undefined): Promise<DraftPlan> {
+  const [draft, published] = await Promise.all([
+    findExperienceRow(documentId, locale, "draft"),
+    findExperienceRow(documentId, locale, "published"),
+  ]);
+  const fieldPlan = planFields(EXPERIENCE_ALLOWED_FIELDS, draft, translation, overwrite);
+  const warnings: string[] = [];
+  let slugPlan: string | null = null;
+
+  if (published) warnings.push("Published version exists and will not be changed.");
+  if (targetBoatPlan && !targetBoatPlan.draftExists) {
+    warnings.push("Target boat draft locale is missing; route relation depends on creating that boat draft first.");
+  }
+  if (!draft && !asString(translation.title)) {
+    fieldPlan.blocked = true;
+    warnings.push("Missing title for new route draft locale.");
+  }
+  if (!draft?.slug) {
+    slugPlan = draftSlug(asString(translation.title), documentId, locale);
+    fieldPlan.fieldsToWrite.push("slug");
+    if (await experienceSlugExists(slugPlan, locale, documentId)) {
+      fieldPlan.blocked = true;
+      warnings.push(`Draft slug collision must be resolved before write: ${slugPlan}`);
+    }
+  }
+
+  return {
+    documentId,
+    locale,
+    action: fieldPlan.blocked ? "blocked-overwrite-required" : draft ? "update-existing-draft" : "create-draft-locale",
+    draftExists: Boolean(draft),
+    publishedExists: Boolean(published),
+    draftId: draft?.id ?? null,
+    publishedId: published?.id ?? null,
+    fieldsToWrite: Array.from(new Set(fieldPlan.fieldsToWrite)),
+    fieldsSkipped: EXPERIENCE_SKIPPED_FIELDS,
+    fieldPlans: fieldPlan.fieldPlans,
+    relationPlan: "connect-to-target-locale-boat-draft-later",
+    draftSlugPlan: slugPlan,
+    blocked: fieldPlan.blocked,
+    warnings,
+  };
+}
+
+export default () => ({
+  async saveDraft(body: unknown) {
+    if (!isRecord(body) || body.dryRun !== false || body.confirmSaveDraft !== true || body.overwrite === true) {
+      return { status: 400, body: { ok: false, code: "invalid_save_draft_payload" } };
+    }
+
+    const boatDocumentId = asString(body.boatDocumentId);
+    const sourceLocale = asLocale(body.sourceLocale);
+    const targetLocales = asLocaleArray(body.targetLocales);
+    const aiPreview = isRecord(body.aiPreview) ? body.aiPreview : null;
+    const aiBoat = aiPreview && isRecord(aiPreview.boat) ? aiPreview.boat : null;
+    const aiBoatTranslations = aiBoat && isRecord(aiBoat.translations) ? aiBoat.translations : null;
+    const aiExperiences = aiPreview && Array.isArray(aiPreview.experiences) ? aiPreview.experiences : [];
+
+    if (!boatDocumentId || !sourceLocale || !targetLocales?.length || !aiBoatTranslations) {
+      return { status: 400, body: { ok: false, code: "invalid_save_draft_payload" } };
+    }
+
+    const safeTargetLocales = targetLocales.filter((locale) => ALL_LOCALES.includes(locale) && locale !== sourceLocale);
+    const boatPlans = await Promise.all(safeTargetLocales.map((locale) => {
+      const translation = aiBoatTranslations[locale];
+      return planBoatLocale(boatDocumentId, locale, isRecord(translation) ? translation : {}, false);
+    }));
+    const boatPlanByLocale = new Map(boatPlans.map((plan) => [plan.locale, plan]));
+
+    const experienceInputs: Array<{ documentId: string; locale: Locale; translation: JsonObject }> = [];
+    const experiencePlans: DraftPlan[] = [];
+    for (const item of aiExperiences) {
+      if (!isRecord(item)) continue;
+      const documentId = asString(item.sourceDocumentId);
+      const translations = isRecord(item.translations) ? item.translations : null;
+      if (!documentId || !translations) continue;
+
+      for (const locale of safeTargetLocales) {
+        const translation = translations[locale];
+        const safeTranslation = isRecord(translation) ? translation : {};
+        experienceInputs.push({ documentId, locale, translation: safeTranslation });
+        experiencePlans.push(await planExperienceLocale(documentId, locale, safeTranslation, false, boatPlanByLocale.get(locale)));
+      }
+    }
+
+    const blockers = [
+      ...boatPlans.filter((plan) => plan.blocked).map((plan) => `Boat ${localeLabel(plan.locale)} requires overwrite approval or complete required draft data.`),
+      ...experiencePlans.filter((plan) => plan.blocked).map((plan) => `Route ${plan.documentId} ${localeLabel(plan.locale)} requires overwrite approval or complete required draft data.`),
+    ];
+    const warnings = [
+      ...boatPlans.flatMap((plan) => plan.warnings.map((warning) => `Boat ${localeLabel(plan.locale)}: ${warning}`)),
+      ...experiencePlans.flatMap((plan) => plan.warnings.map((warning) => `Route ${plan.documentId} ${localeLabel(plan.locale)}: ${warning}`)),
+    ];
+
+    if (blockers.length) {
+      return {
+        status: 409,
+        body: {
+          ok: false,
+          code: "overwrite_required",
+          mode: "save-draft",
+          doesWrite: false,
+          boatDocumentId,
+          sourceLocale,
+          targetLocales: safeTargetLocales,
+          boat: boatPlans,
+          experiences: experiencePlans,
+          blockers,
+          warnings,
+          written: [],
+          skipped: [],
+        },
+      };
+    }
+
+    const written: string[] = [];
+    const skipped: string[] = [];
+    for (const plan of boatPlans) {
+      const translation = aiBoatTranslations[plan.locale];
+      const data = pickAllowedData(isRecord(translation) ? translation : {}, plan.fieldsToWrite);
+      if (!Object.keys(data).length) {
+        skipped.push(`Boat ${localeLabel(plan.locale)}: no draft field changes.`);
+        continue;
+      }
+      await strapi.documents(BOAT_UID as never).update({
+        documentId: plan.documentId,
+        locale: plan.locale,
+        data,
+      } as never);
+      written.push(`Boat ${localeLabel(plan.locale)}: ${Object.keys(data).join(", ")}`);
+    }
+
+    for (let index = 0; index < experiencePlans.length; index += 1) {
+      const plan = experiencePlans[index];
+      const input = experienceInputs[index];
+      const data = pickAllowedData(input.translation, plan.fieldsToWrite);
+      if (plan.draftSlugPlan && plan.fieldsToWrite.includes("slug")) data.slug = plan.draftSlugPlan;
+      data.boat = boatDocumentId;
+
+      await strapi.documents(EXPERIENCE_UID as never).update({
+        documentId: plan.documentId,
+        locale: plan.locale,
+        data,
+      } as never);
+      written.push(`Route ${plan.documentId} ${localeLabel(plan.locale)}: ${Object.keys(data).join(", ")}`);
+    }
+
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        code: "saved_draft",
+        mode: "save-draft",
+        doesWrite: true,
+        doesPublish: false,
+        boatDocumentId,
+        sourceLocale,
+        targetLocales: safeTargetLocales,
+        boat: boatPlans,
+        experiences: experiencePlans,
+        blockers: [],
+        warnings,
+        written,
+        skipped,
+      },
+    };
+  },
+});

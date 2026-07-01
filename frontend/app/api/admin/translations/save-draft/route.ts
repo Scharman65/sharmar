@@ -74,6 +74,14 @@ function getAdminTranslationToken(): string {
   return (process.env.ADMIN_TRANSLATION_TOKEN || "").trim();
 }
 
+function getAdminTranslationInternalToken(): string {
+  return (process.env.ADMIN_TRANSLATION_INTERNAL_TOKEN || "").trim();
+}
+
+function isWriteEnabled(): boolean {
+  return process.env.ADMIN_TRANSLATION_WRITE_ENABLED === "true";
+}
+
 function isRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null;
 }
@@ -147,6 +155,29 @@ async function strapiGet(path: string): Promise<{ ok: boolean; status: number; j
 
   const res = await fetch(`${getStrapiBase()}${path}`, {
     headers,
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  return { ok: res.ok, status: res.status, json };
+}
+
+async function strapiPost(path: string, payload: JsonObject): Promise<{ ok: boolean; status: number; json: unknown }> {
+  const token = getAdminTranslationInternalToken();
+  const res = await fetch(`${getStrapiBase()}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-translation-token": token,
+    },
+    body: JSON.stringify(payload),
     cache: "no-store",
   });
 
@@ -389,11 +420,60 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!isRecord(body) || body.dryRun !== true) {
+  if (!isRecord(body) || (body.dryRun !== true && body.dryRun !== false)) {
     return NextResponse.json(
-      { ok: false, code: "dry_run_required" },
+      { ok: false, code: "invalid_save_mode" },
       { status: 400, headers: { "cache-control": "no-store" } }
     );
+  }
+
+  if (body.dryRun === false) {
+    if (body.confirmSaveDraft !== true) {
+      return NextResponse.json(
+        { ok: false, code: "confirm_save_draft_required" },
+        { status: 400, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    if (body.overwrite === true) {
+      return NextResponse.json(
+        { ok: false, code: "overwrite_not_enabled" },
+        { status: 400, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    if (!isWriteEnabled()) {
+      return NextResponse.json(
+        { ok: false, code: "write_not_enabled" },
+        { status: 403, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    if (!getAdminTranslationInternalToken()) {
+      return NextResponse.json(
+        { ok: false, code: "admin_translation_internal_token_missing" },
+        { status: 503, headers: { "cache-control": "no-store" } }
+      );
+    }
+
+    try {
+      const result = await strapiPost("/api/admin-translations/save-draft", {
+        ...body,
+        dryRun: false,
+        confirmSaveDraft: true,
+        overwrite: false,
+      });
+
+      return NextResponse.json(
+        isRecord(result.json) ? result.json : { ok: false, code: "strapi_save_draft_failed" },
+        { status: result.status, headers: { "cache-control": "no-store" } }
+      );
+    } catch {
+      return NextResponse.json(
+        { ok: false, code: "strapi_save_draft_failed" },
+        { status: 502, headers: { "cache-control": "no-store" } }
+      );
+    }
   }
 
   const boatDocumentId = asString(body.boatDocumentId);

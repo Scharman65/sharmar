@@ -223,6 +223,7 @@ type TranslationDryRunResponse = {
   code?: string;
   mode?: string;
   doesWrite?: boolean;
+  doesPublish?: boolean;
   boatDocumentId?: string | null;
   sourceLocale?: string | null;
   targetLocales?: string[];
@@ -230,6 +231,8 @@ type TranslationDryRunResponse = {
   experiences?: TranslationDryRunPlan[];
   blockers?: string[];
   warnings?: string[];
+  written?: string[];
+  skipped?: string[];
 };
 
 const adminSections: Array<{ id: AdminSection; label: string }> = [
@@ -459,9 +462,22 @@ function dryRunErrorMessage(code: string | undefined): string {
   if (code === "admin_translation_token_missing") return "Admin translation token is missing on the server.";
   if (code === "unauthorized") return "Admin token is invalid.";
   if (code === "dry_run_required") return "Dry-run mode is required.";
+  if (code === "invalid_save_mode") return "Save mode is invalid.";
   if (code === "invalid_dry_run_payload") return "Dry-run payload is invalid.";
   if (code === "dry_run_planner_failed") return "Dry-run planner failed. Try again later.";
   return code ? `Dry run failed (${code}).` : "Dry run failed. Try again.";
+}
+
+function saveDraftErrorMessage(code: string | undefined): string {
+  if (code === "write_not_enabled") return "write_not_enabled";
+  if (code === "admin_translation_token_missing") return "Admin translation token is missing on the server.";
+  if (code === "admin_translation_internal_token_missing") return "Internal admin translation token is missing on the server.";
+  if (code === "unauthorized") return "Admin token is invalid.";
+  if (code === "confirm_save_draft_required") return "Save draft confirmation is required.";
+  if (code === "overwrite_not_enabled") return "Overwrite is not enabled.";
+  if (code === "invalid_save_draft_payload") return "Save draft payload is invalid.";
+  if (code === "overwrite_required") return "Save draft blocked: overwrite_required.";
+  return code ? `Save draft failed (${code}).` : "Save draft failed. Try again.";
 }
 
 function slugCandidateText(candidate: { latinOnly?: string; deterministicCollisionSafe?: string } | null | undefined): string {
@@ -528,6 +544,9 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [translationDryRun, setTranslationDryRun] = useState<TranslationDryRunResponse | null>(null);
   const [translationDryRunLoading, setTranslationDryRunLoading] = useState(false);
   const [translationDryRunError, setTranslationDryRunError] = useState<string | null>(null);
+  const [translationSaveDraft, setTranslationSaveDraft] = useState<TranslationDryRunResponse | null>(null);
+  const [translationSaveDraftLoading, setTranslationSaveDraftLoading] = useState(false);
+  const [translationSaveDraftError, setTranslationSaveDraftError] = useState<string | null>(null);
 
   async function loadDashboard() {
     setLoading(true);
@@ -609,6 +628,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationAiPreview(null);
     setTranslationDryRun(null);
     setTranslationDryRunError(null);
+    setTranslationSaveDraft(null);
+    setTranslationSaveDraftError(null);
 
     const sourceLocale = toStrapiLocale(selectedBoat.locale);
 
@@ -648,6 +669,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationDryRunLoading(true);
     setTranslationDryRunError(null);
     setTranslationDryRun(null);
+    setTranslationSaveDraft(null);
+    setTranslationSaveDraftError(null);
 
     const sourceLocale = toStrapiLocale(aiPreview.sourceLocale ?? selectedBoat.locale);
     const targetLocales = (aiPreview.targetLocales?.length ? aiPreview.targetLocales : targetLocalesForSourceLocale(sourceLocale))
@@ -683,6 +706,54 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
       setTranslationDryRunError(dryRunErrorMessage(undefined));
     } finally {
       setTranslationDryRunLoading(false);
+    }
+  }
+
+  async function saveTranslationDraft() {
+    if (!selectedBoat?.documentId || !aiPreview) {
+      setTranslationSaveDraftError("AI preview is required before save draft.");
+      return;
+    }
+
+    setTranslationSaveDraftLoading(true);
+    setTranslationSaveDraftError(null);
+    setTranslationSaveDraft(null);
+
+    const sourceLocale = toStrapiLocale(aiPreview.sourceLocale ?? selectedBoat.locale);
+    const targetLocales = (aiPreview.targetLocales?.length ? aiPreview.targetLocales : targetLocalesForSourceLocale(sourceLocale))
+      .map(toStrapiLocale)
+      .filter((item, index, list) => item !== sourceLocale && list.indexOf(item) === index);
+
+    try {
+      const response = await fetch("/api/admin/translations/save-draft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+        body: JSON.stringify({
+          boatDocumentId: selectedBoat.documentId,
+          sourceLocale,
+          targetLocales,
+          dryRun: false,
+          confirmSaveDraft: true,
+          overwrite: false,
+          aiPreview: {
+            boat: aiPreview.boat,
+            experiences: aiPreview.experiences ?? [],
+          },
+        }),
+      });
+      const json: TranslationDryRunResponse = await response.json().catch(() => ({ ok: false, code: "unknown" }));
+      setTranslationSaveDraft(json);
+
+      if (!response.ok || json.ok === false) {
+        setTranslationSaveDraftError(saveDraftErrorMessage(json.code));
+      }
+    } catch {
+      setTranslationSaveDraftError(saveDraftErrorMessage(undefined));
+    } finally {
+      setTranslationSaveDraftLoading(false);
     }
   }
 
@@ -773,6 +844,13 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   });
   const sourcePackage = translationSourcePackage?.sourcePackage ?? null;
   const aiPreview = translationAiPreview?.aiPreview ?? null;
+  const canSaveTranslationDraft = Boolean(
+    aiPreview &&
+    translationDryRun?.ok === true &&
+    translationDryRun.mode === "dry-run" &&
+    translationDryRun.doesWrite === false &&
+    !(translationDryRun.blockers?.length)
+  );
   const selectedBoatExperiences = selectedBoatDocumentId
     ? experiences.filter((experience) => experience.boatDocumentId === selectedBoatDocumentId)
     : [];
@@ -1001,6 +1079,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                   setTranslationAiError(null);
                                   setTranslationDryRun(null);
                                   setTranslationDryRunError(null);
+                                  setTranslationSaveDraft(null);
+                                  setTranslationSaveDraftError(null);
                                 }}
                               >
                                 Open
@@ -1453,6 +1533,69 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                               </div>
                             </div>
                           ) : null}
+                          <div className="admin-save-draft-actions">
+                            <div className="admin-ai-preview-heading">
+                              <h5>Save draft translation</h5>
+                              <p>Save draft only · publish: no</p>
+                              <div className="admin-source-package-actions">
+                                <button
+                                  className="admin-secondary-button"
+                                  type="button"
+                                  disabled={translationSaveDraftLoading || !canSaveTranslationDraft}
+                                  onClick={() => void saveTranslationDraft()}
+                                >
+                                  {translationSaveDraftLoading ? "Saving..." : "Save draft translation"}
+                                </button>
+                              </div>
+                            </div>
+                            <dl className="admin-definition-grid">
+                              <div><dt>Safety</dt><dd>Save draft only · publish: no</dd></div>
+                              <div><dt>Overwrite</dt><dd>no</dd></div>
+                            </dl>
+                            {translationSaveDraftError ? (
+                              <p className="admin-detail-warning">{translationSaveDraftError}</p>
+                            ) : null}
+                            {translationSaveDraft ? (
+                              <div className="admin-dry-run-result">
+                                <dl className="admin-definition-grid">
+                                  <div><dt>mode</dt><dd>{display(translationSaveDraft.mode)}</dd></div>
+                                  <div><dt>write</dt><dd>{yesNo(translationSaveDraft.doesWrite === true)}</dd></div>
+                                  <div><dt>publish</dt><dd>{yesNo(translationSaveDraft.doesPublish === true)}</dd></div>
+                                  <div><dt>code</dt><dd>{display(translationSaveDraft.code)}</dd></div>
+                                </dl>
+                                <div className={translationSaveDraft.written?.length ? "admin-translation-flags" : "admin-empty"}>
+                                  <h6>Written</h6>
+                                  {translationSaveDraft.written?.length ? (
+                                    <ul>
+                                      {translationSaveDraft.written.map((item, index) => (
+                                        <li key={`${item}-${index}`}>{item}</li>
+                                      ))}
+                                    </ul>
+                                  ) : <p>No draft writes reported.</p>}
+                                </div>
+                                <div className={translationSaveDraft.skipped?.length ? "admin-translation-flags" : "admin-empty"}>
+                                  <h6>Skipped</h6>
+                                  {translationSaveDraft.skipped?.length ? (
+                                    <ul>
+                                      {translationSaveDraft.skipped.map((item, index) => (
+                                        <li key={`${item}-${index}`}>{item}</li>
+                                      ))}
+                                    </ul>
+                                  ) : <p>No skipped draft writes reported.</p>}
+                                </div>
+                                <div className={translationSaveDraft.blockers?.length ? "admin-translation-flags" : "admin-empty"}>
+                                  <h6>Blockers</h6>
+                                  {translationSaveDraft.blockers?.length ? (
+                                    <ul>
+                                      {translationSaveDraft.blockers.map((blocker, index) => (
+                                        <li key={`${blocker}-${index}`}>{blocker}</li>
+                                      ))}
+                                    </ul>
+                                  ) : <p>No save blockers.</p>}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                       <div className="admin-table-wrap">
@@ -2492,6 +2635,14 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           display: grid;
           gap: 12px;
           min-width: 0;
+        }
+
+        .admin-save-draft-actions {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          padding-top: 12px;
         }
 
         .admin-table-wrap {
