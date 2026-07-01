@@ -14,6 +14,12 @@ export default {
       return;
     }
 
+    if (process.env.ADMIN_TRANSLATION_WRITE_ENABLED !== "true") {
+      ctx.status = 403;
+      ctx.body = { ok: false, code: "write_not_enabled" };
+      return;
+    }
+
     try {
       const result = await strapi
         .service("api::admin-translation.admin-translation")
