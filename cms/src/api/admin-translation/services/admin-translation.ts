@@ -35,6 +35,13 @@ type DraftPlan = {
   draftSlugPlan?: string | null;
   relationPlan?: "connect-to-target-locale-boat-draft-later";
 };
+type SaveDraftFailureReason =
+  | "boat_create_failed"
+  | "boat_update_failed"
+  | "experience_create_failed"
+  | "experience_update_failed"
+  | "missing_locale_create_not_supported"
+  | "unknown";
 
 const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
 const BOAT_UID = "api::boat.boat";
@@ -133,7 +140,7 @@ async function findExperienceRow(documentId: string, locale: Locale, status: "dr
     documentId,
     locale,
     status,
-    fields: ["id", "documentId", "locale", "publishedAt", "title", "slug", "description", "short_description", "full_description", "included_services", "meeting_point"],
+    fields: ["id", "documentId", "locale", "publishedAt", "title", "slug", "short_description", "full_description", "included_services", "meeting_point"],
   } as never);
 
   return shapeExistingRow(isRecord(row) ? row : null);
@@ -194,6 +201,71 @@ function pickAllowedData(translation: JsonObject, fieldsToWrite: string[]): Json
     if (typeof value === "string") data[field] = value.trim();
   }
   return data;
+}
+
+function safeFailureMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : "";
+  return (message || fallback)
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[redacted-email]")
+    .slice(0, 180);
+}
+
+function failureResponse(params: {
+  reason: SaveDraftFailureReason;
+  message: string;
+  boatDocumentId: string;
+  sourceLocale: Locale;
+  targetLocales: Locale[];
+  boatPlans: DraftPlan[];
+  experiencePlans: DraftPlan[];
+  warnings: string[];
+  written: string[];
+  skipped: string[];
+}) {
+  return {
+    status: params.reason === "missing_locale_create_not_supported" ? 409 : 500,
+    body: {
+      ok: false,
+      code: "save_draft_failed",
+      reason: params.reason,
+      message: params.message,
+      mode: "save-draft",
+      doesWrite: params.written.length > 0,
+      doesPublish: false,
+      boatDocumentId: params.boatDocumentId,
+      sourceLocale: params.sourceLocale,
+      targetLocales: params.targetLocales,
+      boat: params.boatPlans,
+      experiences: params.experiencePlans,
+      blockers: [],
+      warnings: params.warnings,
+      written: params.written,
+      skipped: params.skipped,
+    },
+  };
+}
+
+async function writeBoatDraft(plan: DraftPlan, data: JsonObject): Promise<ExistingRow | null> {
+  if (!Object.keys(data).length) return findBoatRow(plan.documentId, plan.locale, "draft");
+
+  await strapi.documents(BOAT_UID as never).update({
+    documentId: plan.documentId,
+    locale: plan.locale,
+    data,
+  } as never);
+
+  return findBoatRow(plan.documentId, plan.locale, "draft");
+}
+
+async function writeExperienceDraft(plan: DraftPlan, data: JsonObject): Promise<ExistingRow | null> {
+  await strapi.documents(EXPERIENCE_UID as never).update({
+    documentId: plan.documentId,
+    locale: plan.locale,
+    data,
+  } as never);
+
+  return findExperienceRow(plan.documentId, plan.locale, "draft");
 }
 
 async function planBoatLocale(documentId: string, locale: Locale, translation: JsonObject, overwrite: boolean): Promise<DraftPlan> {
@@ -342,33 +414,113 @@ export default () => ({
 
     const written: string[] = [];
     const skipped: string[] = [];
+    const targetBoatDraftByLocale = new Map<Locale, ExistingRow>();
     for (const plan of boatPlans) {
       const translation = aiBoatTranslations[plan.locale];
       const data = pickAllowedData(isRecord(translation) ? translation : {}, plan.fieldsToWrite);
       if (!Object.keys(data).length) {
         skipped.push(`Boat ${localeLabel(plan.locale)}: no draft field changes.`);
+        const existingDraft = await findBoatRow(plan.documentId, plan.locale, "draft");
+        if (existingDraft) targetBoatDraftByLocale.set(plan.locale, existingDraft);
         continue;
       }
-      await strapi.documents(BOAT_UID as never).update({
-        documentId: plan.documentId,
-        locale: plan.locale,
-        data,
-      } as never);
+
+      let savedBoatDraft: ExistingRow | null = null;
+      try {
+        savedBoatDraft = await writeBoatDraft(plan, data);
+      } catch (error) {
+        return failureResponse({
+          reason: plan.draftExists ? "boat_update_failed" : "boat_create_failed",
+          message: safeFailureMessage(error, plan.draftExists ? "Boat draft update failed." : "Boat draft locale creation failed."),
+          boatDocumentId,
+          sourceLocale,
+          targetLocales: safeTargetLocales,
+          boatPlans,
+          experiencePlans,
+          warnings,
+          written,
+          skipped,
+        });
+      }
+
+      if (!savedBoatDraft) {
+        return failureResponse({
+          reason: "missing_locale_create_not_supported",
+          message: "Strapi did not return a target-locale boat draft for the requested document.",
+          boatDocumentId,
+          sourceLocale,
+          targetLocales: safeTargetLocales,
+          boatPlans,
+          experiencePlans,
+          warnings,
+          written,
+          skipped,
+        });
+      }
+
+      targetBoatDraftByLocale.set(plan.locale, savedBoatDraft);
       written.push(`Boat ${localeLabel(plan.locale)}: ${Object.keys(data).join(", ")}`);
     }
 
     for (let index = 0; index < experiencePlans.length; index += 1) {
       const plan = experiencePlans[index];
       const input = experienceInputs[index];
+      const targetBoatDraft = targetBoatDraftByLocale.get(plan.locale) ?? await findBoatRow(boatDocumentId, plan.locale, "draft");
+      if (!targetBoatDraft?.documentId) {
+        return failureResponse({
+          reason: "missing_locale_create_not_supported",
+          message: "Target-locale boat draft is missing before route draft save.",
+          boatDocumentId,
+          sourceLocale,
+          targetLocales: safeTargetLocales,
+          boatPlans,
+          experiencePlans,
+          warnings,
+          written,
+          skipped,
+        });
+      }
+
       const data = pickAllowedData(input.translation, plan.fieldsToWrite);
       if (plan.draftSlugPlan && plan.fieldsToWrite.includes("slug")) data.slug = plan.draftSlugPlan;
-      data.boat = boatDocumentId;
-
-      await strapi.documents(EXPERIENCE_UID as never).update({
-        documentId: plan.documentId,
+      data.boat = {
+        documentId: targetBoatDraft.documentId,
         locale: plan.locale,
-        data,
-      } as never);
+      };
+
+      let savedExperienceDraft: ExistingRow | null = null;
+      try {
+        savedExperienceDraft = await writeExperienceDraft(plan, data);
+      } catch (error) {
+        return failureResponse({
+          reason: plan.draftExists ? "experience_update_failed" : "experience_create_failed",
+          message: safeFailureMessage(error, plan.draftExists ? "Route draft update failed." : "Route draft locale creation failed."),
+          boatDocumentId,
+          sourceLocale,
+          targetLocales: safeTargetLocales,
+          boatPlans,
+          experiencePlans,
+          warnings,
+          written,
+          skipped,
+        });
+      }
+
+      if (!savedExperienceDraft) {
+        return failureResponse({
+          reason: "missing_locale_create_not_supported",
+          message: "Strapi did not return a target-locale route draft for the requested document.",
+          boatDocumentId,
+          sourceLocale,
+          targetLocales: safeTargetLocales,
+          boatPlans,
+          experiencePlans,
+          warnings,
+          written,
+          skipped,
+        });
+      }
+
       written.push(`Route ${plan.documentId} ${localeLabel(plan.locale)}: ${Object.keys(data).join(", ")}`);
     }
 
