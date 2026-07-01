@@ -5,7 +5,7 @@ import { BoatCardSpecs } from "@/components/boat/BoatCardSpecs";
 import { InstantBookingBadge } from "@/components/boat/InstantBookingBadge";
 import type { Metadata } from "next";
 import { fetchBoats } from "@/lib/strapi";
-import { isLang, t, formatCount, type Lang } from "@/i18n";
+import { absoluteLocalizedUrl, languageAlternates, normalizeLang, t, formatCount } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +15,30 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
-  const lang: Lang = isLang(raw) ? raw : "en";
+  const lang = normalizeLang(raw);
   const tr = t(lang);
-  return { title: tr.nav.boats, description: tr.boats.subtitle };
+  const canonical = absoluteLocalizedUrl(lang, "boats");
+
+  return {
+    title: tr.nav.boats,
+    description: tr.boats.subtitle,
+    alternates: {
+      canonical,
+      languages: languageAlternates("boats"),
+    },
+    openGraph: {
+      title: tr.nav.boats,
+      description: tr.boats.subtitle,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
+  };
 }
 
 export default async function BoatsPage({ params }: Props) {
   const { lang: raw } = await params;
-  const lang: Lang = isLang(raw) ? raw : "en";
+  const lang = normalizeLang(raw);
   const tr = t(lang);
 
   const boats = await fetchBoats(lang);

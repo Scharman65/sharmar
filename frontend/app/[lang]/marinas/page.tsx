@@ -2,17 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { COUNTRIES, CITIES } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
-import { isLang, LANGS, type Lang } from "@/i18n";
+import { absoluteLocalizedUrl, languageAlternates, normalizeLang, type Lang } from "@/i18n";
 
 type Props = {
   params: Promise<{ lang: string }>;
 };
-
-const SITE_URL = "https://sharmar.me";
-const TITLE = "Mediterranean Marina Network | Sharmar";
-const DESCRIPTION =
-  "Explore yacht charters, boat rentals, and boats for sale across Mediterranean marinas in Montenegro, Croatia, and beyond.";
-
 
 function pageCopy(lang: Lang) {
   if (lang === "ru") {
@@ -72,20 +66,10 @@ function pageCopy(lang: Lang) {
 }
 
 
-function marinaIndexPath(lang: Lang): string {
-  return `/${lang}/marinas`;
-}
-
-function languageAlternates() {
-  return Object.fromEntries(
-    LANGS.map((lang) => [lang, `${SITE_URL}${marinaIndexPath(lang)}`])
-  );
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
-  const lang: Lang = isLang(raw) ? raw : "en";
-  const canonical = `${SITE_URL}${marinaIndexPath(lang)}`;
+  const lang = normalizeLang(raw);
+  const canonical = absoluteLocalizedUrl(lang, "marinas");
   const copy = pageCopy(lang);
 
   return {
@@ -93,10 +77,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: copy.description,
     alternates: {
       canonical,
-      languages: {
-        ...languageAlternates(),
-        "x-default": `${SITE_URL}${marinaIndexPath("en")}`,
-      },
+      languages: languageAlternates("marinas"),
     },
     openGraph: {
       title: copy.title,
@@ -110,7 +91,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function MarinasIndexPage({ params }: Props) {
   const { lang: raw } = await params;
-  const lang: Lang = isLang(raw) ? raw : "en";
+  const lang = normalizeLang(raw);
   const copy = pageCopy(lang);
 
   return (
