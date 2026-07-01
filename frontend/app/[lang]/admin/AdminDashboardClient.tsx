@@ -385,6 +385,48 @@ function targetLocalesForSourceLocale(sourceLocale: StrapiLocale): StrapiLocale[
   return ["ru", "en", "sr-Latn-ME"].filter((locale) => locale !== sourceLocale) as StrapiLocale[];
 }
 
+function normalizeTargetLocales(locales: Array<string | null | undefined> | undefined, sourceLocale: StrapiLocale): StrapiLocale[] {
+  const requestedLocales = locales === undefined ? targetLocalesForSourceLocale(sourceLocale) : locales;
+  return requestedLocales
+    .map(toStrapiLocale)
+    .filter((item, index, list) => item !== sourceLocale && list.indexOf(item) === index);
+}
+
+function targetLocaleSignature(locales: Array<string | null | undefined> | undefined, sourceLocale: StrapiLocale): string {
+  return normalizeTargetLocales(locales, sourceLocale).sort().join("|");
+}
+
+function normalizeTranslationMapForLocales(
+  translations: Record<string, TranslationFields | undefined> | undefined,
+  targetLocales: StrapiLocale[]
+): Record<string, TranslationFields | undefined> {
+  const normalizedTranslations = { ...(translations ?? {}) };
+
+  for (const targetLocale of targetLocales) {
+    normalizedTranslations[targetLocale] = translations?.[targetLocale] ?? translations?.[displayLocale(targetLocale)];
+  }
+
+  return normalizedTranslations;
+}
+
+function saveDraftAiPreviewPayload(
+  aiPreview: NonNullable<TranslationAiPreviewResponse["aiPreview"]>,
+  targetLocales: StrapiLocale[]
+) {
+  return {
+    boat: aiPreview.boat
+      ? {
+          ...aiPreview.boat,
+          translations: normalizeTranslationMapForLocales(aiPreview.boat.translations, targetLocales),
+        }
+      : aiPreview.boat,
+    experiences: (aiPreview.experiences ?? []).map((experience) => ({
+      ...experience,
+      translations: normalizeTranslationMapForLocales(experience.translations, targetLocales),
+    })),
+  };
+}
+
 function containsCyrillic(value: string | null | undefined): boolean {
   return Boolean(value && /[\u0400-\u04FF]/.test(value));
 }
@@ -547,6 +589,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const [translationSaveDraft, setTranslationSaveDraft] = useState<TranslationDryRunResponse | null>(null);
   const [translationSaveDraftLoading, setTranslationSaveDraftLoading] = useState(false);
   const [translationSaveDraftError, setTranslationSaveDraftError] = useState<string | null>(null);
+  const [translationSaveTargetLocales, setTranslationSaveTargetLocales] = useState<StrapiLocale[]>([]);
 
   async function loadDashboard() {
     setLoading(true);
@@ -630,6 +673,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationDryRunError(null);
     setTranslationSaveDraft(null);
     setTranslationSaveDraftError(null);
+    setTranslationSaveTargetLocales([]);
 
     const sourceLocale = toStrapiLocale(selectedBoat.locale);
 
@@ -652,6 +696,10 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
 
       if (!response.ok || json.ok === false || !json.aiPreview) {
         setTranslationAiError(aiPreviewErrorMessage(json.code));
+        setTranslationSaveTargetLocales([]);
+      } else {
+        const previewSourceLocale = toStrapiLocale(json.aiPreview.sourceLocale ?? sourceLocale);
+        setTranslationSaveTargetLocales(normalizeTargetLocales(json.aiPreview.targetLocales, previewSourceLocale));
       }
     } catch {
       setTranslationAiError(aiPreviewErrorMessage(undefined));
@@ -673,9 +721,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationSaveDraftError(null);
 
     const sourceLocale = toStrapiLocale(aiPreview.sourceLocale ?? selectedBoat.locale);
-    const targetLocales = (aiPreview.targetLocales?.length ? aiPreview.targetLocales : targetLocalesForSourceLocale(sourceLocale))
-      .map(toStrapiLocale)
-      .filter((item, index, list) => item !== sourceLocale && list.indexOf(item) === index);
+    const targetLocales = normalizeTargetLocales(translationSaveTargetLocales, sourceLocale);
+    if (!targetLocales.length) {
+      setTranslationDryRunError("Select at least one target locale.");
+      setTranslationDryRunLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/admin/translations/save-draft", {
@@ -690,10 +741,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           targetLocales,
           dryRun: true,
           overwrite: false,
-          aiPreview: {
-            boat: aiPreview.boat,
-            experiences: aiPreview.experiences ?? [],
-          },
+          aiPreview: saveDraftAiPreviewPayload(aiPreview, targetLocales),
         }),
       });
       const json: TranslationDryRunResponse = await response.json().catch(() => ({ ok: false, code: "unknown" }));
@@ -720,9 +768,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationSaveDraft(null);
 
     const sourceLocale = toStrapiLocale(aiPreview.sourceLocale ?? selectedBoat.locale);
-    const targetLocales = (aiPreview.targetLocales?.length ? aiPreview.targetLocales : targetLocalesForSourceLocale(sourceLocale))
-      .map(toStrapiLocale)
-      .filter((item, index, list) => item !== sourceLocale && list.indexOf(item) === index);
+    const targetLocales = normalizeTargetLocales(translationSaveTargetLocales, sourceLocale);
+    if (!targetLocales.length) {
+      setTranslationSaveDraftError("Select at least one target locale.");
+      setTranslationSaveDraftLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/admin/translations/save-draft", {
@@ -738,10 +789,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           dryRun: false,
           confirmSaveDraft: true,
           overwrite: false,
-          aiPreview: {
-            boat: aiPreview.boat,
-            experiences: aiPreview.experiences ?? [],
-          },
+          aiPreview: saveDraftAiPreviewPayload(aiPreview, targetLocales),
         }),
       });
       const json: TranslationDryRunResponse = await response.json().catch(() => ({ ok: false, code: "unknown" }));
@@ -755,6 +803,22 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     } finally {
       setTranslationSaveDraftLoading(false);
     }
+  }
+
+  function updateTranslationSaveTargetLocale(targetLocale: StrapiLocale, checked: boolean) {
+    setTranslationSaveTargetLocales((currentLocales) => {
+      const sourceLocale = toStrapiLocale(aiPreview?.sourceLocale ?? selectedBoat?.locale);
+      const normalizedLocales = normalizeTargetLocales(currentLocales, sourceLocale);
+      if (checked) {
+        return normalizedLocales.includes(targetLocale) ? normalizedLocales : [...normalizedLocales, targetLocale];
+      }
+
+      return normalizedLocales.filter((locale) => locale !== targetLocale);
+    });
+    setTranslationDryRun(null);
+    setTranslationDryRunError(null);
+    setTranslationSaveDraft(null);
+    setTranslationSaveDraftError(null);
   }
 
   const boats = data?.boats ?? [];
@@ -844,9 +908,26 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   });
   const sourcePackage = translationSourcePackage?.sourcePackage ?? null;
   const aiPreview = translationAiPreview?.aiPreview ?? null;
+  const translationSaveSourceLocale = toStrapiLocale(aiPreview?.sourceLocale ?? selectedBoat?.locale);
+  const availableTranslationSaveLocales = aiPreview
+    ? normalizeTargetLocales(aiPreview.targetLocales, translationSaveSourceLocale)
+    : [];
+  const selectedTranslationSaveLocales = normalizeTargetLocales(translationSaveTargetLocales, translationSaveSourceLocale);
+  const hasSelectedTranslationSaveLocales = selectedTranslationSaveLocales.length > 0;
+  const selectedTranslationSaveLocaleSignature = targetLocaleSignature(selectedTranslationSaveLocales, translationSaveSourceLocale);
+  const dryRunTargetLocaleSignature = translationDryRun
+    ? targetLocaleSignature(translationDryRun.targetLocales, translationSaveSourceLocale)
+    : "";
+  const dryRunMatchesSelectedTargetLocales = Boolean(
+    translationDryRun &&
+    selectedTranslationSaveLocaleSignature &&
+    dryRunTargetLocaleSignature === selectedTranslationSaveLocaleSignature
+  );
   const hasTranslationSaveBlockers = Boolean(translationDryRun?.blockers?.length);
   const canSaveTranslationDraft = Boolean(
     aiPreview &&
+    hasSelectedTranslationSaveLocales &&
+    dryRunMatchesSelectedTargetLocales &&
     translationDryRun?.ok === true &&
     translationDryRun.mode === "dry-run" &&
     translationDryRun.doesWrite === false &&
@@ -1083,6 +1164,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                                   setTranslationDryRunError(null);
                                   setTranslationSaveDraft(null);
                                   setTranslationSaveDraftError(null);
+                                  setTranslationSaveTargetLocales([]);
                                 }}
                               >
                                 Open
@@ -1440,6 +1522,30 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             ) : <p className="admin-empty">No linked route translations returned.</p>}
                           </div>
                         ) : null}
+                        {aiPreview ? (
+                          <div className="admin-translation-target-locales">
+                            <div className="admin-ai-preview-heading">
+                              <h5>Translation save target locales</h5>
+                              <p>Current dry-run/save target locales: {displayLocaleList(selectedTranslationSaveLocales)}</p>
+                            </div>
+                            <div className="admin-translation-locale-options">
+                              {availableTranslationSaveLocales.map((targetLocale) => (
+                                <label key={targetLocale}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTranslationSaveLocales.includes(targetLocale)}
+                                    disabled={translationDryRunLoading || translationSaveDraftLoading}
+                                    onChange={(event) => updateTranslationSaveTargetLocale(targetLocale, event.target.checked)}
+                                  />
+                                  <span>{displayLocaleLabel(targetLocale)}</span>
+                                </label>
+                              ))}
+                            </div>
+                            {!hasSelectedTranslationSaveLocales ? (
+                              <p className="admin-detail-warning">Select at least one target locale.</p>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <div className="admin-dry-run-preview">
                           <div className="admin-ai-preview-heading">
                             <h5>Save draft dry run</h5>
@@ -1448,7 +1554,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                               <button
                                 className="admin-secondary-button"
                                 type="button"
-                                disabled={translationDryRunLoading || !aiPreview || !selectedBoat.documentId}
+                                disabled={translationDryRunLoading || !aiPreview || !selectedBoat.documentId || !hasSelectedTranslationSaveLocales}
                                 onClick={() => void runTranslationSaveDraftDryRun()}
                               >
                                 {translationDryRunLoading ? "Checking..." : "Dry run save draft"}
@@ -1552,6 +1658,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             </div>
                             {hasTranslationSaveBlockers ? (
                               <p className="admin-detail-warning">Save draft is blocked because dry-run found overwrite blockers.</p>
+                            ) : aiPreview && !hasSelectedTranslationSaveLocales ? (
+                              <p className="admin-detail-warning">Select at least one target locale.</p>
                             ) : aiPreview && !translationDryRun ? (
                               <p className="admin-empty">Run dry-run before saving draft.</p>
                             ) : null}
@@ -2650,6 +2758,37 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
           min-width: 0;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
           padding-top: 12px;
+        }
+
+        .admin-translation-target-locales {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.12);
+          padding: 12px;
+        }
+
+        .admin-translation-locale-options {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .admin-translation-locale-options label {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.04);
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.2;
+          padding: 8px 10px;
         }
 
         .admin-table-wrap {
