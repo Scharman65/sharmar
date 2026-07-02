@@ -15,6 +15,8 @@ type ExistingRow = {
   full_description?: string | null;
   included_services?: string | null;
   meeting_point?: string | null;
+  boatDocumentId?: string | null;
+  boatLocale?: string | null;
 };
 type FieldPlan = {
   field: string;
@@ -47,7 +49,7 @@ type ExperiencePlan = {
   fieldsToWrite: string[];
   fieldsSkipped: string[];
   fieldPlans: FieldPlan[];
-  relationPlan: "connect-to-target-locale-boat-draft-later";
+  relationPlan: "connect-to-target-locale-boat-draft-later" | "relation-already-correct" | "target-boat-draft-missing";
   draftSlugPlan: string | null;
   blocked: boolean;
   warnings: string[];
@@ -110,6 +112,13 @@ function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function meaningfulText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "-") return null;
+  return trimmed;
+}
+
 function valuesDiffer(existingValue: unknown, plannedValue: unknown): boolean {
   return normalizeText(existingValue) !== normalizeText(plannedValue);
 }
@@ -156,6 +165,13 @@ function getAttributes(item: unknown): JsonObject | null {
   if (!isRecord(item)) return null;
   const attrs = isRecord(item.attributes) ? item.attributes : {};
   return { ...item, ...attrs };
+}
+
+function relationAttributes(value: unknown): JsonObject | null {
+  const row = getAttributes(value);
+  if (!row) return null;
+  const data = getAttributes(row.data);
+  return data ?? row;
 }
 
 async function strapiGet(path: string): Promise<{ ok: boolean; status: number; json: unknown }> {
@@ -216,6 +232,8 @@ function shapeExistingRow(row: JsonObject | null): ExistingRow | null {
     full_description: asString(row.full_description),
     included_services: asString(row.included_services),
     meeting_point: asString(row.meeting_point),
+    boatDocumentId: asString(relationAttributes(row.boat)?.documentId),
+    boatLocale: asString(relationAttributes(row.boat)?.locale),
   };
 }
 
@@ -315,7 +333,7 @@ function planFields(
 
   for (const field of allowedFields) {
     const plannedValue = translation[field];
-    if (plannedValue === undefined) continue;
+    if (!meaningfulText(plannedValue)) continue;
     const existingValue = existingDraft ? existingDraft[field as keyof ExistingRow] : null;
     const existingValuePresent = normalizeText(existingValue).length > 0;
 
@@ -335,6 +353,32 @@ function planFields(
   return { fieldsToWrite, fieldPlans, blocked };
 }
 
+function targetBoatDraftAvailable(plan: BoatPlan | undefined): boolean {
+  return Boolean(plan && !plan.blocked && (
+    plan.draftExists ||
+    plan.fieldsToWrite.length > 0 ||
+    plan.draftSlugPlan
+  ));
+}
+
+function planRouteRelation(
+  draft: ExistingRow | null,
+  targetBoatPlan: BoatPlan | undefined,
+  locale: Locale
+): ExperiencePlan["relationPlan"] {
+  if (
+    targetBoatPlan &&
+    draft?.boatDocumentId === targetBoatPlan.documentId &&
+    draft?.boatLocale === locale
+  ) {
+    return "relation-already-correct";
+  }
+
+  return targetBoatDraftAvailable(targetBoatPlan)
+    ? "connect-to-target-locale-boat-draft-later"
+    : "target-boat-draft-missing";
+}
+
 async function planBoatLocale(params: {
   documentId: string;
   locale: Locale;
@@ -350,9 +394,13 @@ async function planBoatLocale(params: {
   const warnings: string[] = [];
   let slugPlan: string | null = null;
   if (published) warnings.push("Published version exists and will not be changed.");
+  if (!draft && !meaningfulText(params.translation.title)) {
+    fieldPlan.blocked = true;
+    warnings.push("Missing title for new boat draft locale.");
+  }
   if (!draft?.slug) {
     slugPlan = await findSourceBoatSlug(params.documentId, params.sourceLocale)
-      ?? boatDraftSlug(asString(params.translation.title), params.documentId, params.locale);
+      ?? boatDraftSlug(meaningfulText(params.translation.title), params.documentId, params.locale);
     fieldPlan.fieldsToWrite.push("slug");
     fieldPlan.fieldPlans.push({ field: "slug", status: "would-write", existingValuePresent: false });
   }
@@ -393,13 +441,26 @@ async function planExperienceLocale(params: {
   if (params.targetBoatPlan && !params.targetBoatPlan.draftExists) {
     warnings.push("Target boat draft locale is missing; route relation depends on creating that boat draft first.");
   }
+  if (!draft && !meaningfulText(params.translation.title)) {
+    fieldPlan.blocked = true;
+    warnings.push("Missing title for new route draft locale.");
+  }
 
   const existingSlugPresent = Boolean(draft?.slug);
   if (!existingSlugPresent) {
-    slugPlan = draftSlug(asString(params.translation.title), params.documentId, params.locale);
+    slugPlan = draftSlug(meaningfulText(params.translation.title), params.documentId, params.locale);
     fieldPlan.fieldsToWrite.push("slug");
     const collision = await experienceSlugExists(slugPlan, params.locale, params.documentId);
-    if (collision) warnings.push(`Draft slug collision must be resolved before write: ${slugPlan}`);
+    if (collision) {
+      fieldPlan.blocked = true;
+      warnings.push(`Draft slug collision must be resolved before write: ${slugPlan}`);
+    }
+  }
+
+  const relationPlan = planRouteRelation(draft, params.targetBoatPlan, params.locale);
+  if (relationPlan === "target-boat-draft-missing") {
+    fieldPlan.blocked = true;
+    warnings.push("Target boat draft locale is missing and is not planned for creation.");
   }
 
   return {
@@ -413,7 +474,7 @@ async function planExperienceLocale(params: {
     fieldsToWrite: Array.from(new Set(fieldPlan.fieldsToWrite)),
     fieldsSkipped: EXPERIENCE_SKIPPED_FIELDS,
     fieldPlans: fieldPlan.fieldPlans,
-    relationPlan: "connect-to-target-locale-boat-draft-later",
+    relationPlan,
     draftSlugPlan: slugPlan,
     blocked: fieldPlan.blocked,
     warnings,

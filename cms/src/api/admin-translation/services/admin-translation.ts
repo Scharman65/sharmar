@@ -13,6 +13,8 @@ type ExistingRow = {
   full_description?: string | null;
   included_services?: string | null;
   meeting_point?: string | null;
+  boatDocumentId?: string | null;
+  boatLocale?: string | null;
 };
 type FieldPlan = {
   field: string;
@@ -33,7 +35,7 @@ type DraftPlan = {
   blocked: boolean;
   warnings: string[];
   draftSlugPlan?: string | null;
-  relationPlan?: "connect-to-target-locale-boat-draft-later";
+  relationPlan?: "connect-to-target-locale-boat-draft-later" | "relation-already-correct" | "target-boat-draft-missing";
 };
 type SaveDraftFailureReason =
   | "boat_create_failed"
@@ -78,6 +80,13 @@ function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function meaningfulText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "-") return null;
+  return trimmed;
+}
+
 function valuesDiffer(existingValue: unknown, plannedValue: unknown): boolean {
   return normalizeText(existingValue) !== normalizeText(plannedValue);
 }
@@ -116,8 +125,16 @@ function boatDraftSlug(title: string | null | undefined, documentId: string, loc
     .replace(/-ru-ru-/g, "-ru-");
 }
 
+function relationAttributes(value: unknown): JsonObject | null {
+  const source = Array.isArray(value) ? value[0] : value;
+  if (!isRecord(source)) return null;
+  const data = isRecord(source.data) ? source.data : null;
+  return data ?? source;
+}
+
 function shapeExistingRow(row: JsonObject | null): ExistingRow | null {
   if (!row) return null;
+  const boat = relationAttributes(row.boat);
   return {
     id: asNumber(row.id),
     documentId: asString(row.documentId),
@@ -130,6 +147,8 @@ function shapeExistingRow(row: JsonObject | null): ExistingRow | null {
     full_description: asString(row.full_description),
     included_services: asString(row.included_services),
     meeting_point: asString(row.meeting_point),
+    boatDocumentId: asString(boat?.documentId),
+    boatLocale: asString(boat?.locale),
   };
 }
 
@@ -150,6 +169,7 @@ async function findExperienceRow(documentId: string, locale: Locale, status: "dr
     locale,
     status,
     fields: ["id", "documentId", "locale", "publishedAt", "title", "slug", "short_description", "full_description", "included_services", "meeting_point"],
+    populate: { boat: { fields: ["documentId", "locale"] } },
   } as never);
 
   return shapeExistingRow(isRecord(row) ? row : null);
@@ -190,7 +210,7 @@ function planFields(
 
   for (const field of allowedFields) {
     const plannedValue = translation[field];
-    if (plannedValue === undefined) continue;
+    if (!meaningfulText(plannedValue)) continue;
     const existingValue = existingDraft ? existingDraft[field as keyof ExistingRow] : null;
     const existingValuePresent = normalizeText(existingValue).length > 0;
 
@@ -210,11 +230,38 @@ function planFields(
   return { fieldsToWrite, fieldPlans, blocked };
 }
 
+function targetBoatDraftAvailable(plan: DraftPlan | undefined): boolean {
+  return Boolean(plan && !plan.blocked && (
+    plan.draftExists ||
+    plan.fieldsToWrite.length > 0 ||
+    plan.draftSlugPlan
+  ));
+}
+
+function planRouteRelation(
+  draft: ExistingRow | null,
+  targetBoatPlan: DraftPlan | undefined,
+  locale: Locale
+): DraftPlan["relationPlan"] {
+  if (
+    targetBoatPlan &&
+    draft?.boatDocumentId === targetBoatPlan.documentId &&
+    draft?.boatLocale === locale
+  ) {
+    return "relation-already-correct";
+  }
+
+  return targetBoatDraftAvailable(targetBoatPlan)
+    ? "connect-to-target-locale-boat-draft-later"
+    : "target-boat-draft-missing";
+}
+
 function pickAllowedData(translation: JsonObject, fieldsToWrite: string[]): JsonObject {
   const data: JsonObject = {};
   for (const field of fieldsToWrite) {
     const value = translation[field];
-    if (typeof value === "string") data[field] = value.trim();
+    const text = meaningfulText(value);
+    if (text !== null) data[field] = text;
   }
   return data;
 }
@@ -293,13 +340,13 @@ async function planBoatLocale(documentId: string, locale: Locale, sourceLocale: 
   const warnings: string[] = [];
   let slugPlan: string | null = null;
   if (published) warnings.push("Published version exists and will not be changed.");
-  if (!draft && !asString(translation.title)) {
+  if (!draft && !meaningfulText(translation.title)) {
     fieldPlan.blocked = true;
     warnings.push("Missing title for new boat draft locale.");
   }
   if (!draft?.slug) {
     slugPlan = await findSourceBoatSlug(documentId, sourceLocale)
-      ?? boatDraftSlug(asString(translation.title), documentId, locale);
+      ?? boatDraftSlug(meaningfulText(translation.title), documentId, locale);
     fieldPlan.fieldsToWrite.push("slug");
     fieldPlan.fieldPlans.push({ field: "slug", status: "would-write", existingValuePresent: false });
   }
@@ -334,17 +381,23 @@ async function planExperienceLocale(documentId: string, locale: Locale, translat
   if (targetBoatPlan && !targetBoatPlan.draftExists) {
     warnings.push("Target boat draft locale is missing; route relation depends on creating that boat draft first.");
   }
-  if (!draft && !asString(translation.title)) {
+  if (!draft && !meaningfulText(translation.title)) {
     fieldPlan.blocked = true;
     warnings.push("Missing title for new route draft locale.");
   }
   if (!draft?.slug) {
-    slugPlan = draftSlug(asString(translation.title), documentId, locale);
+    slugPlan = draftSlug(meaningfulText(translation.title), documentId, locale);
     fieldPlan.fieldsToWrite.push("slug");
     if (await experienceSlugExists(slugPlan, locale, documentId)) {
       fieldPlan.blocked = true;
       warnings.push(`Draft slug collision must be resolved before write: ${slugPlan}`);
     }
+  }
+
+  const relationPlan = planRouteRelation(draft, targetBoatPlan, locale);
+  if (relationPlan === "target-boat-draft-missing") {
+    fieldPlan.blocked = true;
+    warnings.push("Target boat draft locale is missing and is not planned for creation.");
   }
 
   return {
@@ -358,7 +411,7 @@ async function planExperienceLocale(documentId: string, locale: Locale, translat
     fieldsToWrite: Array.from(new Set(fieldPlan.fieldsToWrite)),
     fieldsSkipped: EXPERIENCE_SKIPPED_FIELDS,
     fieldPlans: fieldPlan.fieldPlans,
-    relationPlan: "connect-to-target-locale-boat-draft-later",
+    relationPlan,
     draftSlugPlan: slugPlan,
     blocked: fieldPlan.blocked,
     warnings,
@@ -510,14 +563,16 @@ export default () => ({
 
       const data = pickAllowedData(input.translation, plan.fieldsToWrite);
       if (plan.draftSlugPlan && plan.fieldsToWrite.includes("slug")) data.slug = plan.draftSlugPlan;
+      if (plan.relationPlan === "connect-to-target-locale-boat-draft-later") {
+        data.boat = {
+          documentId: targetBoatDraft.documentId,
+          locale: plan.locale,
+        };
+      }
       if (!Object.keys(data).length && plan.draftExists) {
         skipped.push(`Route ${plan.documentId} ${localeLabel(plan.locale)}: no draft field changes.`);
         continue;
       }
-      data.boat = {
-        documentId: targetBoatDraft.documentId,
-        locale: plan.locale,
-      };
 
       let savedExperienceDraft: ExistingRow | null = null;
       try {
