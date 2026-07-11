@@ -1,9 +1,29 @@
 import Link from "next/link";
-import { isLang, t, type Lang } from "@/i18n";
+import type { Metadata } from "next";
+import { absoluteLocalizedUrl, isLang, languageAlternates, t, type Lang } from "@/i18n";
 
 type Props = {
   params: Promise<{ lang: string }>;
   searchParams?: Promise<{ payment?: string; token?: string }>;
+};
+
+type MetadataProps = {
+  params: Promise<{ lang: string }>;
+};
+
+const THANKS_SEO: Record<Lang, { title: string; description: string }> = {
+  en: {
+    title: "Request sent | Sharmar",
+    description: "Your Sharmar request has been received. Track the next booking step and return to available boats.",
+  },
+  ru: {
+    title: "Заявка отправлена | Sharmar",
+    description: "Ваша заявка Sharmar получена. Следите за следующим шагом бронирования и вернитесь к доступным лодкам.",
+  },
+  me: {
+    title: "Upit je poslat | Sharmar",
+    description: "Vaš Sharmar upit je primljen. Pratite sljedeći korak rezervacije i vratite se dostupnim plovilima.",
+  },
 };
 
 type StatusPayload = {
@@ -110,6 +130,30 @@ async function loadBookingStatus(token: string): Promise<StatusPayload | null> {
   } catch {
     return null;
   }
+}
+
+export async function generateMetadata({ params }: MetadataProps): Promise<Metadata> {
+  const { lang: raw } = await params;
+  const lang: Lang = isLang(raw) ? raw : "en";
+  const seo = THANKS_SEO[lang];
+  const canonical = absoluteLocalizedUrl(lang, "thanks");
+
+  return {
+    title: seo.title,
+    description: seo.description,
+    alternates: {
+      canonical,
+      languages: languageAlternates("thanks"),
+    },
+    openGraph: {
+      title: seo.title,
+      description: seo.description,
+      url: canonical,
+      siteName: "Sharmar",
+      locale: lang === "me" ? "sr_Latn_ME" : lang,
+      type: "website",
+    },
+  };
 }
 
 export default async function ThanksPage({ params, searchParams }: Props) {

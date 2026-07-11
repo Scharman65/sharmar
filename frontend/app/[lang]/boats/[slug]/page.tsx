@@ -17,6 +17,9 @@ type PageCopy = {
   boatNotFound: string;
   marina: string;
   specifications: string;
+  sendRequest: string;
+  requestHint: string;
+  fromPrice: string;
   sale: string;
   rent: string;
   availabilityTitle: string;
@@ -50,6 +53,9 @@ function pageCopy(lang: Lang): PageCopy {
       boatNotFound: "Лодка не найдена",
       marina: "Марина",
       specifications: "Характеристики",
+      sendRequest: "Оставить заявку",
+      requestHint: "Отправьте заявку владельцу и получите подтверждение доступности.",
+      fromPrice: "Цена от",
       sale: "Продажа",
       rent: "Аренда",
       availabilityTitle: "Доступность (14 дней)",
@@ -83,6 +89,9 @@ function pageCopy(lang: Lang): PageCopy {
       boatNotFound: "Plovilo nije pronađeno",
       marina: "Marina",
       specifications: "Specifikacije",
+      sendRequest: "Pošalji upit",
+      requestHint: "Pošaljite upit vlasniku i dobijte potvrdu dostupnosti.",
+      fromPrice: "Cijena od",
       sale: "Prodaja",
       rent: "Najam",
       availabilityTitle: "Dostupnost (14 dana)",
@@ -115,6 +124,9 @@ function pageCopy(lang: Lang): PageCopy {
     boatNotFound: "Boat not found",
     marina: "Marina",
     specifications: "Specifications",
+    sendRequest: "Send request",
+    requestHint: "Send a request to the owner and confirm availability.",
+    fromPrice: "From",
     sale: "Sale",
     rent: "Rent",
     availabilityTitle: "Availability (14 days)",
@@ -178,6 +190,9 @@ export default async function BoatPage({ params }: Props) {
   const availabilityEmpty = pageCopy(lang).availabilityEmpty;
   const availabilityUnavailable = pageCopy(lang).availabilityUnavailable;
   const requestSlotLabel = pageCopy(lang).requestSlot;
+  const sendRequestLabel = pageCopy(lang).sendRequest;
+  const requestHint = pageCopy(lang).requestHint;
+  const fromPriceLabel = pageCopy(lang).fromPrice;
 
   const fmtMoney = (v: unknown) => {
     if (v === null || v === undefined) return null;
@@ -233,6 +248,20 @@ export default async function BoatPage({ params }: Props) {
   const homeMarinaHref = homeMarinaDefinition
     ? `/${lang}/marina/${homeMarinaSlug}`
     : null;
+  const requestParams = new URLSearchParams();
+  requestParams.set("slug", slug);
+  requestParams.set("title", boat.title ?? slug);
+  if (boat.documentId) requestParams.set("documentId", boat.documentId);
+  if (Number.isFinite(boatId) && boatId > 0) requestParams.set("boatId", String(boatId));
+  if ((boat as any).currency) requestParams.set("currency", String((boat as any).currency));
+  if ((boat as any).price_per_hour) requestParams.set("pph", String((boat as any).price_per_hour));
+  const requestHref = `/${lang}/request?${requestParams.toString()}`;
+  const primaryPrice =
+    (boat as any).listing_type === "sale"
+      ? fmtMoney((boat as any).sale_price)
+      : fmtMoney(applyMarketplaceFee((boat as any).price_per_hour))
+        ?? fmtMoney(applyMarketplaceFee((boat as any).price_per_day))
+        ?? fmtMoney(applyMarketplaceFee((boat as any).price_per_week));
 
   return (
     <main className="main">
@@ -243,6 +272,36 @@ export default async function BoatPage({ params }: Props) {
             ← {tr.boat.back_to_list}
           </Link>
         </div>
+
+        <section
+          aria-label={sendRequestLabel}
+          style={{
+            marginTop: 18,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
+            border: "1px solid rgba(255, 255, 255, 0.14)",
+            borderRadius: 18,
+            padding: 18,
+            background: "rgba(255, 255, 255, 0.055)",
+          }}
+        >
+          <div style={{ minWidth: 220 }}>
+            {primaryPrice ? (
+              <p className="kicker" style={{ margin: "0 0 6px" }}>
+                {fromPriceLabel} <strong>{primaryPrice}</strong>
+              </p>
+            ) : null}
+            <p style={{ margin: 0, color: "rgba(255, 255, 255, 0.74)", lineHeight: 1.5 }}>
+              {requestHint}
+            </p>
+          </div>
+          <Link className="button" href={requestHref} style={{ flexShrink: 0 }}>
+            {sendRequestLabel}
+          </Link>
+        </section>
 
         <BoatGallery
           heroImg={heroImg}

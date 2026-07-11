@@ -53,6 +53,9 @@ function requestCopy(lang: Lang) {
       requestNotCreated: "Заявка на бронирование не создана. Попробуйте ещё раз.",
       missingToken: "Токен бронирования отсутствует.",
       unknownError: "Неизвестная ошибка",
+      chooseBoatFirst: "Сначала выберите лодку",
+      chooseBoatFirstText: "Откройте каталог лодок и выберите подходящий вариант перед отправкой заявки.",
+      browseBoats: "Выбрать лодку",
       selectedSlotUnavailable: "Выбранный слот больше недоступен",
       chooseAnotherSlot: "Пожалуйста, выберите другой слот.",
       summaryBoat: "Лодка",
@@ -105,6 +108,9 @@ function requestCopy(lang: Lang) {
       requestNotCreated: "Zahtjev za rezervaciju nije kreiran. Pokušajte ponovo.",
       missingToken: "Token rezervacije nedostaje.",
       unknownError: "Nepoznata greška",
+      chooseBoatFirst: "Prvo izaberite plovilo",
+      chooseBoatFirstText: "Otvorite katalog plovila i izaberite plovilo prije slanja upita.",
+      browseBoats: "Izaberi plovilo",
       selectedSlotUnavailable: "Odabrani termin više nije dostupan",
       chooseAnotherSlot: "Molimo izaberite drugi termin.",
       summaryBoat: "Brod",
@@ -156,6 +162,9 @@ function requestCopy(lang: Lang) {
     requestNotCreated: "Booking request was not created. Please try again.",
     missingToken: "Missing booking token.",
     unknownError: "Unknown error",
+    chooseBoatFirst: "Choose a boat first",
+    chooseBoatFirstText: "Open the boat catalogue and choose a boat before sending a request.",
+    browseBoats: "Choose a boat",
     selectedSlotUnavailable: "Selected slot is no longer available",
     chooseAnotherSlot: "Please choose another slot.",
     summaryBoat: "Boat",
@@ -243,10 +252,6 @@ function formatDuration(hours: number): string {
   if (minutes === 0) return `${wholeHours} ${wholeHours === 1 ? "hour" : "hours"}`;
   if (wholeHours === 0) return `${minutes} minutes`;
   return `${wholeHours}h ${minutes}m`;
-}
-
-function lsDraftKey(boatSlug: string, date: string, timeFrom: string, timeTo: string): string {
-  return `sharmar:booking_request:public_token:v1:${boatSlug}:${date}:${timeFrom}:${timeTo}`;
 }
 
 function genPublicToken(): string {
@@ -543,6 +548,39 @@ export default function RequestPage() {
     { label: copy.summaryPeople, value: Number.isFinite(peopleCount) && peopleCount > 0 ? String(peopleCount) : "—" },
     ...(needSkipper ? [{ label: copy.summarySkipper, value: copy.summarySkipperRequested }] : []),
   ];
+
+  if (!boatSlug.trim()) {
+    return (
+      <main className="main">
+        <div className="container request-container">
+          <section
+            aria-labelledby="request-empty-title"
+            style={{
+              marginTop: 42,
+              maxWidth: 720,
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              borderRadius: 18,
+              padding: 24,
+              background: "rgba(255, 255, 255, 0.055)",
+            }}
+          >
+            <p className="kicker request-eyebrow">{copy.reservationRequest}</p>
+            <h1 id="request-empty-title" className="h1 request-title">
+              {copy.chooseBoatFirst}
+            </h1>
+            <p style={{ margin: "12px 0 0", color: "rgba(255, 255, 255, 0.74)", lineHeight: 1.6 }}>
+              {copy.chooseBoatFirstText}
+            </p>
+            <div className="actions" style={{ marginTop: 22 }}>
+              <Link className="button" href={`/${lang}/boats`}>
+                {copy.browseBoats}
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="main">
