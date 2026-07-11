@@ -1033,9 +1033,58 @@ export default factories.createCoreController(
         return;
       }
 
-      const br = await strapi.db
-        .query("api::booking-request.booking-request")
-        .findOne({ where: { public_token: token } });
+      const brRes = await strapi.db.connection.raw(
+        `
+        select
+          br.id,
+          br.status,
+          br.public_token,
+          br.full_name,
+          br.phone,
+          br.email,
+          br.start_datetime,
+          br.end_datetime,
+          br.people_count,
+          br.need_skipper,
+          br.notes,
+          br.owner_amount,
+          br.marketplace_fee_amount,
+          br.customer_total_amount,
+          br.currency,
+          br.decided_at,
+          br.approved_at,
+          br.decision_note,
+          br.created_at,
+          br.updated_at,
+          b.id as boat_id,
+          b.document_id as boat_document_id,
+          b.title as boat_title,
+          b.slug as boat_slug,
+          e.id as experience_id,
+          e.document_id as experience_document_id,
+          e.title as experience_title,
+          e.slug as experience_slug,
+          e.duration_hours as experience_duration_hours,
+          e.price as experience_price,
+          e.currency as experience_currency
+        from public.booking_requests br
+        left join public.booking_requests_boat_lnk bl
+          on bl.booking_request_id = br.id
+        left join public.boats b
+          on b.id = bl.boat_id
+        left join public.booking_requests_experience_lnk el
+          on el.booking_request_id = br.id
+        left join public.experiences e
+          on e.id = el.experience_id
+        where br.public_token = ?
+        order by br.id desc
+        limit 1
+        `,
+        [token]
+      );
+
+      const br =
+        (brRes && (brRes.rows?.[0] || (Array.isArray(brRes[0]) ? brRes[0][0] : null))) || null;
 
       if (!br) {
         ctx.status = 404;
@@ -1044,9 +1093,9 @@ export default factories.createCoreController(
       }
 
       const payRes = await strapi.db.connection.raw(
-        `select id, provider_intent_id, status, booking_id, created_at, updated_at
+        `select id, provider, provider_intent_id, status, booking_id, created_at, updated_at
            from public.payments
-          where provider = 'stripe' and booking_request_id = ?
+          where booking_request_id = ?
           order by id desc
           limit 1`,
         [br.id]
@@ -1077,15 +1126,48 @@ export default factories.createCoreController(
         booking_request: {
           id: br.id,
           status: br.status || null,
-          decided_at: (br as any).decided_at || null,
-          approved_at: (br as any).approved_at || null,
-          decision_note: (br as any).decision_note || null,
-          created_at: (br as any).createdAt || (br as any).created_at || null,
-          updated_at: (br as any).updatedAt || (br as any).updated_at || null,
+          public_token: br.public_token || token,
+          full_name: br.full_name || null,
+          phone: br.phone || null,
+          email: br.email || null,
+          start_datetime: br.start_datetime || null,
+          end_datetime: br.end_datetime || null,
+          people_count: br.people_count ?? null,
+          need_skipper: br.need_skipper ?? null,
+          notes: br.notes || null,
+          owner_amount: br.owner_amount ?? null,
+          marketplace_fee_amount: br.marketplace_fee_amount ?? null,
+          customer_total_amount: br.customer_total_amount ?? null,
+          currency: br.currency || null,
+          decided_at: br.decided_at || null,
+          approved_at: br.approved_at || null,
+          decision_note: br.decision_note || null,
+          created_at: br.created_at || null,
+          updated_at: br.updated_at || null,
+          boat: br.boat_id
+            ? {
+                id: br.boat_id,
+                document_id: br.boat_document_id || null,
+                title: br.boat_title || null,
+                slug: br.boat_slug || null,
+              }
+            : null,
+          experience: br.experience_id
+            ? {
+                id: br.experience_id,
+                document_id: br.experience_document_id || null,
+                title: br.experience_title || null,
+                slug: br.experience_slug || null,
+                duration_hours: br.experience_duration_hours ?? null,
+                price: br.experience_price ?? null,
+                currency: br.experience_currency || null,
+              }
+            : null,
         },
         payment: payment
           ? {
               id: payment.id,
+              provider: payment.provider || null,
               provider_intent_id: payment.provider_intent_id || null,
               status: payment.status || null,
               booking_id: payment.booking_id || null,
