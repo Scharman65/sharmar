@@ -1,3 +1,112 @@
+import crypto from "crypto";
+
+const DODO_WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
+
+function getHeaderValue(ctx: any, names: string[]): string {
+  const headers = {
+    ...(ctx?.req?.headers || {}),
+    ...(ctx?.request?.headers || {}),
+  };
+
+  for (const name of names) {
+    const direct = headers[name];
+    const lower = headers[name.toLowerCase()];
+    const value = direct ?? lower;
+    if (Array.isArray(value)) return String(value[0] || "").trim();
+    if (value !== undefined && value !== null) return String(value).trim();
+  }
+
+  return "";
+}
+
+function rawBodyToString(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (Buffer.isBuffer(value)) return value.toString("utf8");
+  return null;
+}
+
+function getRawWebhookBody(ctx: any): string | null {
+  const sym = Symbol.for("unparsedBody");
+  const body = ctx?.request?.body ?? null;
+  return (
+    rawBodyToString(body?.[sym]) ||
+    rawBodyToString(ctx?.request?.rawBody) ||
+    rawBodyToString(ctx?.req?.rawBody) ||
+    rawBodyToString(ctx?.req?.body) ||
+    rawBodyToString(body)
+  );
+}
+
+function getDodoSigningKeys(secret: string): Buffer[] {
+  const clean = secret.trim();
+  if (!clean) return [];
+
+  if (clean.startsWith("whsec_")) {
+    return [Buffer.from(clean.slice("whsec_".length), "base64")];
+  }
+
+  return [Buffer.from(clean, "utf8")];
+}
+
+function signatureMatches(expected: Buffer, candidate: string): boolean {
+  try {
+    const actual = Buffer.from(candidate, "base64");
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
+
+function verifyDodoWebhookSignature(ctx: any, secret: string): { ok: true; rawBody: string } | { ok: false; error: string } {
+  const webhookId = getHeaderValue(ctx, ["webhook-id"]);
+  const webhookTimestamp = getHeaderValue(ctx, ["webhook-timestamp"]);
+  const webhookSignature = getHeaderValue(ctx, ["webhook-signature"]);
+
+  if (!webhookId || !webhookTimestamp || !webhookSignature) {
+    return { ok: false, error: "dodo_standard_webhook_headers_missing" };
+  }
+
+  if (webhookId.includes(".") || webhookTimestamp.includes(".")) {
+    return { ok: false, error: "dodo_standard_webhook_headers_invalid" };
+  }
+
+  const timestampSeconds = Number(webhookTimestamp);
+  if (!Number.isFinite(timestampSeconds)) {
+    return { ok: false, error: "dodo_webhook_timestamp_invalid" };
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - timestampSeconds) > DODO_WEBHOOK_TOLERANCE_SECONDS) {
+    return { ok: false, error: "dodo_webhook_timestamp_out_of_tolerance" };
+  }
+
+  const rawBody = getRawWebhookBody(ctx);
+  if (!rawBody) {
+    return { ok: false, error: "dodo_raw_body_missing" };
+  }
+
+  const signedPayload = `${webhookId}.${webhookTimestamp}.${rawBody}`;
+  const keys = getDodoSigningKeys(secret);
+  const signatures = webhookSignature
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [version, value] = part.split(",", 2);
+      return version === "v1" && value ? value.trim() : "";
+    })
+    .filter(Boolean);
+
+  for (const key of keys) {
+    const expected = crypto.createHmac("sha256", key).update(signedPayload).digest();
+    if (signatures.some((signature) => signatureMatches(expected, signature))) {
+      return { ok: true, rawBody };
+    }
+  }
+
+  return { ok: false, error: "dodo_signature_invalid" };
+}
+
 export default {
   async health(ctx) {
     ctx.status = 200;
@@ -442,6 +551,7 @@ export default {
           status,
           booking_request_id,
           metadata,
+          metadata->>'session_id' as session_id,
           metadata->>'checkout_url' as checkout_url
         from public.payments
         where provider = 'dodo'
@@ -465,7 +575,7 @@ export default {
           payment_id: existingDodo.id,
           provider: "dodo",
           provider_intent_id: existingDodo.provider_intent_id,
-          session_id: existingDodo.provider_intent_id,
+          session_id: existingDodo.session_id || existingDodo.provider_intent_id,
           checkout_url: existingDodoCheckoutUrl,
           amount_cents: existingDodo.amount_cents,
           currency: String(existingDodo.currency || currency).toLowerCase(),
@@ -537,12 +647,14 @@ export default {
         return;
       }
 
-      const dodoSessionId = String(data.session_id || data.id || "");
+      const dodoSessionId = String(data.session_id || "");
+      const dodoPaymentId = String(data.payment_id || data.paymentId || data.id || "");
+      const dodoProviderIntentId = dodoPaymentId || dodoSessionId;
       const dodoCheckoutUrl = String(data.checkout_url || data.payment_link || data.url || "");
 
-      if (!dodoSessionId) {
+      if (!dodoProviderIntentId) {
         ctx.status = 502;
-        ctx.body = { error: "dodo_session_id_missing", response: data };
+        ctx.body = { error: "dodo_payment_id_missing", response: data };
         return;
       }
 
@@ -555,6 +667,7 @@ export default {
       const dodoMetadata = {
         provider_status: "checkout_created",
         session_id: dodoSessionId,
+        payment_id: dodoPaymentId,
         checkout_url: dodoCheckoutUrl,
         booking_request_id: String(br.id),
         boat_id: String(boatId),
@@ -584,7 +697,7 @@ export default {
         `,
         [
           "dodo",
-          dodoSessionId,
+          dodoProviderIntentId,
           amountCents,
           currency.toLowerCase(),
           "pending",
@@ -600,7 +713,7 @@ export default {
       ctx.body = {
         payment_id: dodoPayment?.id || null,
         provider: "dodo",
-        provider_intent_id: dodoSessionId,
+        provider_intent_id: dodoProviderIntentId,
         session_id: dodoSessionId,
         checkout_url: dodoCheckoutUrl,
         amount_cents: amountCents,
@@ -724,13 +837,7 @@ export default {
   async webhook(ctx) {
         const cfg = strapi.config.get("payments") as any;
 
-        const dodoSignature = String(
-          (ctx.req?.headers?.["webhook-signature"]) ||
-          (ctx.req?.headers?.["Webhook-Signature"]) ||
-          (ctx.req?.headers?.["x-dodo-signature"]) ||
-          (ctx.req?.headers?.["X-Dodo-Signature"]) ||
-          ""
-        ).trim();
+        const dodoSignature = getHeaderValue(ctx, ["webhook-signature"]);
 
         if (dodoSignature) {
           const dodoSecret = String(cfg?.dodo?.webhookSecret || "").trim();
@@ -741,23 +848,43 @@ export default {
             return;
           }
 
-          const body = ctx.request?.body || {};
+          const verifiedDodoWebhook = verifyDodoWebhookSignature(ctx, dodoSecret);
+          if (verifiedDodoWebhook.ok !== true) {
+            ctx.status = 401;
+            ctx.body = { error: verifiedDodoWebhook.error };
+            return;
+          }
+
+          let body = ctx.request?.body || {};
+          if (!body || typeof body !== "object" || Array.isArray(body)) {
+            try {
+              body = JSON.parse(verifiedDodoWebhook.rawBody);
+            } catch {
+              ctx.status = 400;
+              ctx.body = { error: "dodo_webhook_invalid_json" };
+              return;
+            }
+          }
           const eventType = String(body.type || body.event_type || body.event || "").toLowerCase();
           const data = body.data || body.payload || body.object || body;
 
-          const providerIntentId = String(
-            data.session_id ||
-            data.checkout_session_id ||
-            data.checkout_id ||
+          const providerPaymentId = String(
             data.payment_id ||
             data.id ||
-            body.session_id ||
-            body.checkout_session_id ||
-            body.checkout_id ||
             body.payment_id ||
             body.id ||
             ""
           ).trim();
+          const providerSessionId = String(
+            data.session_id ||
+            data.checkout_session_id ||
+            data.checkout_id ||
+            body.session_id ||
+            body.checkout_session_id ||
+            body.checkout_id ||
+            ""
+          ).trim();
+          const providerIntentId = providerPaymentId || providerSessionId;
 
           const providerStatus = String(
             data.status ||
@@ -789,8 +916,8 @@ export default {
             };
 
             await strapi.db.connection.raw(
-              "update public.payments set metadata = coalesce(metadata, '{}'::jsonb) || ?::jsonb, updated_at = now() where provider = 'dodo' and provider_intent_id = ?",
-              [JSON.stringify(webhookMeta), providerIntentId]
+              "update public.payments set metadata = coalesce(metadata, '{}'::jsonb) || ?::jsonb, updated_at = now() where provider = 'dodo' and (provider_intent_id = ? or metadata->>'session_id' = ?)",
+              [JSON.stringify(webhookMeta), providerIntentId, providerSessionId]
             );
 
             const expiredEvent =
@@ -811,11 +938,11 @@ export default {
                   select booking_request_id
                   from public.payments
                   where provider = 'dodo'
-                    and provider_intent_id = ?
+                    and (provider_intent_id = ? or metadata->>'session_id' = ?)
                 )
                 and lower(coalesce(br.status,'')) = 'pending'
                 `,
-                [providerIntentId]
+                [providerIntentId, providerSessionId]
               );
             }
 
@@ -837,8 +964,8 @@ export default {
             await trx.raw("select pg_advisory_xact_lock(hashtext(?))", ["dodo_webhook:" + providerIntentId]);
 
             const payRes = await trx.raw(
-              "select * from public.payments where provider = 'dodo' and provider_intent_id = ? limit 1",
-              [providerIntentId]
+              "select * from public.payments where provider = 'dodo' and (provider_intent_id = ? or metadata->>'session_id' = ?) limit 1",
+              [providerIntentId, providerSessionId]
             );
 
             const payment =
@@ -934,7 +1061,7 @@ export default {
 
             if (!booking?.id) {
               await trx.raw(
-                "update public.payments set status = 'succeeded_needs_revieww', metadata = coalesce(metadata, '{}'::jsonb) || ?::jsonb, updated_at = now() where id = ?",
+                "update public.payments set status = 'succeeded_needs_review', metadata = coalesce(metadata, '{}'::jsonb) || ?::jsonb, updated_at = now() where id = ?",
                 [JSON.stringify({ last_event_type: eventType, provider_status: providerStatus, webhook_received_at: new Date().toISOString(), instant_booking: isInstantBooking, missing_active_hold: true }), payment.id]
               );
 
