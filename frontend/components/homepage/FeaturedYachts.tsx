@@ -38,8 +38,8 @@ const t = {
         type: "Group trips",
         price: "Comfort at sea",
         href: "rent/catamaran",
-        mediaClass: "featured-yacht-media-missing",
-        imageAlt: null,
+        mediaClass: "featured-yacht-media-3",
+        imageAlt: "Catamaran on clear coastal water",
       },
       {
         title: "Marinas",
@@ -80,8 +80,8 @@ const t = {
         type: "Для групп",
         price: "Комфорт на море",
         href: "rent/catamaran",
-        mediaClass: "featured-yacht-media-missing",
-        imageAlt: null,
+        mediaClass: "featured-yacht-media-3",
+        imageAlt: "Катамаран на прозрачной прибрежной воде",
       },
       {
         title: "Марины",
@@ -122,8 +122,8 @@ const t = {
         type: "Grupne ture",
         price: "Komfor na moru",
         href: "rent/catamaran",
-        mediaClass: "featured-yacht-media-missing",
-        imageAlt: null,
+        mediaClass: "featured-yacht-media-3",
+        imageAlt: "Katamaran na čistoj obalnoj vodi",
       },
       {
         title: "Marine",
