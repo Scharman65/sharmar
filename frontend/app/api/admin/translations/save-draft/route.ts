@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 type JsonObject = Record<string, unknown>;
@@ -74,6 +75,12 @@ function getAdminTranslationInternalToken(): string {
 
 function isWriteEnabled(): boolean {
   return process.env.ADMIN_TRANSLATION_WRITE_ENABLED === "true";
+}
+
+function tokensMatch(requestToken: string, configuredToken: string): boolean {
+  const request = Buffer.from(requestToken);
+  const configured = Buffer.from(configuredToken);
+  return request.length === configured.length && timingSafeEqual(request, configured);
 }
 
 function isRecord(value: unknown): value is JsonObject {
@@ -364,7 +371,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (req.headers.get("x-admin-token") !== configuredToken) {
+  if (!tokensMatch(req.headers.get("x-admin-token") ?? "", configuredToken)) {
     return NextResponse.json(
       { ok: false, code: "unauthorized" },
       { status: 401, headers: { "cache-control": "no-store" } }

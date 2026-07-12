@@ -3,7 +3,6 @@ import test from "node:test";
 import {
   frontendLocaleToStrapiLocale,
   planLocalization,
-  validateWriteGate,
   type ExistingLocalization,
   type JsonObject,
   type Locale,
@@ -150,22 +149,6 @@ test("dry-run plan contains sanitized data but performs no write itself", () => 
   assert.equal(plan.doesWrite, true);
   assert.equal(plan.doesPublish, false);
   assert.deepEqual(plan.sanitizedData, { title: "Title", description: "Description" });
-});
-
-test("missing internal token is refused", () => {
-  assert.deepEqual(validateWriteGate({ configuredToken: "", requestToken: "", writeEnabled: true }), {
-    ok: false,
-    status: 503,
-    code: "admin_translation_internal_token_missing",
-  });
-});
-
-test("write flag disabled is refused", () => {
-  assert.deepEqual(validateWriteGate({ configuredToken: "secret", requestToken: "secret", writeEnabled: false }), {
-    ok: false,
-    status: 403,
-    code: "write_not_enabled",
-  });
 });
 
 test("experience missing localization uses the same create/update safeguards", () => {

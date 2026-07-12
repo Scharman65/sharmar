@@ -147,21 +147,6 @@ export function localeLabel(locale: Locale): string {
   return locale === "sr-Latn-ME" ? "me" : locale;
 }
 
-export function validateWriteGate(params: {
-  configuredToken?: string | null;
-  requestToken?: string | null;
-  writeEnabled?: boolean;
-}): { ok: true } | { ok: false; status: number; code: string } {
-  const configuredToken = params.configuredToken?.trim() ?? "";
-  const requestToken = params.requestToken?.trim() ?? "";
-
-  if (!configuredToken) return { ok: false, status: 503, code: "admin_translation_internal_token_missing" };
-  if (!requestToken || requestToken !== configuredToken) return { ok: false, status: 401, code: "unauthorized" };
-  if (params.writeEnabled !== true) return { ok: false, status: 403, code: "write_not_enabled" };
-
-  return { ok: true };
-}
-
 export function meaningfulText(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
