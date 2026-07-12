@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { MARKETPLACE_FEE_RATE, MARKETPLACE_MINIMUM_FEE_AMOUNT, applyMarketplaceFee } from "@/lib/pricing";
+import { MARKETPLACE_FEE_RATE, applyMarketplaceFee } from "@/lib/pricing";
 import { OwnerAvailabilityCalendar } from "@/components/owner/OwnerAvailabilityCalendar";
 
 type DashboardCopy = {
@@ -1967,7 +1967,7 @@ useEffect(() => {
                                       <p className="kicker" style={{ margin: "6px 0 0" }}>
                                         {lang === "ru" ? "Цена owner" : lang === "me" ? "Cijena vlasnika" : "Owner price"}: {formatOwnerExperiencePrice(ownerPrice)}
                                         {" · "}
-                                        {lang === "ru" ? "Цена клиента" : lang === "me" ? "Cijena za klijenta" : "Client price"} (+{Math.round(MARKETPLACE_FEE_RATE * 100)}%, min €{MARKETPLACE_MINIMUM_FEE_AMOUNT.toFixed(2)}): {formatOwnerExperiencePrice(customerPrice)}
+                                        {lang === "ru" ? "Цена клиента" : lang === "me" ? "Cijena za klijenta" : "Client price"} (+{Math.round(MARKETPLACE_FEE_RATE * 100)}%): {formatOwnerExperiencePrice(customerPrice)}
                                       </p>
                                     </div>
                                   );

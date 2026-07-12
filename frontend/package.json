@@ -6,7 +6,6 @@
     "dev": "next dev",
     "prebuild": "node scripts/gen-version.mjs",
     "build": "next build",
-    "check:pricing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-pricing.mjs",
     "start": "next start",
     "lint": "eslint"
   },
