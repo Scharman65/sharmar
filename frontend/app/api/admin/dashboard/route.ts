@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
+import { MARKETPLACE_FEE_RATE, MARKETPLACE_MINIMUM_FEE_AMOUNT } from "@/lib/pricing";
 
 type JsonObject = Record<string, unknown>;
 type RowStatus = "draft" | "published";
@@ -455,10 +455,11 @@ export async function GET(req: NextRequest) {
       feeSettings: {
         defaultMarketplaceFeeRate: MARKETPLACE_FEE_RATE,
         defaultMarketplaceFeePercent: MARKETPLACE_FEE_RATE * 100,
+        minimumMarketplaceFeeAmount: MARKETPLACE_MINIMUM_FEE_AMOUNT,
         source: "frontend/lib/pricing.ts",
         bookingFields: ["owner_amount", "marketplace_fee_amount", "customer_total_amount"],
         notes: [
-          "Booking request creation calculates customer_total_amount from owner amount and MARKETPLACE_FEE_RATE.",
+          "Booking request creation calculates customer_total_amount from owner amount, MARKETPLACE_FEE_RATE, and MARKETPLACE_MINIMUM_FEE_AMOUNT.",
           "Payment code reads marketplace_fee_amount when creating/inspecting payment intents.",
         ],
       },

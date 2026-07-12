@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { isLang, t, type Lang } from "@/i18n";
-import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
+import { calculateMarketplaceBreakdown } from "@/lib/pricing";
 
 type ApiOk = { ok: true; id: number; token: string };
 type ApiFail = { ok: false; error: string; fallbackMailto?: string };
@@ -84,7 +84,7 @@ function requestCopy(lang: Lang) {
       priceEstimateText: "Расчёт обновляется по выбранному времени. Списание выполняется только после подтверждения владельцем.",
       boatRate: "Тариф лодки",
       hour: "час",
-      serviceFee: "Онлайн-бронирование",
+      serviceFee: "Онлайн-бронирование (10%, минимум €1.00)",
       reservationProtection: "Защита бронирования",
       secureAuthorization: "Безопасное онлайн-бронирование",
       secureAuthorizationText: "Бронирование выполняется через защищённую онлайн-оплату после отправки заявки.",
@@ -139,7 +139,7 @@ function requestCopy(lang: Lang) {
       priceEstimateText: "Procjena se ažurira prema odabranom vremenu. Naplata se vrši tek nakon odobrenja vlasnika.",
       boatRate: "Cijena broda",
       hour: "sat",
-      serviceFee: "Online rezervacija",
+      serviceFee: "Online rezervacija (10%, minimum €1.00)",
       reservationProtection: "Zaštita rezervacije",
       secureAuthorization: "Sigurna online rezervacija",
       secureAuthorizationText: "Rezervacija se obrađuje kroz sigurnu online uplatu nakon slanja zahtjeva.",
@@ -193,7 +193,7 @@ function requestCopy(lang: Lang) {
     priceEstimateText: "The estimate updates from the selected time range. Final capture happens only after owner approval.",
     boatRate: "Boat rate",
     hour: "hour",
-    serviceFee: "Online booking",
+    serviceFee: "Online booking (10%, minimum €1.00)",
     reservationProtection: "Reservation protection",
     secureAuthorization: "Secure online booking",
     secureAuthorizationText: "Your booking is processed through a secure online payment after you submit this request.",
@@ -373,7 +373,7 @@ export default function RequestPage() {
     return diffHours(timeFrom, timeTo);
   }, [hasExperience, experienceDuration, timeFrom, timeTo]);
 
-  const ownerAmount = useMemo(() => {
+  const rawOwnerAmount = useMemo(() => {
     if (hasExperience && Number.isFinite(experiencePrice) && experiencePrice > 0) {
       return experiencePrice;
     }
@@ -381,14 +381,13 @@ export default function RequestPage() {
     return hours * PRICE_PER_HOUR;
   }, [hasExperience, experiencePrice, hours, PRICE_PER_HOUR]);
 
-  const marketplaceFeeAmount = useMemo(() => {
-    if (!ownerAmount) return 0;
-    return ownerAmount * MARKETPLACE_FEE_RATE;
-  }, [ownerAmount]);
+  const marketplaceBreakdown = useMemo(() => {
+    return calculateMarketplaceBreakdown(rawOwnerAmount);
+  }, [rawOwnerAmount]);
 
-  const customerTotalAmount = useMemo(() => {
-    return ownerAmount + marketplaceFeeAmount;
-  }, [ownerAmount, marketplaceFeeAmount]);
+  const ownerAmount = marketplaceBreakdown?.ownerAmount ?? 0;
+  const marketplaceFeeAmount = marketplaceBreakdown?.marketplaceFeeAmount ?? 0;
+  const customerTotalAmount = marketplaceBreakdown?.customerTotalAmount ?? 0;
 
   const totalPrice = customerTotalAmount;
 
@@ -758,7 +757,7 @@ export default function RequestPage() {
                   <b>{hours ? formatDuration(hours) : "—"}</b>
                 </div>
                 <div>
-                  <span>{copy.serviceFee} ({Math.round(MARKETPLACE_FEE_RATE * 100)}%)</span>
+                  <span>{copy.serviceFee}</span>
                   <b>{marketplaceFeeAmount ? money(marketplaceFeeAmount, currency) : "—"}</b>
                 </div>
                 <div className="price-total">

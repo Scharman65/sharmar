@@ -1,4 +1,7 @@
 export const MARKETPLACE_FEE_RATE = 0.10;
+export const MARKETPLACE_MINIMUM_FEE_AMOUNT = 1;
+export const MARKETPLACE_MINIMUM_FEE_OWNER_THRESHOLD =
+  MARKETPLACE_MINIMUM_FEE_AMOUNT / MARKETPLACE_FEE_RATE;
 
 export type MarketplaceBreakdown = {
   ownerAmount: number;
@@ -17,33 +20,59 @@ export function roundMoney(value: number): number {
 }
 
 export function applyMarketplaceFee(value: unknown): number | null {
-  const ownerAmount = toPriceNumber(value);
-  if (ownerAmount === null) return null;
-  return roundMoney(ownerAmount * (1 + MARKETPLACE_FEE_RATE));
+  const breakdown = calculateMarketplaceBreakdown(value);
+  return breakdown ? breakdown.customerTotalAmount : null;
 }
 
 export function calculateMarketplaceBreakdown(ownerAmountValue: unknown): MarketplaceBreakdown | null {
-  const ownerAmount = toPriceNumber(ownerAmountValue);
-  if (ownerAmount === null) return null;
+  const rawOwnerAmount = toPriceNumber(ownerAmountValue);
+  if (rawOwnerAmount === null || rawOwnerAmount < 0) return null;
 
-  const customerTotalAmount = ownerAmount * (1 + MARKETPLACE_FEE_RATE);
+  const ownerAmount = roundMoney(rawOwnerAmount);
+  if (ownerAmount === 0) {
+    return {
+      ownerAmount,
+      marketplaceFeeAmount: 0,
+      customerTotalAmount: 0,
+    };
+  }
+
+  const marketplaceFeeAmount = Math.max(
+    roundMoney(ownerAmount * MARKETPLACE_FEE_RATE),
+    MARKETPLACE_MINIMUM_FEE_AMOUNT
+  );
+
   return {
     ownerAmount,
-    marketplaceFeeAmount: customerTotalAmount - ownerAmount,
-    customerTotalAmount,
+    marketplaceFeeAmount,
+    customerTotalAmount: roundMoney(ownerAmount + marketplaceFeeAmount),
   };
 }
 
 export function calculateMarketplaceBreakdownFromCustomerTotal(
   customerTotalValue: unknown
 ): MarketplaceBreakdown | null {
-  const customerTotalAmount = toPriceNumber(customerTotalValue);
-  if (customerTotalAmount === null) return null;
+  const rawCustomerTotalAmount = toPriceNumber(customerTotalValue);
+  if (rawCustomerTotalAmount === null || rawCustomerTotalAmount < 0) return null;
 
-  const ownerAmount = customerTotalAmount / (1 + MARKETPLACE_FEE_RATE);
-  return {
-    ownerAmount,
-    marketplaceFeeAmount: customerTotalAmount - ownerAmount,
-    customerTotalAmount,
-  };
+  const customerTotalAmount = roundMoney(rawCustomerTotalAmount);
+  if (customerTotalAmount === 0) {
+    return {
+      ownerAmount: 0,
+      marketplaceFeeAmount: 0,
+      customerTotalAmount,
+    };
+  }
+
+  if (customerTotalAmount <= MARKETPLACE_MINIMUM_FEE_AMOUNT) return null;
+
+  const minimumFeeTotalThreshold = roundMoney(
+    MARKETPLACE_MINIMUM_FEE_OWNER_THRESHOLD + MARKETPLACE_MINIMUM_FEE_AMOUNT
+  );
+  const ownerAmount =
+    customerTotalAmount <= minimumFeeTotalThreshold
+      ? roundMoney(customerTotalAmount - MARKETPLACE_MINIMUM_FEE_AMOUNT)
+      : roundMoney(customerTotalAmount / (1 + MARKETPLACE_FEE_RATE));
+
+  return calculateMarketplaceBreakdown(ownerAmount);
 }

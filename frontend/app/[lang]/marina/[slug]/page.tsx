@@ -6,6 +6,7 @@ import { LANGS, type Lang } from "@/i18n";
 import { MARINAS, type MarinaDefinition } from "@/data/marinas";
 import { fetchBoats, type Boat } from "@/lib/strapi";
 import { getBoatCardImage } from "@/lib/media";
+import { applyMarketplaceFee } from "@/lib/pricing";
 import { absoluteSiteUrl, breadcrumbJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
 type PageCopy = {
@@ -219,10 +220,16 @@ function money(value: number | null | undefined, currency = "EUR"): string | nul
 function getBoatPrice(boat: Boat): string | null {
   const currency = boat.currency ?? "EUR";
 
-  if (boat.sale_price != null) return money(boat.sale_price, currency);
-  if (boat.price_per_hour != null) return `${money(boat.price_per_hour, currency)} / hour`;
-  if (boat.price_per_day != null) return `${money(boat.price_per_day, currency)} / day`;
-  if (boat.price_per_week != null) return `${money(boat.price_per_week, currency)} / week`;
+  if (boat.sale_price != null) return money(applyMarketplaceFee(boat.sale_price), currency);
+
+  const pricePerHour = money(applyMarketplaceFee(boat.price_per_hour), currency);
+  if (pricePerHour) return `${pricePerHour} / hour`;
+
+  const pricePerDay = money(applyMarketplaceFee(boat.price_per_day), currency);
+  if (pricePerDay) return `${pricePerDay} / day`;
+
+  const pricePerWeek = money(applyMarketplaceFee(boat.price_per_week), currency);
+  if (pricePerWeek) return `${pricePerWeek} / week`;
 
   return null;
 }
