@@ -23,6 +23,7 @@ function createMockCms(initialRows = {}) {
     findOne: [],
     update: [],
     transaction: 0,
+    syncNonLocalizedAttributes: [],
   };
 
   function rows(uid, documentId, locale) {
@@ -88,6 +89,31 @@ function createMockCms(initialRows = {}) {
             setRows(uid, params.documentId, params.locale, currentRows);
           }
           return null;
+        },
+      };
+    },
+    contentType(uid) {
+      return { uid };
+    },
+    plugin(name) {
+      if (name !== "i18n") return { service: () => ({}) };
+      return {
+        service(serviceName) {
+          if (serviceName === "content-types") {
+            return {
+              getNestedPopulateOfNonLocalizedAttributes() {
+                return { brand: true, images: true };
+              },
+            };
+          }
+          if (serviceName === "localizations") {
+            return {
+              async syncNonLocalizedAttributes(sourceEntry, model) {
+                calls.syncNonLocalizedAttributes.push({ sourceEntry, model });
+              },
+            };
+          }
+          return {};
         },
       };
     },
@@ -208,10 +234,26 @@ test("missing boat RU locale updates via document service with only allowed fiel
     locale: "ru",
     status: "draft",
     data: {
+      capacity: 8,
       title: "RU boat",
       description: "RU description",
     },
   });
+  assert.equal(cleanCms.calls.update[0].params.data.slug, undefined);
+  assert.equal(cleanCms.calls.update[0].params.data.cover, undefined);
+  assert.equal(cleanCms.calls.update[0].params.data.owner, undefined);
+  assert.equal(cleanCms.calls.update[0].params.data.price, undefined);
+});
+
+test("missing boat localization syncs non-localized fields from source entry", async () => {
+  const cms = createMockCms(baseRows());
+  const result = await createAdminTranslationService(cms).saveDraft(savePayload());
+
+  assert.equal(result.status, 200);
+  assert.equal(cms.calls.syncNonLocalizedAttributes.length, 1);
+  assert.equal(cms.calls.syncNonLocalizedAttributes[0].sourceEntry.documentId, sourceDocumentId);
+  assert.equal(cms.calls.syncNonLocalizedAttributes[0].sourceEntry.locale, "en");
+  assert.deepEqual(cms.calls.syncNonLocalizedAttributes[0].model, { uid: BOAT_UID });
 });
 
 test("service rereads target draft after update", async () => {

@@ -27,8 +27,48 @@ export const BOAT_UID = "api::boat.boat";
 export const EXPERIENCE_UID = "api::experience.experience";
 export const BOAT_READ_FIELDS = ["id", "documentId", "locale", "publishedAt", "title", "description"] as const;
 export const EXPERIENCE_READ_FIELDS = ["id", "documentId", "locale", "publishedAt", "title", "short_description", "full_description", "included_services", "meeting_point"] as const;
+const BOAT_SHARED_SCALAR_FIELDS = [
+  "slug",
+  "boat_type",
+  "capacity",
+  "length_m",
+  "year",
+  "engine_hp",
+  "license_required",
+  "skipper_available",
+  "skipper_price_per_hour",
+  "skipper_price_per_day",
+  "currency",
+  "listing_type",
+  "vesselType",
+  "owner_phone",
+  "owner_user_id",
+  "owner_whatsapp",
+  "owner_viber",
+  "contacts_visible",
+  "verified_listing",
+  "featured_listing",
+  "reviewed_at",
+  "price_per_hour",
+  "price_per_day",
+  "price_per_week",
+  "deposit",
+  "sale_price",
+  "instant_booking",
+  "min_rental_hours",
+] as const;
+const EXPERIENCE_SHARED_SCALAR_FIELDS = [
+  "slug",
+  "duration_hours",
+  "price",
+  "currency",
+  "max_guests",
+  "sort_order",
+  "is_active",
+] as const;
 
 type StrapiLike = {
+  contentType?: (uid: string) => unknown;
   db: {
     getConnection?: (tableName?: string) => unknown;
     metadata?: {
@@ -42,6 +82,9 @@ type StrapiLike = {
   documents(uid: string): {
     findOne(params: unknown): Promise<unknown>;
     update(params: unknown): Promise<unknown>;
+  };
+  plugin?: (name: string) => {
+    service(serviceName: string): unknown;
   };
 };
 
@@ -197,19 +240,192 @@ function failureResponse(params: {
   };
 }
 
-async function writeLocalization(cms: StrapiLike, uid: string, plan: LocalizationPlan): Promise<ExistingLocalization | null> {
+function hasI18nSyncService(service: unknown): service is {
+  syncNonLocalizedAttributes(sourceEntry: unknown, model: unknown): Promise<void>;
+} {
+  return isRecord(service) && typeof service.syncNonLocalizedAttributes === "function";
+}
+
+function hasI18nContentTypeService(service: unknown): service is {
+  getNestedPopulateOfNonLocalizedAttributes(uid: string): unknown;
+} {
+  return isRecord(service) && typeof service.getNestedPopulateOfNonLocalizedAttributes === "function";
+}
+
+function relationDocumentId(value: unknown): string | null {
+  return isRecord(value) ? asString(value.documentId) : null;
+}
+
+function relationLink(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  const documentId = asString(value.documentId);
+  if (!documentId) return null;
+  return documentId;
+}
+
+function relationLinks(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map(relationLink).filter((link): link is string => link !== null)
+    : [];
+}
+
+function mediaId(value: unknown): number | null {
+  if (!isRecord(value)) return null;
+  const id = asNumber(value.id);
+  return id === null ? null : id;
+}
+
+function mediaIds(value: unknown): number[] {
+  return Array.isArray(value)
+    ? value.map(mediaId).filter((id): id is number => id !== null)
+    : [];
+}
+
+function copyScalarFields(source: JsonObject, fields: readonly string[]): JsonObject {
+  const data: JsonObject = {};
+  for (const field of fields) {
+    if (["id", "documentId", "locale", "publishedAt", "createdAt", "updatedAt"].includes(field)) continue;
+    if (source[field] !== undefined && source[field] !== null) {
+      data[field] = source[field];
+    }
+  }
+  return data;
+}
+
+async function findSourceForSharedFields(cms: StrapiLike, uid: string, documentId: string, sourceLocale: Locale, fields: readonly string[], populate: JsonObject): Promise<JsonObject | null> {
+  const params = {
+    documentId,
+    locale: sourceLocale,
+    fields: [...fields],
+    populate,
+  };
+  const draft = await cms.documents(uid).findOne({ ...params, status: "draft" });
+  if (isRecord(draft)) return draft;
+  const published = await cms.documents(uid).findOne({ ...params, status: "published" });
+  return isRecord(published) ? published : null;
+}
+
+async function localizedRelationExists(cms: StrapiLike, uid: string, documentId: string | null, locale: Locale): Promise<boolean> {
+  if (!documentId) return false;
+  const rows = await cms.db.query(uid).findMany({
+    where: { documentId, locale },
+    select: ["id", "documentId", "locale"],
+    limit: 1,
+  });
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+async function copyLocalizedRelation(cms: StrapiLike, data: JsonObject, field: string, targetUid: string, value: unknown, targetLocale: Locale): Promise<void> {
+  const documentId = relationLink(value);
+  if (await localizedRelationExists(cms, targetUid, documentId, targetLocale)) {
+    data[field] = documentId;
+  }
+}
+
+async function copyLocalizedRelations(cms: StrapiLike, data: JsonObject, field: string, targetUid: string, value: unknown, targetLocale: Locale): Promise<void> {
+  const documentIds = relationLinks(value);
+  const existing: string[] = [];
+  for (const documentId of documentIds) {
+    if (await localizedRelationExists(cms, targetUid, documentId, targetLocale)) {
+      existing.push(documentId);
+    }
+  }
+  if (existing.length) data[field] = existing;
+}
+
+async function buildBoatSharedCreateData(cms: StrapiLike, documentId: string, sourceLocale: Locale, targetLocale: Locale): Promise<JsonObject> {
+  const source = await findSourceForSharedFields(cms, BOAT_UID, documentId, sourceLocale, BOAT_SHARED_SCALAR_FIELDS, {
+    cover: { fields: ["id"] },
+    images: { fields: ["id"] },
+    brand: { fields: ["documentId"] },
+    purposes: { fields: ["documentId"] },
+    home_marina: { fields: ["documentId"] },
+    extras: { fields: ["documentId"] },
+    rate_plans: { fields: ["documentId"] },
+  });
+  if (!source) return {};
+
+  const data = copyScalarFields(source, BOAT_SHARED_SCALAR_FIELDS);
+  const cover = mediaId(source.cover);
+  const images = mediaIds(source.images);
+  const ratePlans = relationLinks(source.rate_plans);
+
+  if (cover !== null) data.cover = cover;
+  if (images.length) data.images = images;
+  if (ratePlans.length) data.rate_plans = ratePlans;
+  await copyLocalizedRelation(cms, data, "brand", "api::brand.brand", source.brand, targetLocale);
+  await copyLocalizedRelation(cms, data, "home_marina", "api::location.location", source.home_marina, targetLocale);
+  await copyLocalizedRelations(cms, data, "purposes", "api::purpose.purpose", source.purposes, targetLocale);
+  await copyLocalizedRelations(cms, data, "extras", "api::extra.extra", source.extras, targetLocale);
+
+  return data;
+}
+
+async function buildExperienceSharedCreateData(cms: StrapiLike, documentId: string, sourceLocale: Locale, targetLocale: Locale): Promise<JsonObject> {
+  const source = await findSourceForSharedFields(cms, EXPERIENCE_UID, documentId, sourceLocale, EXPERIENCE_SHARED_SCALAR_FIELDS, {
+    cover: { fields: ["id"] },
+    gallery: { fields: ["id"] },
+    boat: { fields: ["documentId"] },
+  });
+  if (!source) return {};
+
+  const data = copyScalarFields(source, EXPERIENCE_SHARED_SCALAR_FIELDS);
+  const cover = mediaId(source.cover);
+  const gallery = mediaIds(source.gallery);
+
+  if (cover !== null) data.cover = cover;
+  if (gallery.length) data.gallery = gallery;
+  await copyLocalizedRelation(cms, data, "boat", BOAT_UID, source.boat, targetLocale);
+
+  return data;
+}
+
+async function buildSharedCreateData(cms: StrapiLike, uid: string, plan: LocalizationPlan, sourceLocale: Locale): Promise<JsonObject> {
+  if (plan.operation !== "CREATE_MISSING_LOCALIZATION") return {};
+  if (uid === BOAT_UID) return buildBoatSharedCreateData(cms, plan.documentId, sourceLocale, plan.locale);
+  if (uid === EXPERIENCE_UID) return buildExperienceSharedCreateData(cms, plan.documentId, sourceLocale, plan.locale);
+  return {};
+}
+
+async function syncSharedFieldsFromSource(cms: StrapiLike, uid: string, plan: LocalizationPlan, sourceLocale: Locale): Promise<void> {
+  if (plan.operation !== "CREATE_MISSING_LOCALIZATION" || !cms.plugin || !cms.contentType) return;
+
+  const contentType = cms.contentType(uid);
+  const i18nPlugin = cms.plugin("i18n");
+  const contentTypeService = i18nPlugin.service("content-types");
+  const localizationService = i18nPlugin.service("localizations");
+  if (!hasI18nContentTypeService(contentTypeService) || !hasI18nSyncService(localizationService)) return;
+
+  const sourceEntry = await cms.db.query(uid).findMany({
+    where: { documentId: plan.documentId, locale: sourceLocale },
+    populate: contentTypeService.getNestedPopulateOfNonLocalizedAttributes(uid),
+    limit: 1,
+  });
+  const source = Array.isArray(sourceEntry) ? sourceEntry[0] : null;
+  if (!source) return;
+
+  await localizationService.syncNonLocalizedAttributes(source, contentType);
+}
+
+async function writeLocalization(cms: StrapiLike, uid: string, plan: LocalizationPlan, sourceLocale: Locale): Promise<ExistingLocalization | null> {
   if (!plan.doesWrite || !Object.keys(plan.sanitizedData).length) {
     return uid === BOAT_UID
       ? findBoatRow(cms, plan.documentId, plan.locale, "draft")
       : findExperienceRow(cms, plan.documentId, plan.locale, "draft");
   }
 
+  const sourceSharedData = await buildSharedCreateData(cms, uid, plan, sourceLocale);
   await cms.documents(uid).update({
     documentId: plan.documentId,
     locale: plan.locale,
     status: "draft",
-    data: plan.sanitizedData,
+    data: {
+      ...sourceSharedData,
+      ...plan.sanitizedData,
+    },
   });
+
+  await syncSharedFieldsFromSource(cms, uid, plan, sourceLocale);
 
   return uid === BOAT_UID
     ? findBoatRow(cms, plan.documentId, plan.locale, "draft")
@@ -398,7 +614,7 @@ export function createAdminTranslationService(cms: StrapiLike) {
 
           let savedBoatDraft: ExistingLocalization | null = null;
           try {
-            savedBoatDraft = await writeLocalization(cms, BOAT_UID, freshPlan);
+            savedBoatDraft = await writeLocalization(cms, BOAT_UID, freshPlan, sourceLocale);
           } catch (error) {
             throw failureResponse({
               reason: freshPlan.operation === "CREATE_MISSING_LOCALIZATION" ? "boat_create_failed" : "boat_update_failed",
@@ -460,7 +676,7 @@ export function createAdminTranslationService(cms: StrapiLike) {
 
           let savedExperienceDraft: ExistingLocalization | null = null;
           try {
-            savedExperienceDraft = await writeLocalization(cms, EXPERIENCE_UID, freshPlan);
+            savedExperienceDraft = await writeLocalization(cms, EXPERIENCE_UID, freshPlan, sourceLocale);
           } catch (error) {
             throw failureResponse({
               reason: freshPlan.operation === "CREATE_MISSING_LOCALIZATION" ? "experience_create_failed" : "experience_update_failed",
