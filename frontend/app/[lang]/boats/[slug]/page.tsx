@@ -6,6 +6,7 @@ import { getBoatCardImage } from "@/lib/media";
 import { BoatGallery } from "@/components/boat/BoatGallery";
 import { AvailabilityCalendar } from "@/components/boat/AvailabilityCalendar";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchBoatBySlug } from "@/lib/strapi";
 import { isLang, t, type Lang } from "@/i18n";
@@ -167,7 +168,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
   if (!boat) {
-    return { title: pageCopy(lang).boatNotFound };
+    return {
+      title: pageCopy(lang).boatNotFound,
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
   }
 
   const title = boat.title ?? slug;
@@ -235,23 +242,11 @@ export default async function BoatPage({ params }: Props) {
   const strapiLocale = lang === "me" ? "sr-Latn-ME" : lang;
   const boat = await fetchBoatBySlug(slug, strapiLocale);
 
-  const heroImg = getBoatCardImage(boat);
   if (!boat) {
-    return (
-      <main className="main">
-        <div className="container">
-          <div className="detail-top">
-            <h1 className="h1">{pageCopy(lang).boatNotFound}</h1>
-            <Link className="backlink" href={`/${lang}/boats`}>
-              ← {tr.boat.back_to_list}
-            </Link>
-          </div>
-          <p className="kicker">{pageCopy(lang).slug}: {slug}</p>
-        </div>
-      </main>
-    );
+    notFound();
   }
 
+  const heroImg = getBoatCardImage(boat);
   const boatId = Number((boat as any).id ?? 0);
   const availability =
     Number.isFinite(boatId) && boatId > 0 ? await fetchAvailability(lang, boatId) : null;
