@@ -192,7 +192,7 @@ function marinaPath(lang: Lang, slug: string): string {
 
 function languageAlternates(slug: string) {
   return Object.fromEntries(
-    LANGS.map((lang) => [lang, `${SITE_URL}${marinaPath(lang, slug)}`])
+    LANGS.map((lang) => [lang === "me" ? "sr-Latn-ME" : lang, `${SITE_URL}${marinaPath(lang, slug)}`])
   );
 }
 

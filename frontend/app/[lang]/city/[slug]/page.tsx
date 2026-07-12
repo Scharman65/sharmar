@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CITIES, COUNTRIES, type CityDefinition } from "@/data/geography";
 import { MARINAS } from "@/data/marinas";
-import { RENTAL_TYPES } from "@/data/rental-types";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
@@ -21,6 +20,18 @@ type PageCopy = {
   home: string;
   mediterranean: string;
   cityNotFound: string;
+  noMarinas: string;
+  faqMarinasQuestion: string;
+  faqBoatsQuestion: string;
+  faqStructureQuestion: string;
+  faqMarinasAnswerPrefix: string;
+  faqMarinasAnswerSuffix: string;
+  faqBoatsAnswer: string;
+  faqStructureAnswerPrefix: string;
+  faqStructureAnswerSuffix: string;
+  rentMotor: string;
+  rentCatamaran: string;
+  rentSail: string;
 };
 
 function pageCopy(lang: Lang): PageCopy {
@@ -29,16 +40,28 @@ function pageCopy(lang: Lang): PageCopy {
       backToCountry: "Назад к стране",
       backToMarinas: "Назад ко всем маринам",
       cityDestination: "городское направление",
-      marinasTitle: "Марины в",
-      marinasDescription: "Статические связи марин для этого направления.",
+      marinasTitle: "Популярные марины",
+      marinasDescription: "Марины и точки отправления, связанные с этим направлением.",
       viewMarina: "Открыть марину",
-      rentTitle: "Аренда лодок в",
-      rentDescription: "Основные категории аренды, связанные с этой страницей города.",
-      faqTitle: "Частые вопросы о",
-      faqDescription: "Информация основана на опубликованных страницах марин и аренды Sharmar.",
+      rentTitle: "Какие лодки доступны",
+      rentDescription: "Основные категории аренды для этого направления.",
+      faqTitle: "Частые вопросы",
+      faqDescription: "Короткие ответы о маринах, аренде и структуре страниц Sharmar.",
       home: "Главная",
       mediterranean: "Средиземноморье",
       cityNotFound: "Город не найден | Sharmar",
+      noMarinas: "марин пока нет",
+      faqMarinasQuestion: "Какие марины доступны рядом?",
+      faqBoatsQuestion: "Какие лодки доступны?",
+      faqStructureQuestion: "Как Sharmar связывает города, марины и лодки?",
+      faqMarinasAnswerPrefix: "С этим направлением связаны",
+      faqMarinasAnswerSuffix: "Переходите на страницы марин, чтобы смотреть детали и связанные лодки.",
+      faqBoatsAnswer: "На странице доступны переходы к моторным яхтам, катамаранам и парусным яхтам. Конкретные лодки, цены и доступность проверяются в карточках объявлений.",
+      faqStructureAnswerPrefix: "Sharmar связывает",
+      faqStructureAnswerSuffix: "с релевантными маринами и категориями аренды, чтобы посетитель мог перейти от направления к конкретному объявлению.",
+      rentMotor: "Моторные яхты",
+      rentCatamaran: "Катамараны",
+      rentSail: "Парусные яхты",
     };
   }
 
@@ -47,16 +70,28 @@ function pageCopy(lang: Lang): PageCopy {
       backToCountry: "Nazad na državu",
       backToMarinas: "Nazad na sve marine",
       cityDestination: "gradska destinacija",
-      marinasTitle: "Marine u",
-      marinasDescription: "Statičke veze marina za ovu destinaciju.",
+      marinasTitle: "Popularne marine",
+      marinasDescription: "Marine i polazne tačke povezane sa ovom destinacijom.",
       viewMarina: "Otvori marinu",
-      rentTitle: "Iznajmljivanje plovila u",
-      rentDescription: "Glavne kategorije najma povezane sa ovom gradskom stranicom.",
-      faqTitle: "Česta pitanja o",
-      faqDescription: "Informacije zasnovane na objavljenim stranicama marina i najma na Sharmaru.",
+      rentTitle: "Koja plovila su dostupna",
+      rentDescription: "Glavne kategorije najma za ovu destinaciju.",
+      faqTitle: "Česta pitanja",
+      faqDescription: "Kratki odgovori o marinama, najmu i strukturi Sharmar stranica.",
       home: "Početna",
       mediterranean: "Mediteran",
       cityNotFound: "Grad nije pronađen | Sharmar",
+      noMarinas: "trenutno nema povezanih marina",
+      faqMarinasQuestion: "Koje marine su dostupne u blizini?",
+      faqBoatsQuestion: "Koja plovila su dostupna?",
+      faqStructureQuestion: "Kako Sharmar povezuje gradove, marine i plovila?",
+      faqMarinasAnswerPrefix: "Sa ovom destinacijom su povezane",
+      faqMarinasAnswerSuffix: "Otvorite stranice marina za detalje i povezana plovila.",
+      faqBoatsAnswer: "Stranica vodi ka motornim jahtama, katamaranima i jedrilicama. Konkretna plovila, cijene i dostupnost provjeravaju se na stranicama oglasa.",
+      faqStructureAnswerPrefix: "Sharmar povezuje",
+      faqStructureAnswerSuffix: "sa relevantnim marinama i kategorijama najma, kako bi posjetilac mogao preći od destinacije do konkretnog oglasa.",
+      rentMotor: "Motorne jahte",
+      rentCatamaran: "Katamarani",
+      rentSail: "Jedrilice",
     };
   }
 
@@ -64,17 +99,146 @@ function pageCopy(lang: Lang): PageCopy {
     backToCountry: "Back to country",
     backToMarinas: "Back to all marinas",
     cityDestination: "city destination",
-    marinasTitle: "Marinas in",
-    marinasDescription: "Static marina connections for this city destination.",
+    marinasTitle: "Popular marinas",
+    marinasDescription: "Marinas and departure points connected to this destination.",
     viewMarina: "View marina",
-    rentTitle: "Rent boats from",
-    rentDescription: "Explore core rental categories connected from this city page.",
-    faqTitle: "FAQs about",
-    faqDescription: "Destination details based on Sharmar's published marina and rental pages.",
+    rentTitle: "Available boat categories",
+    rentDescription: "Core rental categories for this destination.",
+    faqTitle: "FAQs",
+    faqDescription: "Short answers about marinas, rentals, and Sharmar page structure.",
     home: "Home",
     mediterranean: "Mediterranean",
     cityNotFound: "City not found | Sharmar",
+    noMarinas: "no marina pages yet",
+    faqMarinasQuestion: "Which marinas are available nearby?",
+    faqBoatsQuestion: "Which boats are available?",
+    faqStructureQuestion: "How does Sharmar connect cities, marinas, and boats?",
+    faqMarinasAnswerPrefix: "This destination is connected to",
+    faqMarinasAnswerSuffix: "Open the marina pages to review details and related boats.",
+    faqBoatsAnswer: "The page links to motor yachts, catamarans, and sailing boats. Specific boats, prices, and availability are checked on individual listing pages.",
+    faqStructureAnswerPrefix: "Sharmar connects",
+    faqStructureAnswerSuffix: "with relevant marinas and rental categories, so visitors can move from a destination to a specific listing.",
+    rentMotor: "Motor yachts",
+    rentCatamaran: "Catamarans",
+    rentSail: "Sailing boats",
   };
+}
+
+type CityLocaleText = {
+  displayName: string;
+  placeName: string;
+  title: string;
+  description: string;
+  seoTitle: string;
+  seoDescription: string;
+};
+
+const CITY_NAMES: Record<
+  string,
+  {
+    ru: { display: string; place: string };
+    me: { display: string; place: string };
+  }
+> = {
+  tivat: { ru: { display: "Тиват", place: "Тивате" }, me: { display: "Tivat", place: "Tivtu" } },
+  budva: { ru: { display: "Будва", place: "Будве" }, me: { display: "Budva", place: "Budvi" } },
+  kotor: { ru: { display: "Котор", place: "Которе" }, me: { display: "Kotor", place: "Kotoru" } },
+  bar: { ru: { display: "Бар", place: "Баре" }, me: { display: "Bar", place: "Baru" } },
+  "herceg-novi": {
+    ru: { display: "Херцег-Нови", place: "Херцег-Нови" },
+    me: { display: "Herceg Novi", place: "Herceg Novom" },
+  },
+  dubrovnik: { ru: { display: "Дубровник", place: "Дубровнике" }, me: { display: "Dubrovnik", place: "Dubrovniku" } },
+  split: { ru: { display: "Сплит", place: "Сплите" }, me: { display: "Split", place: "Splitu" } },
+  athens: { ru: { display: "Афины", place: "Афинах" }, me: { display: "Atina", place: "Atini" } },
+  mykonos: { ru: { display: "Миконос", place: "Миконосе" }, me: { display: "Mikonos", place: "Mikonosu" } },
+  santorini: { ru: { display: "Санторини", place: "Санторини" }, me: { display: "Santorini", place: "Santoriniju" } },
+  corfu: { ru: { display: "Корфу", place: "Корфу" }, me: { display: "Krf", place: "Krfu" } },
+  rhodes: { ru: { display: "Родос", place: "Родосе" }, me: { display: "Rodos", place: "Rodosu" } },
+};
+
+const COUNTRY_NAMES: Record<string, { ru: string; me: string }> = {
+  montenegro: { ru: "Черногория", me: "Crna Gora" },
+  croatia: { ru: "Хорватия", me: "Hrvatska" },
+  greece: { ru: "Греция", me: "Grčka" },
+};
+
+function localizedCountryName(slug: string, fallback: string, lang: Lang): string {
+  if (lang === "ru") return COUNTRY_NAMES[slug]?.ru ?? fallback;
+  if (lang === "me") return COUNTRY_NAMES[slug]?.me ?? fallback;
+  return fallback;
+}
+
+function localizedCityDisplayName(cityTitle: string, lang: Lang): string {
+  const city = CITIES.find((item) => item.title === cityTitle);
+  if (!city) return cityTitle;
+  if (lang === "ru") return CITY_NAMES[city.slug]?.ru.display ?? cityTitle;
+  if (lang === "me") return CITY_NAMES[city.slug]?.me.display ?? cityTitle;
+  return cityTitle;
+}
+
+function cityLocaleText(city: CityDefinition, lang: Lang): CityLocaleText {
+  if (lang === "ru") {
+    const name = CITY_NAMES[city.slug]?.ru ?? { display: city.title, place: city.title };
+    return {
+      displayName: name.display,
+      placeName: name.place,
+      title: `Аренда яхт и марины в ${name.place}`,
+      description: `${name.display} — направление Sharmar для аренды яхт, прогулок на лодках и перехода к связанным маринам.`,
+      seoTitle: `Аренда яхт в ${name.place} | Sharmar`,
+      seoDescription: `Смотрите аренду моторных яхт, катамаранов и парусных яхт в ${name.place}, а также связанные марины и маршруты Sharmar.`,
+    };
+  }
+
+  if (lang === "me") {
+    const name = CITY_NAMES[city.slug]?.me ?? { display: city.title, place: city.title };
+    return {
+      displayName: name.display,
+      placeName: name.place,
+      title: `Najam jahti i marine u ${name.place}`,
+      description: `${name.display} je Sharmar destinacija za najam jahti, ture brodom i povezane marine.`,
+      seoTitle: `Najam jahti u ${name.place} | Sharmar`,
+      seoDescription: `Pogledajte najam motornih jahti, katamarana i jedrilica u ${name.place}, uz povezane marine i Sharmar rute.`,
+    };
+  }
+
+  return {
+    displayName: city.title,
+    placeName: city.title,
+    title: `Yacht rentals and marinas in ${city.title}`,
+    description: city.description,
+    seoTitle: city.seoTitle,
+    seoDescription: city.seoDescription,
+  };
+}
+
+function localizedRegion(region: string, lang: Lang): string {
+  if (lang === "ru") {
+    if (region === "Adriatic Sea") return "Адриатическое море";
+    if (region === "Bay of Kotor") return "Бока-Которская бухта";
+  }
+
+  if (lang === "me") {
+    if (region === "Adriatic Sea") return "Jadransko more";
+    if (region === "Bay of Kotor") return "Boka Kotorska";
+  }
+
+  return region;
+}
+
+function localizedMarinaDescription(
+  marina: (typeof MARINAS)[number],
+  lang: Lang
+): string {
+  if (lang === "ru") {
+    return `${marina.title} — марина в направлении ${localizedCityDisplayName(marina.city, lang)} для аренды яхт, катамаранов и морских прогулок.`;
+  }
+
+  if (lang === "me") {
+    return `${marina.title} je marina u destinaciji ${localizedCityDisplayName(marina.city, lang)} za najam jahti, katamarane i ture brodom.`;
+  }
+
+  return marina.description;
 }
 
 type Props = {
@@ -94,16 +258,20 @@ function cityPath(lang: Lang, slug: string): string {
 
 function languageAlternates(slug: string) {
   return Object.fromEntries(
-    LANGS.map((lang) => [lang, `${SITE_URL}${cityPath(lang, slug)}`])
+    LANGS.map((lang) => [lang === "me" ? "sr-Latn-ME" : lang, `${SITE_URL}${cityPath(lang, slug)}`])
   );
 }
 
-function formatTitleList(items: string[], emptyText: string): string {
+function formatTitleList(items: string[], emptyText: string, lang: Lang): string {
   if (items.length === 0) return emptyText;
   if (items.length === 1) return items[0];
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  if (items.length === 2) {
+    const joiner = lang === "ru" ? " и " : lang === "me" ? " i " : " and ";
+    return `${items[0]}${joiner}${items[1]}`;
+  }
 
-  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+  const lastJoiner = lang === "ru" ? " и " : lang === "me" ? " i " : ", and ";
+  return `${items.slice(0, -1).join(", ")}${lastJoiner}${items[items.length - 1]}`;
 }
 
 export function generateStaticParams() {
@@ -119,18 +287,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: rawLang, slug } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
   const city = getCity(slug);
+  const copy = pageCopy(lang);
 
   if (!city) {
     return {
-      title: pageCopy(lang).cityNotFound,
+      title: copy.cityNotFound,
     };
   }
 
+  const cityText = cityLocaleText(city, lang);
   const canonical = `${SITE_URL}${cityPath(lang, city.slug)}`;
 
   return {
-    title: city.seoTitle,
-    description: city.seoDescription,
+    title: cityText.seoTitle,
+    description: cityText.seoDescription,
     alternates: {
       canonical,
       languages: {
@@ -139,8 +309,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     },
     openGraph: {
-      title: city.seoTitle,
-      description: city.seoDescription,
+      title: cityText.seoTitle,
+      description: cityText.seoDescription,
       url: canonical,
       siteName: "Sharmar",
       type: "website",
@@ -155,40 +325,46 @@ export default async function CityPage({ params }: Props) {
 
   if (!city) notFound();
 
+  const copy = pageCopy(lang);
+  const cityText = cityLocaleText(city, lang);
   const country = COUNTRIES.find((item) => item.slug === city.countrySlug);
+  const countryTitle = country
+    ? localizedCountryName(country.slug, country.title, lang)
+    : localizedCountryName(city.countrySlug, city.countrySlug, lang);
   const marinas = MARINAS.filter((marina) => city.marinaSlugs.includes(marina.slug));
   const cityUrl = absoluteSiteUrl(cityPath(lang, city.slug));
   const marinaList = formatTitleList(
     marinas.map((marina) => marina.title),
-    `no marina pages for ${city.title}`
+    copy.noMarinas,
+    lang
   );
   const faqItems = [
     {
-      question: `Which marinas are listed in ${city.title}?`,
-      answer: `The marina pages connected to ${city.title} are ${marinaList}, based on Sharmar's static destination data.`,
+      question: copy.faqMarinasQuestion,
+      answer: `${copy.faqMarinasAnswerPrefix} ${marinaList}. ${copy.faqMarinasAnswerSuffix}`,
     },
     {
-      question: `Can I browse yacht rentals from ${city.title}?`,
-      answer: `Yes. This city page links to Sharmar rental categories for motor yachts, catamarans, and sailing boats. Boat inventory, prices, and availability should be checked on individual boat pages when listings are shown.`,
+      question: copy.faqBoatsQuestion,
+      answer: copy.faqBoatsAnswer,
     },
     {
-      question: "How does Sharmar connect city, marina, and boat pages?",
-      answer: `Sharmar links ${city.title} to its related marina pages, then keeps marina information and individual boat pages separate so destination browsing stays distinct from boat listing details.`,
+      question: copy.faqStructureQuestion,
+      answer: `${copy.faqStructureAnswerPrefix} ${cityText.displayName} ${copy.faqStructureAnswerSuffix}`,
     },
   ];
   const jsonLd = [
     webPageJsonLd({
       url: cityUrl,
-      name: city.seoTitle,
-      description: city.seoDescription,
+      name: cityText.seoTitle,
+      description: cityText.seoDescription,
     }),
     breadcrumbJsonLd([
-      { name: pageCopy(lang).home, url: absoluteSiteUrl(`/${lang}`) },
+      { name: copy.home, url: absoluteSiteUrl(`/${lang}`) },
       {
-        name: country?.title ?? city.countrySlug,
+        name: countryTitle,
         url: absoluteSiteUrl(`/${lang}/country/${country?.slug ?? city.countrySlug}`),
       },
-      { name: city.title, url: cityUrl },
+      { name: cityText.displayName, url: cityUrl },
     ]),
     itemListJsonLd(
       marinas.map((marina) => ({
@@ -199,10 +375,9 @@ export default async function CityPage({ params }: Props) {
     faqJsonLd(faqItems),
   ];
   const rentLinks = [
-    ...RENTAL_TYPES.map((rentalType) => ({
-      href: `/${lang}/city/${city.slug}/rent/${rentalType.slug}`,
-      label: rentalType.pluralTitle,
-    })),
+    { href: `/${lang}/city/${city.slug}/rent/motor`, label: copy.rentMotor },
+    { href: `/${lang}/city/${city.slug}/rent/catamaran`, label: copy.rentCatamaran },
+    { href: `/${lang}/city/${city.slug}/rent/sail`, label: copy.rentSail },
   ];
 
   return (
@@ -217,33 +392,33 @@ export default async function CityPage({ params }: Props) {
       <div className="container geo-page">
         {country ? (
           <Link className="backlink" href={`/${lang}/country/${country.slug}`}>
-            {pageCopy(lang).backToCountry} {country.title}
+            {copy.backToCountry} {countryTitle}
           </Link>
         ) : (
           <Link className="backlink" href={`/${lang}/marinas`}>
-            {pageCopy(lang).backToMarinas}
+            {copy.backToMarinas}
           </Link>
         )}
 
         <section className="geo-hero">
-          <p className="kicker">{country?.title ?? pageCopy(lang).mediterranean} {pageCopy(lang).cityDestination}</p>
-          <h1>{city.title} yacht rentals and marinas</h1>
-          <p>{city.description}</p>
+          <p className="kicker">{countryTitle} {copy.cityDestination}</p>
+          <h1>{cityText.title}</h1>
+          <p>{cityText.description}</p>
         </section>
 
         <section className="geo-section" aria-labelledby="city-marinas-title">
           <div className="geo-section-head">
-            <h2 id="city-marinas-title">{pageCopy(lang).marinasTitle} {city.title}</h2>
-            <p>{pageCopy(lang).marinasDescription}</p>
+            <h2 id="city-marinas-title">{copy.marinasTitle}</h2>
+            <p>{copy.marinasDescription}</p>
           </div>
 
           <div className="geo-grid">
             {marinas.map((marina) => (
               <Link key={marina.slug} className="geo-card" href={`/${lang}/marina/${marina.slug}`}>
-                <p className="kicker">{marina.region}</p>
+                <p className="kicker">{localizedRegion(marina.region, lang)}</p>
                 <h3>{marina.title}</h3>
-                <p>{marina.description}</p>
-                <span>{pageCopy(lang).viewMarina}</span>
+                <p>{localizedMarinaDescription(marina, lang)}</p>
+                <span>{copy.viewMarina}</span>
               </Link>
             ))}
           </div>
@@ -251,8 +426,8 @@ export default async function CityPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="city-rent-title">
           <div className="geo-section-head">
-            <h2 id="city-rent-title">{pageCopy(lang).rentTitle} {city.title}</h2>
-            <p>{pageCopy(lang).rentDescription}</p>
+            <h2 id="city-rent-title">{copy.rentTitle}</h2>
+            <p>{copy.rentDescription}</p>
           </div>
 
           <div className="rent-grid">
@@ -266,8 +441,8 @@ export default async function CityPage({ params }: Props) {
 
         <section className="geo-section" aria-labelledby="city-faq-title">
           <div className="geo-section-head">
-            <h2 id="city-faq-title">{pageCopy(lang).faqTitle} {city.title}</h2>
-            <p>{pageCopy(lang).faqDescription}</p>
+            <h2 id="city-faq-title">{copy.faqTitle}</h2>
+            <p>{copy.faqDescription}</p>
           </div>
 
           <div className="geo-faq-grid">

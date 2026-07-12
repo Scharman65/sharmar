@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Metadata } from "next";
 import { fetchBoats, fetchLocations, type Boat } from "@/lib/strapi";
-import { isLang, t, formatCount, type Lang } from "@/i18n";
+import { absoluteLocalizedUrl, isLang, languageAlternates, t, formatCount, type Lang } from "@/i18n";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -70,10 +70,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 
   const isEmpty = baseBoats.length === 0;
+  const title = `${tr.nav.rent} · ${catamaranLabel}`;
+  const canonical = absoluteLocalizedUrl(lang, "rent/catamaran");
 
   return {
-    title: `${tr.nav.rent} · ${catamaranLabel}`,
+    title,
     description: tr.boats.subtitle,
+    alternates: {
+      canonical,
+      languages: languageAlternates("rent/catamaran"),
+    },
+    openGraph: {
+      title,
+      description: tr.boats.subtitle,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
     robots: isEmpty ? { index: false, follow: true } : { index: true, follow: true },
   };
 }

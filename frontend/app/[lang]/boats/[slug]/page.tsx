@@ -12,6 +12,7 @@ import { isLang, t, type Lang } from "@/i18n";
 import { fetchAvailability } from "@/lib/availability";
 import { applyMarketplaceFee } from "@/lib/pricing";
 import { MARINAS } from "@/data/marinas";
+import { SITE_URL } from "@/lib/seo-jsonld";
 
 type PageCopy = {
   boatNotFound: string;
@@ -172,8 +173,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = boat.title ?? slug;
   const description =
     (boat.description ?? "").trim() || t(lang).boats.no_description;
+  const canonical = `${SITE_URL}/${lang}/boats/${encodeURIComponent(slug)}`;
 
-  return { title, description };
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
+  };
 }
 
 export default async function BoatPage({ params }: Props) {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { fetchBoats } from "@/lib/strapi";
-import { isLang, t, formatCount, type Lang } from "@/i18n";
+import { absoluteLocalizedUrl, isLang, languageAlternates, t, formatCount, type Lang } from "@/i18n";
 import Link from "next/link";
 import Image from "next/image";
 import { DemoBoatOverlay } from "@/components/boat/DemoBoatOverlay";
@@ -17,9 +17,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
+  const canonical = absoluteLocalizedUrl(lang, "rent/sail");
   return {
     title: `${tr.nav.rent} · ${tr.nav.sail}`,
     description: tr.boats.subtitle,
+    alternates: {
+      canonical,
+      languages: languageAlternates("rent/sail"),
+    },
+    openGraph: {
+      title: `${tr.nav.rent} · ${tr.nav.sail}`,
+      description: tr.boats.subtitle,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
   };
 }
 

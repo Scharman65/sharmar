@@ -244,14 +244,51 @@ function money(value: number, currency: string): string {
   }
 }
 
-function formatDuration(hours: number): string {
-  if (!hours) return "—";
-  const wholeHours = Math.floor(hours);
-  const minutes = Math.round((hours - wholeHours) * 60);
+function formatHourCount(value: number, lang: Lang): string {
+  if (lang === "ru") {
+    const abs = Math.abs(value);
+    const mod10 = abs % 10;
+    const mod100 = abs % 100;
+    const unit = mod10 === 1 && mod100 !== 11 ? "час" : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? "часа" : "часов";
+    return `${value} ${unit}`;
+  }
 
-  if (minutes === 0) return `${wholeHours} ${wholeHours === 1 ? "hour" : "hours"}`;
-  if (wholeHours === 0) return `${minutes} minutes`;
-  return `${wholeHours}h ${minutes}m`;
+  if (lang === "me") {
+    const abs = Math.abs(value);
+    const mod10 = abs % 10;
+    const mod100 = abs % 100;
+    const unit = mod10 === 1 && mod100 !== 11 ? "sat" : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? "sata" : "sati";
+    return `${value} ${unit}`;
+  }
+
+  return `${value} ${value === 1 ? "hour" : "hours"}`;
+}
+
+function formatMinuteCount(value: number, lang: Lang): string {
+  if (lang === "ru") {
+    const abs = Math.abs(value);
+    const mod10 = abs % 10;
+    const mod100 = abs % 100;
+    const unit = mod10 === 1 && mod100 !== 11 ? "минута" : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? "минуты" : "минут";
+    return `${value} ${unit}`;
+  }
+
+  if (lang === "me") {
+    return `${value} min`;
+  }
+
+  return `${value} ${value === 1 ? "minute" : "minutes"}`;
+}
+
+function formatDuration(hours: number, lang: Lang): string {
+  if (!hours) return "—";
+  const totalMinutes = Math.round(hours * 60);
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (minutes === 0) return formatHourCount(wholeHours, lang);
+  if (wholeHours === 0) return formatMinuteCount(minutes, lang);
+  return `${formatHourCount(wholeHours, lang)} ${formatMinuteCount(minutes, lang)}`;
 }
 
 function genPublicToken(): string {
@@ -543,7 +580,7 @@ export default function RequestPage() {
     { label: copy.summaryDate, value: date || "—" },
     { label: copy.summaryTimeFrom, value: timeFrom || "—" },
     { label: copy.summaryTimeTo, value: timeTo || "—" },
-    { label: copy.summaryDuration, value: hasExperience && Number.isFinite(experienceDuration) && experienceDuration > 0 ? formatDuration(experienceDuration) : hours ? formatDuration(hours) : "—" },
+    { label: copy.summaryDuration, value: hasExperience && Number.isFinite(experienceDuration) && experienceDuration > 0 ? formatDuration(experienceDuration, lang) : hours ? formatDuration(hours, lang) : "—" },
     { label: copy.summaryPeople, value: Number.isFinite(peopleCount) && peopleCount > 0 ? String(peopleCount) : "—" },
     ...(needSkipper ? [{ label: copy.summarySkipper, value: copy.summarySkipperRequested }] : []),
   ];
@@ -754,7 +791,7 @@ export default function RequestPage() {
                 </div>
                 <div>
                   <span>{copy.summaryDuration}</span>
-                  <b>{hours ? formatDuration(hours) : "—"}</b>
+                  <b>{hours ? formatDuration(hours, lang) : "—"}</b>
                 </div>
                 <div>
                   <span>{copy.serviceFee}</span>
