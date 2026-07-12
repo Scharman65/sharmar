@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { isLang, type Lang } from "@/i18n";
+import type { Metadata } from "next";
+import { absoluteLocalizedUrl, isLang, languageAlternates, type Lang } from "@/i18n";
 
 type Props = {
   params: Promise<{ lang: string }>;
@@ -8,6 +9,8 @@ type Props = {
 const copy = {
   en: {
     title: "How Sharmar works",
+    description:
+      "Learn how Sharmar yacht discovery and booking requests work, from browsing yachts to owner confirmation and booking completion.",
     intro:
       "Sharmar is a yacht discovery and booking request platform. Guests can browse yachts, check available dates, send a reservation request, and wait for owner confirmation before a booking is finalized.",
     sections: [
@@ -43,6 +46,8 @@ const copy = {
   },
   ru: {
     title: "Как работает Sharmar",
+    description:
+      "Узнайте, как работает поиск яхт и отправка заявок на бронирование в Sharmar: от выбора яхты до подтверждения владельцем.",
     intro:
       "Sharmar — это платформа для поиска яхт и отправки заявок на бронирование. Гости могут смотреть яхты, проверять доступные даты, отправлять заявку и ждать подтверждения владельца.",
     sections: [
@@ -78,6 +83,8 @@ const copy = {
   },
   me: {
     title: "Kako Sharmar funkcioniše",
+    description:
+      "Saznajte kako funkcionišu pretraga jahti i zahtjevi za rezervaciju na Sharmar platformi, od izbora jahte do potvrde vlasnika.",
     intro:
       "Sharmar je platforma za pronalaženje jahti i slanje zahtjeva za rezervaciju. Gosti mogu pregledati jahte, provjeriti dostupne datume, poslati zahtjev i sačekati potvrdu vlasnika.",
     sections: [
@@ -112,6 +119,29 @@ const copy = {
     back: "Nazad na početnu",
   },
 };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { lang: rawLang } = await params;
+  const lang: Lang = isLang(rawLang) ? rawLang : "en";
+  const ui = copy[lang];
+  const canonical = absoluteLocalizedUrl(lang, "how-it-works");
+
+  return {
+    title: ui.title,
+    description: ui.description,
+    alternates: {
+      canonical,
+      languages: languageAlternates("how-it-works"),
+    },
+    openGraph: {
+      title: ui.title,
+      description: ui.description,
+      url: canonical,
+      siteName: "Sharmar",
+      type: "website",
+    },
+  };
+}
 
 export default async function HowItWorksPage({ params }: Props) {
   const { lang: rawLang } = await params;
