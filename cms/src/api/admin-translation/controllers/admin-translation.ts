@@ -1,10 +1,20 @@
+import { timingSafeEqual } from "node:crypto";
+
 const SAVE_DRAFT_REASONS = new Set([
+  "blocked",
   "boat_create_failed",
   "boat_update_failed",
   "experience_create_failed",
   "experience_update_failed",
-  "missing_locale_create_not_supported",
+  "duplicate_risk",
+  "invalid_result",
 ]);
+
+function tokensMatch(requestToken: string, configuredToken: string): boolean {
+  const request = Buffer.from(requestToken);
+  const configured = Buffer.from(configuredToken);
+  return request.length === configured.length && timingSafeEqual(request, configured);
+}
 
 function safeErrorReason(error): string {
   const reason = typeof error?.reason === "string" ? error.reason : "unknown";
@@ -29,7 +39,7 @@ export default {
     }
 
     const requestToken = String(ctx.request.headers["x-admin-translation-token"] || "").trim();
-    if (requestToken !== configuredToken) {
+    if (!tokensMatch(requestToken, configuredToken)) {
       ctx.status = 401;
       ctx.body = { ok: false, code: "unauthorized" };
       return;

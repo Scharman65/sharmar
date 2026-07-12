@@ -2,64 +2,55 @@ import { NextRequest, NextResponse } from "next/server";
 
 type JsonObject = Record<string, unknown>;
 type Locale = "ru" | "en" | "sr-Latn-ME";
-type PlannerAction = "create-draft-locale" | "update-existing-draft" | "blocked-overwrite-required";
+type ContentType = "boat" | "experience";
+type Operation =
+  | "UPDATE_EXISTING_DRAFT"
+  | "CREATE_MISSING_LOCALIZATION"
+  | "NO_CHANGES"
+  | "BLOCKED_ALREADY_PUBLISHED"
+  | "BLOCKED_INVALID_DOCUMENT"
+  | "BLOCKED_UNSUPPORTED_LOCALE"
+  | "BLOCKED_DUPLICATE_RISK"
+  | "BLOCKED_FORBIDDEN_FIELDS";
+
 type ExistingRow = {
   id: number | null;
   documentId: string | null;
   locale: string | null;
   publishedAt: string | null;
-  title: string | null;
-  slug: string | null;
+  title?: string | null;
   description?: string | null;
   short_description?: string | null;
   full_description?: string | null;
   included_services?: string | null;
   meeting_point?: string | null;
-  boatDocumentId?: string | null;
-  boatLocale?: string | null;
-};
-type FieldPlan = {
-  field: string;
-  status: "would-write" | "would-skip" | "blocked-overwrite-required";
-  existingValuePresent: boolean;
-};
-type BoatPlan = {
-  documentId: string;
-  locale: Locale;
-  action: PlannerAction;
-  draftExists: boolean;
-  publishedExists: boolean;
-  draftId: number | null;
-  publishedId: number | null;
-  fieldsToWrite: string[];
-  fieldsSkipped: string[];
-  fieldPlans: FieldPlan[];
-  blocked: boolean;
-  warnings: string[];
-  draftSlugPlan: string | null;
-};
-type ExperiencePlan = {
-  documentId: string;
-  locale: Locale;
-  action: PlannerAction;
-  draftExists: boolean;
-  publishedExists: boolean;
-  draftId: number | null;
-  publishedId: number | null;
-  fieldsToWrite: string[];
-  fieldsSkipped: string[];
-  fieldPlans: FieldPlan[];
-  relationPlan: "connect-to-target-locale-boat-draft-later" | "relation-already-correct" | "target-boat-draft-missing";
-  draftSlugPlan: string | null;
-  blocked: boolean;
-  warnings: string[];
 };
 
-const ALL_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
+type DraftPlan = {
+  contentType: ContentType;
+  documentId: string;
+  locale: Locale;
+  operation: Operation;
+  action: Operation;
+  draftExists: boolean;
+  publishedExists: boolean;
+  draftId: number | null;
+  publishedId: number | null;
+  fieldsToWrite: string[];
+  fieldsSkipped: string[];
+  fieldPlans: Array<{ field: string; status: "would-write" | "would-skip" | "blocked-forbidden"; existingValuePresent: boolean }>;
+  blocked: boolean;
+  warnings: string[];
+  sanitizedData: JsonObject;
+  doesWrite: boolean;
+  doesPublish: false;
+};
+
+const ALL_LOCALES: Locale[] = ["en", "ru", "sr-Latn-ME"];
 const BOAT_ALLOWED_FIELDS = ["title", "description"] as const;
 const EXPERIENCE_ALLOWED_FIELDS = ["title", "short_description", "full_description", "included_services", "meeting_point"] as const;
-const BOAT_SKIPPED_FIELDS = ["publishedAt", "owner_user_id", "media", "pricing"];
-const EXPERIENCE_SKIPPED_FIELDS = ["publishedAt", "price", "currency", "duration_hours", "media"];
+const BOAT_SKIPPED_FIELDS = ["slug", "publishedAt", "owner", "media", "pricing", "marina", "brand", "extras", "purposes", "booking fields"];
+const EXPERIENCE_SKIPPED_FIELDS = ["slug", "publishedAt", "price", "currency", "duration_hours", "media", "boat"];
 
 function getStrapiBase(): string {
   return (
@@ -86,7 +77,7 @@ function isWriteEnabled(): boolean {
 }
 
 function isRecord(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asString(value: unknown): string | null {
@@ -99,17 +90,13 @@ function asNumber(value: unknown): number | null {
 }
 
 function asLocale(value: unknown): Locale | null {
-  return value === "ru" || value === "en" || value === "sr-Latn-ME" ? value : null;
+  return value === "en" || value === "ru" || value === "sr-Latn-ME" ? value : null;
 }
 
 function asLocaleArray(value: unknown): Locale[] | null {
   if (!Array.isArray(value)) return null;
   const locales = value.map(asLocale).filter((item): item is Locale => item !== null);
   return locales.length ? Array.from(new Set(locales)) : null;
-}
-
-function normalizeText(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function meaningfulText(value: unknown): string | null {
@@ -119,46 +106,12 @@ function meaningfulText(value: unknown): string | null {
   return trimmed;
 }
 
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function valuesDiffer(existingValue: unknown, plannedValue: unknown): boolean {
   return normalizeText(existingValue) !== normalizeText(plannedValue);
-}
-
-function slugifyLatin(input: string | null | undefined, fallback: string): string {
-  const base = (input || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-
-  return base || fallback;
-}
-
-function localeLabel(locale: Locale): string {
-  return locale === "sr-Latn-ME" ? "me" : locale;
-}
-
-function draftSlug(title: string | null | undefined, documentId: string, locale: Locale): string {
-  const shortDocumentId = documentId.slice(0, 8).toLowerCase();
-  const core = slugifyLatin(title, `route-${shortDocumentId}-${localeLabel(locale)}`);
-  return `${core}-${localeLabel(locale)}-${shortDocumentId}`
-    .replaceAll("-en-en-", "-en-")
-    .replaceAll("-me-me-", "-me-")
-    .replaceAll("-ru-ru-", "-ru-");
-}
-
-function boatDraftSlug(title: string | null | undefined, documentId: string, locale: Locale): string {
-  const shortDocumentId = documentId.slice(0, 8).toLowerCase();
-  const core = slugifyLatin(title, `boat-${shortDocumentId}-${localeLabel(locale)}`);
-  return `${core}-${localeLabel(locale)}-${shortDocumentId}`
-    .replaceAll("-en-en-", "-en-")
-    .replaceAll("-me-me-", "-me-")
-    .replaceAll("-ru-ru-", "-ru-");
-}
-
-function withQuery(path: string, params: string[]): string {
-  return `${path}?${params.join("&")}`;
 }
 
 function getAttributes(item: unknown): JsonObject | null {
@@ -167,11 +120,8 @@ function getAttributes(item: unknown): JsonObject | null {
   return { ...item, ...attrs };
 }
 
-function relationAttributes(value: unknown): JsonObject | null {
-  const row = getAttributes(value);
-  if (!row) return null;
-  const data = getAttributes(row.data);
-  return data ?? row;
+function withQuery(path: string, params: string[]): string {
+  return `${path}?${params.join("&")}`;
 }
 
 async function strapiGet(path: string): Promise<{ ok: boolean; status: number; json: unknown }> {
@@ -226,259 +176,183 @@ function shapeExistingRow(row: JsonObject | null): ExistingRow | null {
     locale: asString(row.locale),
     publishedAt: asString(row.publishedAt),
     title: asString(row.title),
-    slug: asString(row.slug),
     description: asString(row.description),
     short_description: asString(row.short_description),
     full_description: asString(row.full_description),
     included_services: asString(row.included_services),
     meeting_point: asString(row.meeting_point),
-    boatDocumentId: asString(relationAttributes(row.boat)?.documentId),
-    boatLocale: asString(relationAttributes(row.boat)?.locale),
   };
 }
 
-async function fetchBoatRow(documentId: string, locale: Locale, status: "draft" | "published"): Promise<ExistingRow | null> {
-  const params = [
-    `locale=${encodeURIComponent(locale)}`,
-    `status=${status}`,
-    "fields[0]=title",
-    "fields[1]=description",
-    "fields[2]=slug",
-    "fields[3]=documentId",
-    "fields[4]=locale",
-    "fields[5]=publishedAt",
-  ];
-
-  const documentRes = await strapiGet(withQuery(`/api/boats/${encodeURIComponent(documentId)}`, params));
-  const documentRow = shapeExistingRow(getAttributes(isRecord(documentRes.json) ? documentRes.json.data : null));
-  if (documentRes.ok && documentRow?.documentId === documentId) return documentRow;
-
-  const collectionRes = await strapiGet(withQuery("/api/boats", [
-    `filters[documentId][$eq]=${encodeURIComponent(documentId)}`,
-    ...params,
-    "pagination[pageSize]=5",
-  ]));
-  const rows = isRecord(collectionRes.json) && Array.isArray(collectionRes.json.data) ? collectionRes.json.data : [];
-  for (const item of rows) {
-    const row = shapeExistingRow(getAttributes(item));
-    if (row?.documentId === documentId) return row;
-  }
-
-  return null;
-}
-
-async function fetchExperienceRow(documentId: string, locale: Locale, status: "draft" | "published"): Promise<ExistingRow | null> {
+async function fetchRows(contentType: ContentType, documentId: string, locale: Locale, status: "draft" | "published"): Promise<ExistingRow[]> {
+  const path = contentType === "boat" ? "/api/boats" : "/api/experiences";
+  const fields = contentType === "boat"
+    ? ["id", "documentId", "locale", "publishedAt", "title", "description"]
+    : ["id", "documentId", "locale", "publishedAt", "title", "short_description", "full_description", "included_services", "meeting_point"];
   const params = [
     `filters[documentId][$eq]=${encodeURIComponent(documentId)}`,
     `locale=${encodeURIComponent(locale)}`,
     `status=${status}`,
-    "fields[0]=title",
-    "fields[1]=slug",
-    "fields[2]=short_description",
-    "fields[3]=full_description",
-    "fields[4]=included_services",
-    "fields[5]=meeting_point",
-    "fields[6]=documentId",
-    "fields[7]=locale",
-    "fields[8]=publishedAt",
-    "populate[boat][fields][0]=id",
-    "populate[boat][fields][1]=documentId",
-    "populate[boat][fields][2]=locale",
-    "pagination[pageSize]=5",
+    "pagination[pageSize]=10",
+    ...fields.map((field, index) => `fields[${index}]=${field}`),
   ];
-
-  const res = await strapiGet(withQuery("/api/experiences", params));
+  const res = await strapiGet(withQuery(path, params));
   const rows = isRecord(res.json) && Array.isArray(res.json.data) ? res.json.data : [];
-  for (const item of rows) {
-    const row = shapeExistingRow(getAttributes(item));
-    if (row?.documentId === documentId) return row;
+  return rows
+    .map((item) => shapeExistingRow(getAttributes(item)))
+    .filter((row): row is ExistingRow => row !== null && row.documentId === documentId && row.locale === locale);
+}
+
+async function sourceExists(contentType: ContentType, documentId: string, locale: Locale): Promise<boolean> {
+  const [draftRows, publishedRows] = await Promise.all([
+    fetchRows(contentType, documentId, locale, "draft"),
+    fetchRows(contentType, documentId, locale, "published"),
+  ]);
+  return draftRows.length > 0 || publishedRows.length > 0;
+}
+
+function blockedPlan(params: {
+  contentType: ContentType;
+  documentId: string;
+  targetLocale: Locale;
+  operation: Operation;
+  draftRows: ExistingRow[];
+  publishedRows: ExistingRow[];
+  warnings: string[];
+  fieldPlans?: DraftPlan["fieldPlans"];
+}): DraftPlan {
+  return {
+    contentType: params.contentType,
+    documentId: params.documentId,
+    locale: params.targetLocale,
+    operation: params.operation,
+    action: params.operation,
+    draftExists: params.draftRows.length > 0,
+    publishedExists: params.publishedRows.length > 0,
+    draftId: params.draftRows.length === 1 ? params.draftRows[0].id : null,
+    publishedId: params.publishedRows.length === 1 ? params.publishedRows[0].id : null,
+    fieldsToWrite: [],
+    fieldsSkipped: params.contentType === "boat" ? BOAT_SKIPPED_FIELDS : EXPERIENCE_SKIPPED_FIELDS,
+    fieldPlans: params.fieldPlans ?? [],
+    blocked: true,
+    warnings: params.warnings,
+    sanitizedData: {},
+    doesWrite: false,
+    doesPublish: false,
+  };
+}
+
+function planFields(params: {
+  contentType: ContentType;
+  documentId: string;
+  sourceLocale: Locale;
+  targetLocale: Locale;
+  sourceExists: boolean;
+  draftRows: ExistingRow[];
+  publishedRows: ExistingRow[];
+  translation: JsonObject;
+}): DraftPlan {
+  const allowed = params.contentType === "boat" ? BOAT_ALLOWED_FIELDS : EXPERIENCE_ALLOWED_FIELDS;
+  const skipped = params.contentType === "boat" ? BOAT_SKIPPED_FIELDS : EXPERIENCE_SKIPPED_FIELDS;
+  const allowedSet = new Set<string>(allowed);
+  const draft = params.draftRows.length === 1 ? params.draftRows[0] : null;
+  const forbiddenFields = Object.keys(params.translation).filter((field) => !allowedSet.has(field));
+
+  if (params.sourceLocale === params.targetLocale || !ALL_LOCALES.includes(params.sourceLocale) || !ALL_LOCALES.includes(params.targetLocale)) {
+    return blockedPlan({ ...params, operation: "BLOCKED_UNSUPPORTED_LOCALE", warnings: ["Source and target locale must be supported and different."] });
+  }
+  if (!params.sourceExists) {
+    return blockedPlan({ ...params, operation: "BLOCKED_INVALID_DOCUMENT", warnings: ["Source document localization was not found."] });
+  }
+  if (params.draftRows.length > 1 || params.publishedRows.length > 1) {
+    return blockedPlan({ ...params, operation: "BLOCKED_DUPLICATE_RISK", warnings: ["More than one target localization row was found."] });
+  }
+  if (params.publishedRows.length) {
+    return blockedPlan({ ...params, operation: "BLOCKED_ALREADY_PUBLISHED", warnings: ["Target locale is already published and will not be changed."] });
+  }
+  if (forbiddenFields.length) {
+    return blockedPlan({
+      ...params,
+      operation: "BLOCKED_FORBIDDEN_FIELDS",
+      warnings: [`Forbidden fields in translation payload: ${forbiddenFields.sort().join(", ")}`],
+      fieldPlans: forbiddenFields.sort().map((field) => ({ field, status: "blocked-forbidden", existingValuePresent: false })),
+    });
+  }
+  if (!draft && !meaningfulText(params.translation.title)) {
+    return blockedPlan({ ...params, operation: "BLOCKED_INVALID_DOCUMENT", warnings: ["Title is required to create a missing draft localization."] });
   }
 
-  return null;
-}
-
-async function experienceSlugExists(slug: string, locale: Locale, sourceDocumentId: string): Promise<boolean> {
-  const res = await strapiGet(withQuery("/api/experiences", [
-    `filters[slug][$eq]=${encodeURIComponent(slug)}`,
-    `locale=${encodeURIComponent(locale)}`,
-    "status=draft",
-    "fields[0]=documentId",
-    "fields[1]=slug",
-    "pagination[pageSize]=5",
-  ]));
-  const rows = isRecord(res.json) && Array.isArray(res.json.data) ? res.json.data : [];
-  return rows.some((item) => {
-    const row = getAttributes(item);
-    return row && asString(row.slug) === slug && asString(row.documentId) !== sourceDocumentId;
-  });
-}
-
-async function findSourceBoatSlug(documentId: string, sourceLocale: Locale): Promise<string | null> {
-  const draft = await fetchBoatRow(documentId, sourceLocale, "draft");
-  if (draft?.slug) return draft.slug;
-
-  const published = await fetchBoatRow(documentId, sourceLocale, "published");
-  return published?.slug ?? null;
-}
-
-function planFields(
-  allowedFields: readonly string[],
-  existingDraft: ExistingRow | null,
-  translation: JsonObject,
-  overwrite: boolean
-): { fieldsToWrite: string[]; fieldPlans: FieldPlan[]; blocked: boolean } {
   const fieldsToWrite: string[] = [];
-  const fieldPlans: FieldPlan[] = [];
-  let blocked = false;
-
-  for (const field of allowedFields) {
-    const plannedValue = translation[field];
-    if (!meaningfulText(plannedValue)) continue;
-    const existingValue = existingDraft ? existingDraft[field as keyof ExistingRow] : null;
+  const fieldPlans: DraftPlan["fieldPlans"] = [];
+  const sanitizedData: JsonObject = {};
+  for (const field of allowed) {
+    const value = meaningfulText(params.translation[field]);
+    if (value === null) continue;
+    const existingValue = draft ? draft[field as keyof ExistingRow] : null;
     const existingValuePresent = normalizeText(existingValue).length > 0;
-
-    if (existingDraft && existingValuePresent && !overwrite) {
-      fieldPlans.push({ field, status: "would-skip", existingValuePresent });
-      continue;
-    }
-
-    if (!existingDraft || !existingValuePresent || valuesDiffer(existingValue, plannedValue)) {
+    if (!draft || valuesDiffer(existingValue, value)) {
       fieldsToWrite.push(field);
+      sanitizedData[field] = value;
       fieldPlans.push({ field, status: "would-write", existingValuePresent });
     } else {
       fieldPlans.push({ field, status: "would-skip", existingValuePresent });
     }
   }
 
-  return { fieldsToWrite, fieldPlans, blocked };
-}
-
-function targetBoatDraftAvailable(plan: BoatPlan | undefined): boolean {
-  return Boolean(plan && !plan.blocked && (
-    plan.draftExists ||
-    plan.fieldsToWrite.length > 0 ||
-    plan.draftSlugPlan
-  ));
-}
-
-function planRouteRelation(
-  draft: ExistingRow | null,
-  targetBoatPlan: BoatPlan | undefined,
-  locale: Locale
-): ExperiencePlan["relationPlan"] {
-  if (
-    targetBoatPlan &&
-    draft?.boatDocumentId === targetBoatPlan.documentId &&
-    draft?.boatLocale === locale
-  ) {
-    return "relation-already-correct";
-  }
-
-  return targetBoatDraftAvailable(targetBoatPlan)
-    ? "connect-to-target-locale-boat-draft-later"
-    : "target-boat-draft-missing";
-}
-
-async function planBoatLocale(params: {
-  documentId: string;
-  locale: Locale;
-  sourceLocale: Locale;
-  translation: JsonObject;
-  overwrite: boolean;
-}): Promise<BoatPlan> {
-  const [draft, published] = await Promise.all([
-    fetchBoatRow(params.documentId, params.locale, "draft"),
-    fetchBoatRow(params.documentId, params.locale, "published"),
-  ]);
-  const fieldPlan = planFields(BOAT_ALLOWED_FIELDS, draft, params.translation, params.overwrite);
-  const warnings: string[] = [];
-  let slugPlan: string | null = null;
-  if (published) warnings.push("Published version exists and will not be changed.");
-  if (!draft && !meaningfulText(params.translation.title)) {
-    fieldPlan.blocked = true;
-    warnings.push("Missing title for new boat draft locale.");
-  }
-  if (!draft?.slug) {
-    slugPlan = await findSourceBoatSlug(params.documentId, params.sourceLocale)
-      ?? boatDraftSlug(meaningfulText(params.translation.title), params.documentId, params.locale);
-    fieldPlan.fieldsToWrite.push("slug");
-    fieldPlan.fieldPlans.push({ field: "slug", status: "would-write", existingValuePresent: false });
-  }
+  const operation: Operation = fieldsToWrite.length
+    ? draft ? "UPDATE_EXISTING_DRAFT" : "CREATE_MISSING_LOCALIZATION"
+    : "NO_CHANGES";
 
   return {
+    contentType: params.contentType,
     documentId: params.documentId,
-    locale: params.locale,
-    action: fieldPlan.blocked ? "blocked-overwrite-required" : draft ? "update-existing-draft" : "create-draft-locale",
+    locale: params.targetLocale,
+    operation,
+    action: operation,
     draftExists: Boolean(draft),
-    publishedExists: Boolean(published),
+    publishedExists: false,
     draftId: draft?.id ?? null,
-    publishedId: published?.id ?? null,
-    fieldsToWrite: Array.from(new Set(fieldPlan.fieldsToWrite)),
-    fieldsSkipped: BOAT_SKIPPED_FIELDS,
-    fieldPlans: fieldPlan.fieldPlans,
-    blocked: fieldPlan.blocked,
-    warnings,
-    draftSlugPlan: slugPlan,
+    publishedId: null,
+    fieldsToWrite,
+    fieldsSkipped: skipped,
+    fieldPlans,
+    blocked: false,
+    warnings: operation === "NO_CHANGES" ? ["No draft field changes were detected."] : [],
+    sanitizedData,
+    doesWrite: operation === "UPDATE_EXISTING_DRAFT" || operation === "CREATE_MISSING_LOCALIZATION",
+    doesPublish: false,
   };
 }
 
-async function planExperienceLocale(params: {
-  documentId: string;
-  locale: Locale;
-  translation: JsonObject;
-  overwrite: boolean;
-  targetBoatPlan: BoatPlan | undefined;
-}): Promise<ExperiencePlan> {
-  const [draft, published] = await Promise.all([
-    fetchExperienceRow(params.documentId, params.locale, "draft"),
-    fetchExperienceRow(params.documentId, params.locale, "published"),
+async function planLocalization(contentType: ContentType, documentId: string, sourceLocale: Locale, targetLocale: Locale, translation: JsonObject): Promise<DraftPlan> {
+  const [draftRows, publishedRows, hasSource] = await Promise.all([
+    fetchRows(contentType, documentId, targetLocale, "draft"),
+    fetchRows(contentType, documentId, targetLocale, "published"),
+    sourceExists(contentType, documentId, sourceLocale),
   ]);
-  const fieldPlan = planFields(EXPERIENCE_ALLOWED_FIELDS, draft, params.translation, params.overwrite);
-  const warnings: string[] = [];
-  let slugPlan: string | null = null;
+  return planFields({ contentType, documentId, sourceLocale, targetLocale, sourceExists: hasSource, draftRows, publishedRows, translation });
+}
 
-  if (published) warnings.push("Published version exists and will not be changed.");
-  if (params.targetBoatPlan && !params.targetBoatPlan.draftExists) {
-    warnings.push("Target boat draft locale is missing; route relation depends on creating that boat draft first.");
-  }
-  if (!draft && !meaningfulText(params.translation.title)) {
-    fieldPlan.blocked = true;
-    warnings.push("Missing title for new route draft locale.");
-  }
+function pickTranslation(source: unknown, locale: Locale): JsonObject {
+  return isRecord(source) && isRecord(source[locale]) ? source[locale] as JsonObject : {};
+}
 
-  const existingSlugPresent = Boolean(draft?.slug);
-  if (!existingSlugPresent) {
-    slugPlan = draftSlug(meaningfulText(params.translation.title), params.documentId, params.locale);
-    fieldPlan.fieldsToWrite.push("slug");
-    const collision = await experienceSlugExists(slugPlan, params.locale, params.documentId);
-    if (collision) {
-      fieldPlan.blocked = true;
-      warnings.push(`Draft slug collision must be resolved before write: ${slugPlan}`);
-    }
-  }
+function localeLabel(locale: Locale): string {
+  return locale === "sr-Latn-ME" ? "me" : locale;
+}
 
-  const relationPlan = planRouteRelation(draft, params.targetBoatPlan, params.locale);
-  if (relationPlan === "target-boat-draft-missing") {
-    fieldPlan.blocked = true;
-    warnings.push("Target boat draft locale is missing and is not planned for creation.");
-  }
+function aggregateBlockers(boatPlans: DraftPlan[], experiencePlans: DraftPlan[]): string[] {
+  return [
+    ...boatPlans.filter((plan) => plan.blocked).map((plan) => `Boat ${localeLabel(plan.locale)}: ${plan.operation}`),
+    ...experiencePlans.filter((plan) => plan.blocked).map((plan) => `Route ${plan.documentId} ${localeLabel(plan.locale)}: ${plan.operation}`),
+  ];
+}
 
-  return {
-    documentId: params.documentId,
-    locale: params.locale,
-    action: fieldPlan.blocked ? "blocked-overwrite-required" : draft ? "update-existing-draft" : "create-draft-locale",
-    draftExists: Boolean(draft),
-    publishedExists: Boolean(published),
-    draftId: draft?.id ?? null,
-    publishedId: published?.id ?? null,
-    fieldsToWrite: Array.from(new Set(fieldPlan.fieldsToWrite)),
-    fieldsSkipped: EXPERIENCE_SKIPPED_FIELDS,
-    fieldPlans: fieldPlan.fieldPlans,
-    relationPlan,
-    draftSlugPlan: slugPlan,
-    blocked: fieldPlan.blocked,
-    warnings,
-  };
+function aggregateWarnings(boatPlans: DraftPlan[], experiencePlans: DraftPlan[]): string[] {
+  return [
+    ...boatPlans.flatMap((plan) => plan.warnings.map((warning) => `Boat ${localeLabel(plan.locale)}: ${warning}`)),
+    ...experiencePlans.flatMap((plan) => plan.warnings.map((warning) => `Route ${plan.documentId} ${localeLabel(plan.locale)}: ${warning}`)),
+  ];
 }
 
 export async function POST(req: NextRequest) {
@@ -566,7 +440,6 @@ export async function POST(req: NextRequest) {
   const boatDocumentId = asString(body.boatDocumentId);
   const sourceLocale = asLocale(body.sourceLocale);
   const targetLocales = asLocaleArray(body.targetLocales);
-  const overwrite = body.overwrite === true;
   const aiPreview = isRecord(body.aiPreview) ? body.aiPreview : null;
   const aiBoat = aiPreview && isRecord(aiPreview.boat) ? aiPreview.boat : null;
   const aiBoatTranslations = aiBoat && isRecord(aiBoat.translations) ? aiBoat.translations : null;
@@ -580,21 +453,19 @@ export async function POST(req: NextRequest) {
   }
 
   const safeTargetLocales = targetLocales.filter((locale) => ALL_LOCALES.includes(locale) && locale !== sourceLocale);
+  if (!safeTargetLocales.length) {
+    return NextResponse.json(
+      { ok: false, code: "target_locales_required" },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
 
   try {
-    const boatPlans = await Promise.all(safeTargetLocales.map((locale) => {
-      const translation = aiBoatTranslations[locale];
-      return planBoatLocale({
-        documentId: boatDocumentId,
-        locale,
-        sourceLocale,
-        translation: isRecord(translation) ? translation : {},
-        overwrite,
-      });
-    }));
-    const boatPlanByLocale = new Map(boatPlans.map((plan) => [plan.locale, plan]));
+    const boatPlans = await Promise.all(safeTargetLocales.map((locale) => (
+      planLocalization("boat", boatDocumentId, sourceLocale, locale, pickTranslation(aiBoatTranslations, locale))
+    )));
 
-    const experiencePlans: ExperiencePlan[] = [];
+    const experiencePlans: DraftPlan[] = [];
     for (const item of aiExperiences) {
       if (!isRecord(item)) continue;
       const experienceDocumentId = asString(item.sourceDocumentId);
@@ -602,38 +473,29 @@ export async function POST(req: NextRequest) {
       if (!experienceDocumentId || !translations) continue;
 
       for (const locale of safeTargetLocales) {
-        const translation = translations[locale];
-        experiencePlans.push(await planExperienceLocale({
-          documentId: experienceDocumentId,
+        experiencePlans.push(await planLocalization(
+          "experience",
+          experienceDocumentId,
+          sourceLocale,
           locale,
-          translation: isRecord(translation) ? translation : {},
-          overwrite,
-          targetBoatPlan: boatPlanByLocale.get(locale),
-        }));
+          pickTranslation(translations, locale)
+        ));
       }
     }
-
-    const blockers = [
-      ...boatPlans.filter((plan) => plan.blocked).map((plan) => `Boat ${localeLabel(plan.locale)} requires overwrite approval.`),
-      ...experiencePlans.filter((plan) => plan.blocked).map((plan) => `Route ${plan.documentId} ${localeLabel(plan.locale)} requires overwrite approval.`),
-    ];
-    const warnings = [
-      ...boatPlans.flatMap((plan) => plan.warnings.map((warning) => `Boat ${localeLabel(plan.locale)}: ${warning}`)),
-      ...experiencePlans.flatMap((plan) => plan.warnings.map((warning) => `Route ${plan.documentId} ${localeLabel(plan.locale)}: ${warning}`)),
-    ];
 
     return NextResponse.json(
       {
         ok: true,
         mode: "dry-run",
         doesWrite: false,
+        doesPublish: false,
         boatDocumentId,
         sourceLocale,
         targetLocales: safeTargetLocales,
         boat: boatPlans,
         experiences: experiencePlans,
-        blockers,
-        warnings,
+        blockers: aggregateBlockers(boatPlans, experiencePlans),
+        warnings: aggregateWarnings(boatPlans, experiencePlans),
       },
       { headers: { "cache-control": "no-store" } }
     );

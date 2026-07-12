@@ -57,6 +57,37 @@ type PreviewResponse = {
   };
 };
 
+type SaveDraftPlan = {
+  contentType?: string;
+  documentId?: string | null;
+  locale?: string | null;
+  operation?: string | null;
+  action?: string | null;
+  draftExists?: boolean;
+  publishedExists?: boolean;
+  fieldsToWrite?: string[];
+  fieldsSkipped?: string[];
+  blocked?: boolean;
+  warnings?: string[];
+};
+
+type SaveDraftResponse = {
+  ok?: boolean;
+  code?: string;
+  mode?: string;
+  doesWrite?: boolean;
+  doesPublish?: boolean;
+  boatDocumentId?: string | null;
+  sourceLocale?: string | null;
+  targetLocales?: string[];
+  boat?: SaveDraftPlan[];
+  experiences?: SaveDraftPlan[];
+  blockers?: string[];
+  warnings?: string[];
+  written?: string[];
+  skipped?: string[];
+};
+
 type Copy = {
   title: string;
   warning: string;
@@ -72,6 +103,14 @@ type Copy = {
   loading: string;
   sourcePayload: string;
   aiResult: string;
+  draftPlan: string;
+  dryRunButton: string;
+  saveDraftButton: string;
+  confirmSave: string;
+  draftOnlyNotice: string;
+  changedFields: string;
+  blockers: string;
+  saveResult: string;
   sourceTitle: string;
   sourceDescription: string;
   routeCount: string;
@@ -114,6 +153,14 @@ const copy: Record<Lang, Copy> = {
     loading: "Загрузка...",
     sourcePayload: "Исходные данные",
     aiResult: "AI preview",
+    draftPlan: "План сохранения draft",
+    dryRunButton: "Dry-run сохранения draft",
+    saveDraftButton: "Сохранить draft-переводы",
+    confirmSave: "Подтверждаю, что эта операция должна сохранить только draft-переводы.",
+    draftOnlyNotice: "Save-draft никогда не публикует контент. Он только создаёт или обновляет draft-локализации.",
+    changedFields: "Поля для записи",
+    blockers: "Блокеры",
+    saveResult: "Результат сохранения",
     sourceTitle: "Заголовок",
     sourceDescription: "Описание",
     routeCount: "Маршрутов",
@@ -151,6 +198,12 @@ const copy: Record<Lang, Copy> = {
       openai_request_failed: "Запрос к OpenAI не выполнен.",
       ai_translation_invalid_response: "AI вернул некорректный JSON.",
       unknown: "Неизвестная ошибка.",
+      invalid_save_mode: "Некорректный режим сохранения.",
+      invalid_dry_run_payload: "Недостаточно данных для dry-run.",
+      write_not_enabled: "Сохранение draft отключено в окружении.",
+      admin_translation_internal_token_missing: "ADMIN_TRANSLATION_INTERNAL_TOKEN не настроен.",
+      strapi_save_draft_failed: "Strapi save-draft не выполнен.",
+      save_draft_failed: "Сохранение draft не выполнено.",
     },
   },
   en: {
@@ -168,6 +221,14 @@ const copy: Record<Lang, Copy> = {
     loading: "Loading...",
     sourcePayload: "Source payload",
     aiResult: "AI preview",
+    draftPlan: "Draft save plan",
+    dryRunButton: "Dry-run save draft",
+    saveDraftButton: "Save draft translations",
+    confirmSave: "I confirm this write must save draft translations only.",
+    draftOnlyNotice: "Save-draft never publishes content. It only creates or updates draft localizations.",
+    changedFields: "Fields to write",
+    blockers: "Blockers",
+    saveResult: "Save result",
     sourceTitle: "Title",
     sourceDescription: "Description",
     routeCount: "Routes",
@@ -205,6 +266,12 @@ const copy: Record<Lang, Copy> = {
       openai_request_failed: "OpenAI request failed.",
       ai_translation_invalid_response: "AI returned invalid JSON.",
       unknown: "Unknown error.",
+      invalid_save_mode: "Invalid save mode.",
+      invalid_dry_run_payload: "Not enough data for dry-run.",
+      write_not_enabled: "Draft saving is disabled in the environment.",
+      admin_translation_internal_token_missing: "ADMIN_TRANSLATION_INTERNAL_TOKEN is not configured.",
+      strapi_save_draft_failed: "Strapi save-draft failed.",
+      save_draft_failed: "Draft save failed.",
     },
   },
   me: {
@@ -222,6 +289,14 @@ const copy: Record<Lang, Copy> = {
     loading: "Učitavanje...",
     sourcePayload: "Izvorni podaci",
     aiResult: "AI preview",
+    draftPlan: "Plan čuvanja drafta",
+    dryRunButton: "Dry-run čuvanja drafta",
+    saveDraftButton: "Sačuvaj draft prevode",
+    confirmSave: "Potvrđujem da ovaj upis smije sačuvati samo draft prevode.",
+    draftOnlyNotice: "Save-draft nikada ne objavljuje sadržaj. Samo kreira ili ažurira draft lokalizacije.",
+    changedFields: "Polja za upis",
+    blockers: "Blokade",
+    saveResult: "Rezultat čuvanja",
     sourceTitle: "Naslov",
     sourceDescription: "Opis",
     routeCount: "Ruta",
@@ -259,6 +334,12 @@ const copy: Record<Lang, Copy> = {
       openai_request_failed: "OpenAI zahtjev nije uspio.",
       ai_translation_invalid_response: "AI je vratio neispravan JSON.",
       unknown: "Nepoznata greška.",
+      invalid_save_mode: "Neispravan režim čuvanja.",
+      invalid_dry_run_payload: "Nema dovoljno podataka za dry-run.",
+      write_not_enabled: "Čuvanje drafta je isključeno u okruženju.",
+      admin_translation_internal_token_missing: "ADMIN_TRANSLATION_INTERNAL_TOKEN nije podešen.",
+      strapi_save_draft_failed: "Strapi save-draft nije uspio.",
+      save_draft_failed: "Čuvanje drafta nije uspjelo.",
     },
   },
 };
@@ -328,12 +409,15 @@ function LocaleTranslation({
 export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) {
   const ui = copy[lang];
   const [adminToken, setAdminToken] = useState("");
-  const [boatDocumentId, setBoatDocumentId] = useState("c3sj1g144tsjzaua10sejoeu");
+  const [boatDocumentId, setBoatDocumentId] = useState("");
   const [sourceLocale, setSourceLocale] = useState<StrapiLocale>("ru");
   const [generateAi, setGenerateAi] = useState(false);
   const [response, setResponse] = useState<PreviewResponse | null>(null);
+  const [saveDraftResponse, setSaveDraftResponse] = useState<SaveDraftResponse | null>(null);
+  const [confirmSaveDraft, setConfirmSaveDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
 
   const targetLocales = useMemo<StrapiLocale[]>(
     () => targetLocalesForSource(sourceLocale),
@@ -344,6 +428,8 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
     setLoading(true);
     setError(null);
     setResponse(null);
+    setSaveDraftResponse(null);
+    setConfirmSaveDraft(false);
 
     try {
       const res = await fetch("/api/admin/translations/preview", {
@@ -378,10 +464,49 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
     void submit(generateAi);
   }
 
+  async function runSaveDraft(dryRun: boolean) {
+    if (!response?.aiPreview) return;
+    if (!dryRun && !confirmSaveDraft) {
+      setError(ui.confirmSave);
+      return;
+    }
+    if (!dryRun && !window.confirm(ui.confirmSave)) return;
+
+    setSaveLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/admin/translations/save-draft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+        body: JSON.stringify({
+          dryRun,
+          confirmSaveDraft: !dryRun,
+          overwrite: false,
+          boatDocumentId: boatDocumentId.trim(),
+          sourceLocale,
+          targetLocales,
+          aiPreview: response.aiPreview,
+        }),
+      });
+      const data: SaveDraftResponse = await res.json().catch(() => ({ ok: false, code: "unknown" }));
+      setSaveDraftResponse(data);
+      if (!res.ok || data.ok === false) setError(errorMessage(ui, data.code));
+    } catch {
+      setError(errorMessage(ui, "unknown"));
+    } finally {
+      setSaveLoading(false);
+    }
+  }
+
   const routes = response?.experiences ?? [];
   const aiRoutes = response?.aiPreview?.experiences ?? [];
   const warnings = response?.warnings ?? [];
   const previewTargetLocales = response?.aiPreview?.targetLocales ?? response?.targetLocales ?? [];
+  const saveBlocked = Boolean(saveDraftResponse?.blockers?.length) || Boolean(saveDraftResponse?.boat?.some((plan) => plan.blocked)) || Boolean(saveDraftResponse?.experiences?.some((plan) => plan.blocked));
 
   return (
     <div className="admin-translation-shell">
@@ -565,6 +690,75 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         </section>
       ) : null}
 
+      {response?.aiPreview ? (
+        <section className="admin-translation-card">
+          <h2>{ui.draftPlan}</h2>
+          <p className="admin-translation-muted">{ui.draftOnlyNotice}</p>
+          <div className="admin-translation-actions">
+            <button type="button" onClick={() => void runSaveDraft(true)} disabled={saveLoading}>
+              {saveLoading ? ui.loading : ui.dryRunButton}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runSaveDraft(false)}
+              disabled={saveLoading || !confirmSaveDraft || saveBlocked}
+            >
+              {saveLoading ? ui.loading : ui.saveDraftButton}
+            </button>
+          </div>
+          <label className="admin-translation-confirm">
+            <input
+              type="checkbox"
+              checked={confirmSaveDraft}
+              onChange={(event) => setConfirmSaveDraft(event.target.checked)}
+            />
+            {ui.confirmSave}
+          </label>
+
+          {saveDraftResponse ? (
+            <div className="admin-translation-results">
+              <h3 className="admin-translation-section-title">{ui.saveResult}</h3>
+              <dl className="admin-translation-meta">
+                <TextBlock label="mode" value={saveDraftResponse.mode} />
+                <TextBlock label="write" value={saveDraftResponse.doesWrite ? "YES" : "NO"} />
+                <TextBlock label="publish" value={saveDraftResponse.doesPublish ? "YES" : "NO"} />
+                <TextBlock label={ui.labels.sourceLocale} value={saveDraftResponse.sourceLocale} />
+              </dl>
+
+              <div className="admin-translation-grid">
+                {(saveDraftResponse.boat ?? []).map((plan) => (
+                  <section className="admin-translation-panel" key={`save-boat-${plan.locale}`}>
+                    <h3>{localeBoatTitle(lang, plan.locale ?? "")}</h3>
+                    <TextBlock label="operation" value={plan.operation ?? plan.action} />
+                    <TextBlock label={ui.changedFields} value={plan.fieldsToWrite?.length ? plan.fieldsToWrite.join(", ") : "-"} />
+                    <TextBlock label="blocked" value={plan.blocked ? "YES" : "NO"} />
+                    <TextBlock label={ui.warningTitle} value={plan.warnings?.length ? plan.warnings.join(" ") : "-"} />
+                  </section>
+                ))}
+                {(saveDraftResponse.experiences ?? []).map((plan, index) => (
+                  <section className="admin-translation-panel" key={`save-route-${plan.documentId ?? index}-${plan.locale}`}>
+                    <h3>{localeLabel(plan.locale ?? "")} route</h3>
+                    <TextBlock label={ui.labels.documentId} value={plan.documentId} />
+                    <TextBlock label="operation" value={plan.operation ?? plan.action} />
+                    <TextBlock label={ui.changedFields} value={plan.fieldsToWrite?.length ? plan.fieldsToWrite.join(", ") : "-"} />
+                    <TextBlock label="blocked" value={plan.blocked ? "YES" : "NO"} />
+                  </section>
+                ))}
+              </div>
+
+              <div className={saveDraftResponse.blockers?.length ? "admin-translation-warning" : "admin-translation-muted"}>
+                <strong>{ui.blockers}</strong>
+                {saveDraftResponse.blockers?.length ? (
+                  saveDraftResponse.blockers.map((blocker, index) => <span key={`${blocker}-${index}`}>{blocker}</span>)
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <style jsx>{`
         .admin-translation-shell {
           display: grid;
@@ -623,10 +817,17 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
 
         .admin-translation-targets label,
         .admin-translation-targets p,
-        .admin-translation-mode label {
+        .admin-translation-mode label,
+        .admin-translation-confirm {
           display: flex;
           align-items: center;
           gap: 8px;
+        }
+
+        .admin-translation-confirm {
+          margin-top: 12px;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 13px;
         }
 
         .admin-translation-targets p {
@@ -635,7 +836,8 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         }
 
         .admin-translation-targets input,
-        .admin-translation-mode input {
+        .admin-translation-mode input,
+        .admin-translation-confirm input {
           width: auto;
         }
 
