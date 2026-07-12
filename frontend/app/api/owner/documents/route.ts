@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OWNER_SESSION_COOKIE_NAME } from "../../auth/owner-session/cookies";
+import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 type DocumentType = "passport" | "identity" | "license";
@@ -135,9 +136,9 @@ function validateFile(file: File): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  const userJwt = getBearerToken(req);
-  if (!userJwt) {
-    return jsonResponse({ ok: false, error: "Missing owner session" }, 401);
+  const ownerAuth = await getFreshOwnerAuth(req);
+  if (!ownerAuth.ok) {
+    return jsonResponse({ ok: false, error: ownerAuth.code }, ownerAuth.status);
   }
 
   const serverToken = getServerToken();
@@ -145,13 +146,7 @@ export async function POST(req: NextRequest) {
     return jsonResponse({ ok: false, error: "Server STRAPI_TOKEN is not configured" }, 500);
   }
 
-  const me = await strapiJson("/api/users/me", userJwt);
-  const authenticatedUserId =
-    me.ok && isRecord(me.json) && typeof me.json.id === "number" ? me.json.id : null;
-
-  if (!authenticatedUserId) {
-    return jsonResponse({ ok: false, error: "User authentication failed" }, 401);
-  }
+  const authenticatedUserId = ownerAuth.auth.owner.id;
 
   let formData: FormData;
   try {

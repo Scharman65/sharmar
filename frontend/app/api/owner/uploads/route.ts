@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 
@@ -137,19 +138,14 @@ function validateFiles(files: File[]): { ok: true } | { ok: false; error: string
 }
 
 export async function POST(req: NextRequest) {
-  const userJwt = getBearerToken(req);
-  if (!userJwt) {
-    return jsonResponse({ ok: false, error: "Missing Authorization Bearer token" }, 401);
+  const ownerAuth = await getFreshOwnerAuth(req);
+  if (!ownerAuth.ok) {
+    return jsonResponse({ ok: false, error: ownerAuth.code }, ownerAuth.status);
   }
 
   const serverToken = getServerToken();
   if (!serverToken) {
     return jsonResponse({ ok: false, error: "Server STRAPI_TOKEN is not configured" }, 500);
-  }
-
-  const me = await strapiJson("/api/users/me", userJwt);
-  if (!me.ok || !isRecord(me.json) || typeof me.json.id !== "number") {
-    return jsonResponse({ ok: false, error: "User authentication failed" }, 401);
   }
 
   let formData: FormData;

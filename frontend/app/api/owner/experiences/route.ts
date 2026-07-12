@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 
@@ -311,13 +312,14 @@ async function countBoatExperiences(
 }
 
 export async function GET(req: NextRequest) {
-  const ownerRes = await getOwner(req);
-  if (!ownerRes.ok) {
+  const freshAuth = await getFreshOwnerAuth(req);
+  if (!freshAuth.ok) {
     return NextResponse.json(
-      { ok: false, error: ownerRes.error },
-      { status: ownerRes.status, headers: { "cache-control": "no-store" } }
+      { ok: false, error: freshAuth.code },
+      { status: freshAuth.status, headers: { "cache-control": "no-store" } }
     );
   }
+  const ownerRes = { ok: true as const, userJwt: freshAuth.auth.userJwt, owner: freshAuth.auth.owner };
 
   const serverToken = getServerToken();
   if (!serverToken) {
@@ -398,13 +400,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const ownerRes = await getOwner(req);
-  if (!ownerRes.ok) {
+  const freshAuth = await getFreshOwnerAuth(req);
+  if (!freshAuth.ok) {
     return NextResponse.json(
-      { ok: false, error: ownerRes.error },
-      { status: ownerRes.status, headers: { "cache-control": "no-store" } }
+      { ok: false, error: freshAuth.code },
+      { status: freshAuth.status, headers: { "cache-control": "no-store" } }
     );
   }
+  const ownerRes = { ok: true as const, userJwt: freshAuth.auth.userJwt, owner: freshAuth.auth.owner };
 
   const serverToken = getServerToken();
   if (!serverToken) {

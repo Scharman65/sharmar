@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 
@@ -387,28 +388,15 @@ function buildOwnerCalendarEvents(
 }
 
 export async function GET(req: NextRequest) {
-  const userJwt = getBearerToken(req);
-
-  if (!userJwt) {
+  const ownerAuth = await getFreshOwnerAuth(req);
+  if (!ownerAuth.ok) {
     return NextResponse.json(
-      { ok: false, error: "Missing Authorization Bearer token" },
-      { status: 401, headers: { "cache-control": "no-store" } }
+      { ok: false, error: ownerAuth.code },
+      { status: ownerAuth.status, headers: { "cache-control": "no-store" } }
     );
   }
 
-  const me = await strapiJson("/api/users/me", userJwt);
-
-  if (!me.ok || !isRecord(me.json) || typeof me.json.email !== "string") {
-    return NextResponse.json(
-      { ok: false, error: "User authentication failed" },
-      { status: 401, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  const ownerId =
-    typeof me.json.id === "number"
-      ? me.json.id
-      : Number(me.json.id || 0);
+  const ownerId = ownerAuth.auth.owner.id;
 
   const serverToken = getServerToken();
 
@@ -470,9 +458,9 @@ export async function GET(req: NextRequest) {
     {
       ok: true,
       owner: {
-        id: typeof me.json.id === "number" ? me.json.id : null,
-        username: typeof me.json.username === "string" ? me.json.username : null,
-        email: typeof me.json.email === "string" ? me.json.email : null,
+        id: ownerAuth.auth.owner.id,
+        username: ownerAuth.auth.owner.username,
+        email: ownerAuth.auth.owner.email,
       },
       ownerProfile,
       ownerDocumentStatus: buildOwnerDocumentStatus(ownerProfile),

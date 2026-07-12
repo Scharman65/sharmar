@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedOwner as getFreshOwnerAuth, isRecord, strapiFetchJson as ownerStrapiFetchJson } from "@/lib/auth/ownerApi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +55,16 @@ async function proxyJson(path: string, init?: RequestInit) {
   }
 }
 
+async function ownerOwnsBoat(req: NextRequest, boatId: string): Promise<boolean> {
+  const auth = await getFreshOwnerAuth(req);
+  if (!auth.ok) return false;
+  const token = getServerToken();
+  if (!token) return false;
+  const res = await ownerStrapiFetchJson(`/api/owner/boats-by-user?user_id=${auth.auth.owner.id}`, { method: "GET" }, token);
+  const boats = isRecord(res.json) && Array.isArray(res.json.boats) ? res.json.boats : [];
+  return boats.some((boat) => isRecord(boat) && String(boat.id) === String(boatId));
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const boatId = url.searchParams.get("boat_id") || "";
@@ -67,6 +78,10 @@ export async function GET(req: NextRequest) {
     return json(400, { ok: false, error: "boat_id_or_token_required" });
   }
 
+  if (boatId && !(await ownerOwnsBoat(req, boatId))) {
+    return json(403, { ok: false, error: "boat_not_found_for_owner" });
+  }
+
   return proxyJson(`/api/owner/blackouts?${qs.toString()}`);
 }
 
@@ -77,6 +92,15 @@ export async function POST(req: NextRequest) {
     body = await req.json();
   } catch {
     return json(400, { ok: false, error: "invalid_json" });
+  }
+
+  const boatId = isRecord(body) ? String(body.boat_id || "").trim() : "";
+  const token = isRecord(body) ? String(body.token || "").trim() : "";
+  if (boatId && !(await ownerOwnsBoat(req, boatId))) {
+    return json(403, { ok: false, error: "boat_not_found_for_owner" });
+  }
+  if (!boatId && !token) {
+    return json(400, { ok: false, error: "boat_id_or_token_required" });
   }
 
   return proxyJson("/api/owner/blackouts", {

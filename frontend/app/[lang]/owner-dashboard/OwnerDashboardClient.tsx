@@ -57,6 +57,21 @@ type DashboardCopy = {
   documentUploadSuccess: string;
   documentUploadFailed: string;
   chooseFile: string;
+  profile: string;
+  saveProfile: string;
+  profileSaved: string;
+  security: string;
+  currentPassword: string;
+  newPassword: string;
+  repeatPassword: string;
+  changePassword: string;
+  passwordChanged: string;
+  passwordRequirements: string;
+  moderationStatus: string;
+  adminComment: string;
+  submitForReview: string;
+  resubmitForReview: string;
+  submittedForReview: string;
 };
 
 function pageCopy(lang: string): DashboardCopy {
@@ -111,6 +126,21 @@ function pageCopy(lang: string): DashboardCopy {
       documentUploadSuccess: "Документ загружен.",
       documentUploadFailed: "Не удалось загрузить документ.",
       chooseFile: "Выберите файл",
+      profile: "Профиль",
+      saveProfile: "Сохранить профиль",
+      profileSaved: "Профиль сохранён.",
+      security: "Безопасность",
+      currentPassword: "Текущий пароль",
+      newPassword: "Новый пароль",
+      repeatPassword: "Повторите пароль",
+      changePassword: "Сменить пароль",
+      passwordChanged: "Пароль изменён. Войдите заново.",
+      passwordRequirements: "Минимум 10 символов, строчные и заглавные буквы, цифра.",
+      moderationStatus: "Статус проверки",
+      adminComment: "Комментарий администратора",
+      submitForReview: "Отправить на проверку",
+      resubmitForReview: "Отправить повторно",
+      submittedForReview: "Отправлено на проверку.",
     };
   }
 
@@ -165,6 +195,21 @@ function pageCopy(lang: string): DashboardCopy {
       documentUploadSuccess: "Dokument je učitan.",
       documentUploadFailed: "Dokument nije učitan.",
       chooseFile: "Izaberite fajl",
+      profile: "Profil",
+      saveProfile: "Sačuvaj profil",
+      profileSaved: "Profil je sačuvan.",
+      security: "Sigurnost",
+      currentPassword: "Trenutna lozinka",
+      newPassword: "Nova lozinka",
+      repeatPassword: "Ponovite lozinku",
+      changePassword: "Promijeni lozinku",
+      passwordChanged: "Lozinka je promijenjena. Prijavite se ponovo.",
+      passwordRequirements: "Najmanje 10 znakova, mala i velika slova i broj.",
+      moderationStatus: "Status provjere",
+      adminComment: "Komentar administratora",
+      submitForReview: "Pošalji na provjeru",
+      resubmitForReview: "Pošalji ponovo",
+      submittedForReview: "Poslato na provjeru.",
     };
   }
 
@@ -218,6 +263,21 @@ function pageCopy(lang: string): DashboardCopy {
     documentUploadSuccess: "Document uploaded.",
     documentUploadFailed: "Document upload failed.",
     chooseFile: "Choose file",
+    profile: "Profile",
+    saveProfile: "Save profile",
+    profileSaved: "Profile saved.",
+    security: "Security",
+    currentPassword: "Current password",
+    newPassword: "New password",
+    repeatPassword: "Repeat password",
+    changePassword: "Change password",
+    passwordChanged: "Password changed. Sign in again.",
+    passwordRequirements: "At least 10 characters, lowercase and uppercase letters, and a number.",
+    moderationStatus: "Review status",
+    adminComment: "Admin comment",
+    submitForReview: "Submit for review",
+    resubmitForReview: "Resubmit",
+    submittedForReview: "Submitted for review.",
   };
 }
 
@@ -250,6 +310,10 @@ type OwnerBoat = {
   price_per_week?: number | null;
   sale_price?: number | null;
   instant_booking?: boolean | null;
+  moderation_status?: string | null;
+  moderation_comment?: string | null;
+  submitted_for_review_at?: string | null;
+  reviewed_at?: string | null;
 };
 
 type BookingActivity = {
@@ -350,6 +414,22 @@ type BlackoutFormState = {
   reason: string;
 };
 
+type ProfileFormState = {
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  phone: string;
+  whatsappNumber: string;
+  country: string;
+  preferredLanguage: string;
+};
+
+type SecurityFormState = {
+  currentPassword: string;
+  password: string;
+  confirmPassword: string;
+};
+
 type OwnerCalendarDisplayType = "hold" | "confirmed" | "declined" | "expired" | "unknown";
 
 type OwnerCalendarEvent = {
@@ -419,6 +499,10 @@ type OwnerProfile = {
   first_name?: string | null;
   last_name?: string | null;
   whatsapp_number?: string | null;
+  phone?: string | null;
+  company_name?: string | null;
+  country?: string | null;
+  preferred_language?: string | null;
   email_verified?: boolean | null;
   whatsapp_verified?: boolean | null;
   verification_status?: string | null;
@@ -448,13 +532,52 @@ type ApiPayload = {
   enterpriseOperationalReadiness?: EnterpriseOperationalReadiness;
 };
 
-function statusLabel(boat: OwnerBoat) {
-  if (boat.booking_enabled === true) return pageCopy("en").published;
-  return pageCopy("en").listingSavedForReview;
+function moderationLabel(status: string | null | undefined, lang: string): string {
+  const labels = {
+    en: {
+      draft: "Draft",
+      submitted: "Submitted",
+      under_review: "Under review",
+      needs_changes: "Needs changes",
+      approved: "Approved",
+      published: "Published",
+      rejected: "Rejected",
+      archived: "Archived",
+    },
+    ru: {
+      draft: "Черновик",
+      submitted: "Отправлено",
+      under_review: "На проверке",
+      needs_changes: "Нужны правки",
+      approved: "Одобрено",
+      published: "Опубликовано",
+      rejected: "Отклонено",
+      archived: "Архив",
+    },
+    me: {
+      draft: "Nacrt",
+      submitted: "Poslato",
+      under_review: "U provjeri",
+      needs_changes: "Potrebne izmjene",
+      approved: "Odobreno",
+      published: "Objavljeno",
+      rejected: "Odbijeno",
+      archived: "Arhiva",
+    },
+  } as const;
+  const safeLang = lang === "ru" || lang === "me" ? lang : "en";
+  const key = (status || "draft") as keyof typeof labels.en;
+  return labels[safeLang][key] || labels[safeLang].draft;
+}
+
+function statusLabel(boat: OwnerBoat, lang: string) {
+  return moderationLabel(boat.moderation_status, lang);
 }
 
 function statusColor(boat: OwnerBoat) {
-  if (boat.booking_enabled === true) return "rgba(22,163,74,0.18)";
+  if (boat.moderation_status === "published" || boat.booking_enabled === true) return "rgba(22,163,74,0.18)";
+  if (boat.moderation_status === "needs_changes" || boat.moderation_status === "rejected") return "rgba(220,38,38,0.16)";
+  if (boat.moderation_status === "submitted" || boat.moderation_status === "under_review") return "rgba(59,130,246,0.16)";
   return "rgba(234,179,8,0.18)";
 }
 
@@ -721,6 +844,21 @@ export default function OwnerDashboardClient() {
   const [boatEditError, setBoatEditError] = useState<Record<string, string>>({});
   const [boatEditFieldErrors, setBoatEditFieldErrors] = useState<Record<string, FieldErrors>>({});
   const [boatEditSuccess, setBoatEditSuccess] = useState<Record<string, string>>({});
+  const [profileForm, setProfileForm] = useState<ProfileFormState | null>(null);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [securityForm, setSecurityForm] = useState<SecurityFormState>({
+    currentPassword: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+  const [securityError, setSecurityError] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState<Record<string, boolean>>({});
+  const [reviewMessage, setReviewMessage] = useState<Record<string, string>>({});
+  const [reviewError, setReviewError] = useState<Record<string, string>>({});
 
 
 
@@ -902,6 +1040,18 @@ export default function OwnerDashboardClient() {
     };
   }
 
+  function profileToForm(profile: OwnerProfile | null | undefined): ProfileFormState {
+    return {
+      firstName: profile?.first_name ?? "",
+      lastName: profile?.last_name ?? "",
+      companyName: profile?.company_name ?? "",
+      phone: profile?.phone ?? "",
+      whatsappNumber: profile?.whatsapp_number ?? "",
+      country: profile?.country ?? "",
+      preferredLanguage: profile?.preferred_language ?? (lang === "ru" || lang === "me" ? lang : "en"),
+    };
+  }
+
   function boatToEditForm(boat: OwnerBoat): BoatEditFormState {
     return {
       title: boat.title ?? "",
@@ -994,6 +1144,99 @@ export default function OwnerDashboardClient() {
     return Number.isFinite(n) ? `${Math.round((n + Number.EPSILON) * 100) / 100} EUR` : "—";
   }
 
+  async function saveProfile() {
+    const form = profileForm || profileToForm(data?.ownerProfile);
+    setProfileBusy(true);
+    setProfileMessage(null);
+    setProfileError(null);
+    try {
+      const res = await fetch("/api/owner/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          first_name: form.firstName,
+          last_name: form.lastName,
+          company_name: form.companyName,
+          phone: form.phone,
+          whatsapp_number: form.whatsappNumber,
+          country: form.country,
+          preferred_language: form.preferredLanguage,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.code || "profile_update_failed");
+      setProfileMessage(pageCopy(lang).profileSaved);
+      await refreshDashboard();
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "profile_update_failed");
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function changePassword() {
+    setSecurityBusy(true);
+    setSecurityMessage(null);
+    setSecurityError(null);
+    try {
+      const res = await fetch("/api/auth/owner-change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          current_password: securityForm.currentPassword,
+          password: securityForm.password,
+          confirm_password: securityForm.confirmPassword,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.code || "password_change_failed");
+      setSecurityMessage(pageCopy(lang).passwordChanged);
+      setSecurityForm({ currentPassword: "", password: "", confirmPassword: "" });
+      setTimeout(() => router.replace(`/${lang}/owner-login`), 900);
+    } catch (err) {
+      setSecurityError(err instanceof Error ? err.message : "password_change_failed");
+    } finally {
+      setSecurityBusy(false);
+    }
+  }
+
+  async function submitBoatForReview(boat: OwnerBoat) {
+    const documentId = boat.documentId;
+    if (!documentId) return;
+    setReviewBusy((prev) => ({ ...prev, [documentId]: true }));
+    setReviewMessage((prev) => {
+      const next = { ...prev };
+      delete next[documentId];
+      return next;
+    });
+    setReviewError((prev) => {
+      const next = { ...prev };
+      delete next[documentId];
+      return next;
+    });
+    try {
+      const res = await fetch("/api/owner/boats/submit-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ documentId }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.code || "submit_for_review_failed");
+      setReviewMessage((prev) => ({ ...prev, [documentId]: pageCopy(lang).submittedForReview }));
+      await refreshDashboard();
+    } catch (err) {
+      setReviewError((prev) => ({
+        ...prev,
+        [documentId]: err instanceof Error ? err.message : "submit_for_review_failed",
+      }));
+    } finally {
+      setReviewBusy((prev) => ({ ...prev, [documentId]: false }));
+    }
+  }
+
   async function saveBoatEdit(boat: OwnerBoat) {
     const documentId = boat.documentId;
     if (!documentId) return;
@@ -1065,10 +1308,10 @@ export default function OwnerDashboardClient() {
       setBoatEditSuccess((prev) => ({
         ...prev,
         [documentId]: lang === "ru"
-          ? "Изменения сохранены. Лодка отправлена на проверку."
+          ? "Изменения сохранены. Отправьте лодку на проверку, когда будете готовы."
           : lang === "me"
-            ? "Izmjene su sačuvane. Plovilo je poslato na provjeru."
-            : "Changes saved. The boat was sent for review.",
+            ? "Izmjene su sačuvane. Pošaljite plovilo na provjeru kada bude spremno."
+            : "Changes saved. Submit the boat for review when ready.",
       }));
 
       await refreshDashboard();
@@ -1481,6 +1724,87 @@ useEffect(() => {
           </div>
         ) : null}
 
+        {!isLoading && !error && data?.ownerProfile ? (
+          <section className="card" style={{ marginTop: 18, padding: 18 }}>
+            <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).profile}</h2>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 14 }}>
+              {[
+                ["firstName", lang === "ru" ? "Имя" : lang === "me" ? "Ime" : "First name"],
+                ["lastName", lang === "ru" ? "Фамилия" : lang === "me" ? "Prezime" : "Last name"],
+                ["companyName", lang === "ru" ? "Компания" : lang === "me" ? "Kompanija" : "Company"],
+                ["phone", lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone"],
+                ["whatsappNumber", "WhatsApp"],
+                ["country", lang === "ru" ? "Страна" : lang === "me" ? "Država" : "Country"],
+              ].map(([key, label]) => (
+                <label key={key} style={{ display: "grid", gap: 4 }}>
+                  <span className="kicker" style={{ margin: 0 }}>{label}</span>
+                  <input
+                    value={(profileForm || profileToForm(data.ownerProfile))[key as keyof ProfileFormState]}
+                    onChange={(event) => setProfileForm((prev) => ({
+                      ...(prev || profileToForm(data.ownerProfile)),
+                      [key]: event.target.value,
+                    }))}
+                  />
+                </label>
+              ))}
+              <label style={{ display: "grid", gap: 4 }}>
+                <span className="kicker" style={{ margin: 0 }}>{lang === "ru" ? "Язык" : lang === "me" ? "Jezik" : "Language"}</span>
+                <select
+                  value={(profileForm || profileToForm(data.ownerProfile)).preferredLanguage}
+                  onChange={(event) => setProfileForm((prev) => ({
+                    ...(prev || profileToForm(data.ownerProfile)),
+                    preferredLanguage: event.target.value,
+                  }))}
+                >
+                  <option value="en">EN</option>
+                  <option value="ru">RU</option>
+                  <option value="me">ME</option>
+                </select>
+              </label>
+            </div>
+            {profileMessage ? <p className="kicker" style={{ margin: "10px 0 0", color: "#15803d" }}>{profileMessage}</p> : null}
+            {profileError ? <p className="kicker" style={{ margin: "10px 0 0", color: "#b91c1c" }}>{profileError}</p> : null}
+            <button className="button secondary" type="button" disabled={profileBusy} onClick={saveProfile} style={{ marginTop: 14 }}>
+              {profileBusy ? pageCopy(lang).uploading : pageCopy(lang).saveProfile}
+            </button>
+          </section>
+        ) : null}
+
+        {!isLoading && !error ? (
+          <section className="card" style={{ marginTop: 18, padding: 18 }}>
+            <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).security}</h2>
+            <p className="kicker" style={{ margin: "6px 0 0" }}>{pageCopy(lang).passwordRequirements}</p>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 14 }}>
+              <input
+                type="password"
+                placeholder={pageCopy(lang).currentPassword}
+                value={securityForm.currentPassword}
+                onChange={(event) => setSecurityForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
+                autoComplete="current-password"
+              />
+              <input
+                type="password"
+                placeholder={pageCopy(lang).newPassword}
+                value={securityForm.password}
+                onChange={(event) => setSecurityForm((prev) => ({ ...prev, password: event.target.value }))}
+                autoComplete="new-password"
+              />
+              <input
+                type="password"
+                placeholder={pageCopy(lang).repeatPassword}
+                value={securityForm.confirmPassword}
+                onChange={(event) => setSecurityForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                autoComplete="new-password"
+              />
+            </div>
+            {securityMessage ? <p className="kicker" style={{ margin: "10px 0 0", color: "#15803d" }}>{securityMessage}</p> : null}
+            {securityError ? <p className="kicker" style={{ margin: "10px 0 0", color: "#b91c1c" }}>{securityError}</p> : null}
+            <button className="button secondary" type="button" disabled={securityBusy} onClick={changePassword} style={{ marginTop: 14 }}>
+              {securityBusy ? pageCopy(lang).uploading : pageCopy(lang).changePassword}
+            </button>
+          </section>
+        ) : null}
+
         {!isLoading && !error ? (
           <section className="card" style={{ marginTop: 18, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start" }}>
@@ -1529,7 +1853,7 @@ useEffect(() => {
                       style={{
                         display: "grid",
                         gap: 10,
-                        gridTemplateColumns: "minmax(0, 1fr) auto",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                         alignItems: "center",
                       }}
                     >
@@ -1662,7 +1986,7 @@ useEffect(() => {
                           background: statusColor(boat),
                         }}
                       >
-                        {statusLabel(boat)}
+                        {statusLabel(boat, lang)}
                       </span>
                     </div>
 
@@ -1675,6 +1999,49 @@ useEffect(() => {
                       <span>·</span>
                       <span>Booking: {boat.booking_enabled ? pageCopy(lang).bookingEnabled : pageCopy(lang).bookingDisabled}</span>
                     </div>
+
+                    <div className="meta-row">
+                      <span>{pageCopy(lang).moderationStatus}: {moderationLabel(boat.moderation_status, lang)}</span>
+                      {boat.submitted_for_review_at ? (
+                        <>
+                          <span>·</span>
+                          <span>{lang === "ru" ? "Отправлено" : lang === "me" ? "Poslato" : "Submitted"}: {boat.submitted_for_review_at}</span>
+                        </>
+                      ) : null}
+                    </div>
+
+                    {(boat.moderation_status === "needs_changes" || boat.moderation_status === "rejected") && boat.moderation_comment ? (
+                      <div
+                        style={{
+                          padding: 10,
+                          borderRadius: 8,
+                          background: "rgba(220,38,38,0.08)",
+                          border: "1px solid rgba(220,38,38,0.25)",
+                        }}
+                      >
+                        <strong>{pageCopy(lang).adminComment}</strong>
+                        <p className="kicker" style={{ margin: "6px 0 0" }}>{boat.moderation_comment}</p>
+                      </div>
+                    ) : null}
+
+                    {boat.documentId && !["submitted", "under_review", "approved", "published", "archived"].includes(boat.moderation_status || "draft") ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={reviewBusy[boat.documentId] === true}
+                          onClick={() => submitBoatForReview(boat)}
+                        >
+                          {reviewBusy[boat.documentId] === true
+                            ? pageCopy(lang).uploading
+                            : boat.moderation_status === "needs_changes" || boat.moderation_status === "rejected"
+                              ? pageCopy(lang).resubmitForReview
+                              : pageCopy(lang).submitForReview}
+                        </button>
+                        {reviewMessage[boat.documentId] ? <p className="kicker" style={{ margin: 0, color: "#15803d" }}>{reviewMessage[boat.documentId]}</p> : null}
+                        {reviewError[boat.documentId] ? <p className="kicker" style={{ margin: 0, color: "#b91c1c" }}>{reviewError[boat.documentId]}</p> : null}
+                      </div>
+                    ) : null}
 
                     <div className="meta-row">
                       <span>{lang === "ru" ? "Цена/час" : lang === "me" ? "Cijena/sat" : "Price/hour"}: {boat.price_per_hour ?? "—"} {boat.currency || "EUR"}</span>
@@ -1697,12 +2064,14 @@ useEffect(() => {
                       </span>
                     </div>
 
-                    {boat.booking_enabled && boat.slug ? (
+                    {boat.slug ? (
                       <div style={{ display: "grid", gap: 14 }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                          <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
-                            {lang === "ru" ? "Открыть страницу" : lang === "me" ? "Otvori stranicu" : "View public page"}
-                          </Link>
+                          {boat.booking_enabled ? (
+                            <Link className="button secondary" href={`/${lang}/boats/${boat.slug}`}>
+                              {lang === "ru" ? "Открыть страницу" : lang === "me" ? "Otvori stranicu" : "View public page"}
+                            </Link>
+                          ) : null}
 
                           {boat.documentId ? (
                             <button
@@ -2299,7 +2668,7 @@ useEffect(() => {
                       </div>
                     ) : (
                       <p className="kicker" style={{ margin: 0 }}>
-                        Visible after approval.
+                        {lang === "ru" ? "Инструменты появятся после сохранения лодки." : lang === "me" ? "Alati će biti dostupni nakon čuvanja plovila." : "Tools appear after the boat is saved."}
                       </p>
                     )}
                   </div>

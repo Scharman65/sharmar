@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 
@@ -260,7 +261,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
     return { ok: false, error: "ownerEmail is too long" };
   }
 
-  const currency: "EUR" = "EUR";
+  const currency = "EUR" as const;
   if (currencyRaw && currencyRaw !== "EUR") {
     return { ok: false, error: "currency must be EUR" };
   }
@@ -465,11 +466,11 @@ async function fetchBoatMediaIdsByDocumentId(documentId: string, serverToken: st
 }
 
 export async function POST(req: NextRequest) {
-  const userJwt = getBearerToken(req);
-  if (!userJwt) {
+  const ownerAuth = await getFreshOwnerAuth(req);
+  if (!ownerAuth.ok) {
     return NextResponse.json(
-      { ok: false, error: "Missing Authorization Bearer token" },
-      { status: 401, headers: { "cache-control": "no-store" } }
+      { ok: false, error: ownerAuth.code },
+      { status: ownerAuth.status, headers: { "cache-control": "no-store" } }
     );
   }
 
@@ -499,15 +500,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const meRes = await strapiFetchJson("/api/users/me", { method: "GET" }, userJwt);
-  if (!meRes.ok || !isRecord(meRes.json) || typeof meRes.json.id !== "number") {
-    return NextResponse.json(
-      { ok: false, error: "User authentication failed" },
-      { status: 401, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  const me = meRes.json as StrapiUsersMe;
+  const me = ownerAuth.auth.owner as StrapiUsersMe;
   const p = parsed.data;
 
   const createPayload = {
@@ -532,6 +525,10 @@ export async function POST(req: NextRequest) {
       currency: p.currency ?? "EUR",
       instant_booking: p.listingType === "rent" ? p.instantBooking : false,
       contacts_visible: false,
+      moderation_status: "draft",
+      moderation_comment: null,
+      submitted_for_review_at: null,
+      reviewed_at: null,
       publishedAt: null,
       locale: p.locale || "en",
       ...(Array.isArray(p.imageIds) && p.imageIds.length > 0
@@ -565,8 +562,6 @@ export async function POST(req: NextRequest) {
 
   const json = createRes.json;
   const data = isRecord(json) && isRecord(json.data) ? json.data : null;
-  const documentId = data && typeof data.documentId === "string" ? data.documentId : null;
-
   return NextResponse.json(
     {
       ok: true,
@@ -587,11 +582,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const userJwt = getBearerToken(req);
-  if (!userJwt) {
+  const ownerAuth = await getFreshOwnerAuth(req);
+  if (!ownerAuth.ok) {
     return NextResponse.json(
-      { ok: false, error: "Missing Authorization Bearer token" },
-      { status: 401, headers: { "cache-control": "no-store" } }
+      { ok: false, error: ownerAuth.code },
+      { status: ownerAuth.status, headers: { "cache-control": "no-store" } }
     );
   }
 
@@ -630,15 +625,7 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const meRes = await strapiFetchJson("/api/users/me", { method: "GET" }, userJwt);
-  if (!meRes.ok || !isRecord(meRes.json) || typeof meRes.json.id !== "number") {
-    return NextResponse.json(
-      { ok: false, error: "User authentication failed" },
-      { status: 401, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  const me = meRes.json as StrapiUsersMe;
+  const me = ownerAuth.auth.owner as StrapiUsersMe;
 
   const ownerBoatsRes = await strapiFetchJson(
     `/api/owner/boats-by-user?user_id=${me.id}`,
@@ -708,6 +695,7 @@ export async function PATCH(req: NextRequest) {
       ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
       currency: p.currency ?? "EUR",
       instant_booking: p.listingType === "rent" ? p.instantBooking : false,
+      moderation_status: "draft",
       publishedAt: null,
       ...mediaUpdate,
     },

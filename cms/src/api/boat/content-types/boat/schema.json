@@ -380,6 +380,54 @@
           "localized": false
         }
       }
+    },
+    "moderation_status": {
+      "type": "enumeration",
+      "enum": [
+        "draft",
+        "submitted",
+        "under_review",
+        "needs_changes",
+        "approved",
+        "published",
+        "rejected",
+        "archived"
+      ],
+      "default": "draft",
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "moderation_comment": {
+      "type": "text",
+      "required": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "submitted_for_review_at": {
+      "type": "datetime",
+      "required": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "reviewed_by": {
+      "type": "string",
+      "required": false,
+      "private": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
     }
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedOwner as getFreshOwnerAuth, isRecord, strapiFetchJson as ownerStrapiFetchJson } from "@/lib/auth/ownerApi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,16 @@ function json(status: number, body: unknown) {
   });
 }
 
+async function ownerOwnsBoat(req: NextRequest, boatId: string): Promise<boolean> {
+  const auth = await getFreshOwnerAuth(req);
+  if (!auth.ok) return false;
+  const token = getServerToken();
+  if (!token) return false;
+  const res = await ownerStrapiFetchJson(`/api/owner/boats-by-user?user_id=${auth.auth.owner.id}`, { method: "GET" }, token);
+  const boats = isRecord(res.json) && Array.isArray(res.json.boats) ? res.json.boats : [];
+  return boats.some((boat) => isRecord(boat) && String(boat.id) === String(boatId));
+}
+
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
   const { id } = await ctx.params;
   const cleanId = String(id || "").trim();
@@ -49,6 +60,10 @@ export async function DELETE(req: NextRequest, ctx: RouteCtx) {
 
   if (!boatId && !token) {
     return json(400, { ok: false, error: "boat_id_or_token_required" });
+  }
+
+  if (boatId && !(await ownerOwnsBoat(req, boatId))) {
+    return json(403, { ok: false, error: "boat_not_found_for_owner" });
   }
 
   const serverToken = getServerToken();

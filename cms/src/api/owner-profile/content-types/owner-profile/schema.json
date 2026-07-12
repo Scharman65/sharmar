@@ -33,6 +33,10 @@
       "type": "string",
       "required": false
     },
+    "company_name": {
+      "type": "string",
+      "required": false
+    },
     "whatsapp_number": {
       "type": "string",
       "required": true
@@ -121,6 +125,26 @@
         "files"
       ],
       "required": false
+    },
+    "password_reset_token_hash": {
+      "type": "string",
+      "required": false,
+      "private": true
+    },
+    "password_reset_expires_at": {
+      "type": "datetime",
+      "required": false,
+      "private": true
+    },
+    "password_reset_used_at": {
+      "type": "datetime",
+      "required": false,
+      "private": true
+    },
+    "password_changed_at": {
+      "type": "datetime",
+      "required": false,
+      "private": true
     }
   }
 }

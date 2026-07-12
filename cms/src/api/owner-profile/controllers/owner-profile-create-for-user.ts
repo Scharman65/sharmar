@@ -52,6 +52,7 @@ export default {
           op.first_name,
           op.last_name,
           op.phone,
+          op.company_name,
           op.whatsapp_number,
           op.country,
           op.preferred_language,
@@ -62,6 +63,7 @@ export default {
           op.verified_at,
           op.rejected_at,
           op.rejection_reason,
+          op.password_changed_at,
           op.created_at,
           op.updated_at,
           l.user_id
@@ -160,6 +162,7 @@ export default {
           op.first_name,
           op.last_name,
           op.phone,
+          op.company_name,
           op.whatsapp_number,
           op.country,
           op.preferred_language,
@@ -170,6 +173,7 @@ export default {
           op.verified_at,
           op.rejected_at,
           op.rejection_reason,
+          op.password_changed_at,
           op.created_at,
           op.updated_at,
           l.user_id

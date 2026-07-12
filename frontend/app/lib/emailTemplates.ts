@@ -50,6 +50,12 @@ type BookingCustomerDecisionEmail = {
   supportEmail?: string | null;
 };
 
+type OwnerPasswordResetEmail = {
+  locale?: string | null;
+  resetUrl: string;
+  expiresMinutes: number;
+};
+
 export function bookingAdminEmail(p: BookingEmail) {
   const subject = `New booking request: ${p.boatTitle}`;
 
@@ -221,4 +227,60 @@ export function ownerDecisionEmail(p: OwnerDecisionEmail) {
   ].filter(Boolean).join("\n");
 
   return { subject, text };
+}
+
+export function ownerPasswordResetEmail(p: OwnerPasswordResetEmail) {
+  const locale = p.locale === "ru" || p.locale === "me" || p.locale === "en" ? p.locale : "en";
+
+  const copy = {
+    en: {
+      subject: "Reset your Sharmar owner password",
+      heading: "Reset your Sharmar password",
+      intro: "We received a request to reset the password for your Sharmar owner account.",
+      action: "Open this one-time link to set a new password:",
+      expires: `This link expires in ${p.expiresMinutes} minutes.`,
+      ignore: "If you did not request this, ignore this email. Your password will not change.",
+    },
+    ru: {
+      subject: "Сброс пароля владельца Sharmar",
+      heading: "Сброс пароля Sharmar",
+      intro: "Мы получили запрос на сброс пароля для аккаунта владельца Sharmar.",
+      action: "Откройте эту одноразовую ссылку, чтобы задать новый пароль:",
+      expires: `Ссылка действует ${p.expiresMinutes} минут.`,
+      ignore: "Если вы не запрашивали сброс, просто проигнорируйте письмо. Пароль не изменится.",
+    },
+    me: {
+      subject: "Reset lozinke vlasnika Sharmar",
+      heading: "Reset lozinke za Sharmar",
+      intro: "Primili smo zahtjev za reset lozinke za vaš Sharmar nalog vlasnika.",
+      action: "Otvorite ovaj jednokratni link da postavite novu lozinku:",
+      expires: `Link važi ${p.expiresMinutes} minuta.`,
+      ignore: "Ako nijeste tražili reset, ignorišite ovu poruku. Lozinka se neće promijeniti.",
+    },
+  }[locale];
+
+  const text = [
+    copy.heading,
+    "",
+    copy.intro,
+    copy.action,
+    p.resetUrl,
+    "",
+    copy.expires,
+    copy.ignore,
+    "",
+    "Sharmar",
+  ].join("\n");
+
+  const html = `<div>
+    <h1>${escapeHtml(copy.heading)}</h1>
+    <p>${escapeHtml(copy.intro)}</p>
+    <p>${escapeHtml(copy.action)}</p>
+    <p><a href="${escapeHtml(p.resetUrl)}">${escapeHtml(p.resetUrl)}</a></p>
+    <p>${escapeHtml(copy.expires)}</p>
+    <p>${escapeHtml(copy.ignore)}</p>
+    <p>Sharmar</p>
+  </div>`;
+
+  return { subject: copy.subject, text, html };
 }

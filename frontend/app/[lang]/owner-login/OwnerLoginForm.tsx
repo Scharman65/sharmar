@@ -16,6 +16,8 @@ type LoginCopy = {
   tryAgain: string;
   noAccount: string;
   register: string;
+  forgotPassword: string;
+  tooManyAttempts: string;
 };
 
 function pageCopy(lang: string): LoginCopy {
@@ -31,6 +33,8 @@ function pageCopy(lang: string): LoginCopy {
       tryAgain: "Не удалось войти. Попробуйте ещё раз.",
       noAccount: "Нет аккаунта владельца?",
       register: "Зарегистрироваться",
+      forgotPassword: "Забыли пароль?",
+      tooManyAttempts: "Слишком много попыток. Попробуйте позже.",
     };
   }
 
@@ -46,6 +50,8 @@ function pageCopy(lang: string): LoginCopy {
       tryAgain: "Prijava nije uspjela. Pokušajte ponovo.",
       noAccount: "Nemate nalog vlasnika?",
       register: "Registracija",
+      forgotPassword: "Zaboravili ste lozinku?",
+      tooManyAttempts: "Previše pokušaja. Pokušajte kasnije.",
     };
   }
 
@@ -60,6 +66,8 @@ function pageCopy(lang: string): LoginCopy {
     tryAgain: "Unable to sign in. Please try again.",
     noAccount: "No owner account yet?",
     register: "Register",
+    forgotPassword: "Forgot password?",
+    tooManyAttempts: "Too many attempts. Try again later.",
   };
 }
 
@@ -84,7 +92,7 @@ export default function OwnerLoginForm() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL || "https://api.sharmar.me"}/api/auth/local`, {
+      const res = await fetch("/api/auth/owner-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -96,16 +104,11 @@ export default function OwnerLoginForm() {
 
       const json = await res.json().catch(() => null);
 
-      if (!res.ok || !json?.jwt) {
-        setError(pageCopy(lang).invalidCredentials);
+      if (!res.ok || !json?.ok) {
+        setError(json?.code === "too_many_attempts" ? pageCopy(lang).tooManyAttempts : pageCopy(lang).invalidCredentials);
         return;
       }
 
-      await fetch("/api/auth/owner-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: json.jwt }),
-      });
       router.push(`/${lang}/owner-dashboard`);
     } catch {
       setError(pageCopy(lang).tryAgain);
@@ -143,6 +146,11 @@ export default function OwnerLoginForm() {
             {pageCopy(lang).noAccount}{" "}
             <Link href={`/${lang}/owner-register`} style={{ textDecoration: "underline" }}>
               {pageCopy(lang).register}
+            </Link>
+          </p>
+          <p style={{ margin: 0 }}>
+            <Link href={`/${lang}/owner-forgot-password`} style={{ textDecoration: "underline" }}>
+              {pageCopy(lang).forgotPassword}
             </Link>
           </p>
         </form>
