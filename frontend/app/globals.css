@@ -569,7 +569,7 @@ a { color: inherit; }
 
 .featured-yacht-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
 }
 
@@ -725,32 +725,52 @@ a { color: inherit; }
 .destination-card {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.06), rgba(4,10,18,0.88)),
-    var(--destination-bg, linear-gradient(135deg, #16466f, #071425)) center / cover no-repeat !important;
+    var(--destination-bg, linear-gradient(135deg, #16466f, #071425)) !important;
 }
 
-.destination-budva { --destination-bg: url("/homepage/budva.jpg"); }
-.destination-tivat { --destination-bg: url("/homepage/tivat.jpg"); }
-.destination-kotor { --destination-bg: url("/homepage/kotor.jpg"); }
-.destination-bar { --destination-bg: url("/homepage/hero-yacht.jpg"); }
-.destination-herceg-novi { --destination-bg: url("/homepage/kotor.jpg"); }
-.destination-mediterranean { --destination-bg: url("/homepage/catamaran.jpg"); }
+.destination-budva,
+.destination-tivat,
+.destination-kotor,
+.destination-bar,
+.destination-herceg-novi {
+  --destination-bg:
+    radial-gradient(220px 150px at 72% 18%, rgba(93, 181, 255, 0.22), transparent 62%),
+    linear-gradient(135deg, #15314d, #071425);
+}
+
+.destination-mediterranean {
+  --destination-bg: url("/homepage/destination-mediterranean.jpg") center / cover no-repeat;
+}
 
 .featured-yacht-media-1 {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.04), rgba(4,10,18,0.32)),
-    url("/homepage/motor-yacht.jpg") center / cover no-repeat !important;
+    url("/homepage/category-motor-yacht.jpg") center / cover no-repeat !important;
 }
 
 .featured-yacht-media-2 {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.04), rgba(4,10,18,0.32)),
-    url("/homepage/sailing.jpg") center / cover no-repeat !important;
+    url("/homepage/category-sailing-yacht.jpg") center / cover no-repeat !important;
 }
 
 .featured-yacht-media-3 {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.04), rgba(4,10,18,0.32)),
-    url("/homepage/catamaran.jpg") center / cover no-repeat !important;
+    radial-gradient(260px 160px at 58% 42%, rgba(93, 181, 255, 0.24), transparent 64%),
+    linear-gradient(135deg, #12324d, #071425) !important;
+}
+
+.featured-yacht-media-4 {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(4,10,18,0.34)),
+    url("/homepage/category-marina.jpg") center / cover no-repeat !important;
+}
+
+.featured-yacht-media-missing {
+  background:
+    radial-gradient(260px 160px at 58% 42%, rgba(93, 181, 255, 0.24), transparent 64%),
+    linear-gradient(135deg, #12324d, #071425) !important;
 }
 
 .destination-card,

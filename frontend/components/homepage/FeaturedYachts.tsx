@@ -17,9 +17,38 @@ const t = {
     verified: "Verified listing",
     featured: "Featured yacht",
     items: [
-      ["Premium motor yachts", "For rent", "From €100 / hour", "rent/motor"],
-      ["Sailing yachts", "Private sailing", "Daily charters", "rent/sail"],
-      ["Catamarans", "Group trips", "Comfort at sea", "rent/catamaran"],
+      {
+        title: "Premium motor yachts",
+        type: "For rent",
+        price: "From €100 / hour",
+        href: "rent/motor",
+        mediaClass: "featured-yacht-media-1",
+        imageAlt: "Premium motor yacht on the Mediterranean coast",
+      },
+      {
+        title: "Sailing yachts",
+        type: "Private sailing",
+        price: "Daily charters",
+        href: "rent/sail",
+        mediaClass: "featured-yacht-media-2",
+        imageAlt: "Sailing yacht under sail on open water",
+      },
+      {
+        title: "Catamarans",
+        type: "Group trips",
+        price: "Comfort at sea",
+        href: "rent/catamaran",
+        mediaClass: "featured-yacht-media-missing",
+        imageAlt: null,
+      },
+      {
+        title: "Marinas",
+        type: "Departure points",
+        price: "Yacht bases",
+        href: "marinas",
+        mediaClass: "featured-yacht-media-4",
+        imageAlt: "Marina with yachts at sunset",
+      },
     ],
   },
   ru: {
@@ -30,9 +59,38 @@ const t = {
     verified: "Проверенное объявление",
     featured: "Избранная яхта",
     items: [
-      ["Премиальные моторные яхты", "Аренда", "От €100 / час", "rent/motor"],
-      ["Парусные яхты", "Частные прогулки", "Дневные чартеры", "rent/sail"],
-      ["Катамараны", "Для групп", "Комфорт на море", "rent/catamaran"],
+      {
+        title: "Премиальные моторные яхты",
+        type: "Аренда",
+        price: "От €100 / час",
+        href: "rent/motor",
+        mediaClass: "featured-yacht-media-1",
+        imageAlt: "Премиальная моторная яхта у средиземноморского берега",
+      },
+      {
+        title: "Парусные яхты",
+        type: "Частные прогулки",
+        price: "Дневные чартеры",
+        href: "rent/sail",
+        mediaClass: "featured-yacht-media-2",
+        imageAlt: "Парусная яхта под парусами в открытом море",
+      },
+      {
+        title: "Катамараны",
+        type: "Для групп",
+        price: "Комфорт на море",
+        href: "rent/catamaran",
+        mediaClass: "featured-yacht-media-missing",
+        imageAlt: null,
+      },
+      {
+        title: "Марины",
+        type: "Точки отправления",
+        price: "Яхтенные базы",
+        href: "marinas",
+        mediaClass: "featured-yacht-media-4",
+        imageAlt: "Марина с яхтами на закате",
+      },
     ],
   },
   me: {
@@ -43,9 +101,38 @@ const t = {
     verified: "Provjeren oglas",
     featured: "Istaknuta jahta",
     items: [
-      ["Premium motorne jahte", "Najam", "Od €100 / sat", "rent/motor"],
-      ["Jedrilice", "Privatno jedrenje", "Dnevni čarteri", "rent/sail"],
-      ["Katamarani", "Grupne ture", "Komfor na moru", "rent/catamaran"],
+      {
+        title: "Premium motorne jahte",
+        type: "Najam",
+        price: "Od €100 / sat",
+        href: "rent/motor",
+        mediaClass: "featured-yacht-media-1",
+        imageAlt: "Premium motorna jahta uz mediteransku obalu",
+      },
+      {
+        title: "Jedrilice",
+        type: "Privatno jedrenje",
+        price: "Dnevni čarteri",
+        href: "rent/sail",
+        mediaClass: "featured-yacht-media-2",
+        imageAlt: "Jedrilica pod jedrima na otvorenom moru",
+      },
+      {
+        title: "Katamarani",
+        type: "Grupne ture",
+        price: "Komfor na moru",
+        href: "rent/catamaran",
+        mediaClass: "featured-yacht-media-missing",
+        imageAlt: null,
+      },
+      {
+        title: "Marine",
+        type: "Polazne tačke",
+        price: "Baze za jahte",
+        href: "marinas",
+        mediaClass: "featured-yacht-media-4",
+        imageAlt: "Marina sa jahtama u sumrak",
+      },
     ],
   },
 };
@@ -96,7 +183,7 @@ export default async function FeaturedYachts({ lang }: Props) {
                     />
                   </div>
                 ) : (
-                  <div className="featured-yacht-media featured-yacht-media-1" />
+                  <div className="featured-yacht-media featured-yacht-media-missing" aria-hidden="true" />
                 )}
 
                 <div className="featured-yacht-body">
@@ -115,13 +202,18 @@ export default async function FeaturedYachts({ lang }: Props) {
             );
           })
         ) : (
-          ui.items.map(([title, type, price, href], index) => (
-            <Link key={title} href={`/${lang}/${href}`} className="featured-yacht-card">
-              <div className={`featured-yacht-media featured-yacht-media-${index + 1}`} />
+          ui.items.map((item) => (
+            <Link key={item.title} href={`/${lang}/${item.href}`} className="featured-yacht-card">
+              <div
+                className={`featured-yacht-media ${item.mediaClass}`}
+                role={item.imageAlt ? "img" : undefined}
+                aria-label={item.imageAlt ?? undefined}
+                aria-hidden={item.imageAlt ? undefined : true}
+              />
               <div className="featured-yacht-body">
-                <span>{type}</span>
-                <h3>{title}</h3>
-                <p>{price}</p>
+                <span>{item.type}</span>
+                <h3>{item.title}</h3>
+                <p>{item.price}</p>
               </div>
             </Link>
           ))
