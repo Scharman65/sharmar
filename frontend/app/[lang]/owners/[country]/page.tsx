@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CITIES, COUNTRIES, type CountryDefinition } from "@/data/geography";
-import { MARINAS } from "@/data/marinas";
+import { MARINAS, getMarinaDescription } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
@@ -237,7 +237,7 @@ export default async function OwnerCountryPage({ params }: Props) {
               <Link key={marina.slug} className="location-card" href={`/${lang}/marina/${marina.slug}`}>
                 <p className="kicker">{marina.city}</p>
                 <h3>{marina.title}</h3>
-                <p>{marina.description}</p>
+                <p>{getMarinaDescription(marina, lang)}</p>
                 <span>{lang === "ru" ? "Открыть марину" : lang === "me" ? "Otvori marinu" : "View marina"}</span>
               </Link>
             ))}

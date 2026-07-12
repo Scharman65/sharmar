@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { COUNTRIES, CITIES } from "@/data/geography";
-import { MARINAS } from "@/data/marinas";
+import { MARINAS, getMarinaDescription } from "@/data/marinas";
 import { absoluteLocalizedUrl, languageAlternates, normalizeLang, type Lang } from "@/i18n";
 
 type Props = {
@@ -142,7 +142,7 @@ export default async function MarinasIndexPage({ params }: Props) {
                 </div>
 
                 <p>
-                  {marina.description}
+                  {getMarinaDescription(marina, lang)}
                 </p>
 
                 <div className="card-footer">

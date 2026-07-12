@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CITIES, COUNTRIES, type CityDefinition } from "@/data/geography";
-import { MARINAS } from "@/data/marinas";
+import { MARINAS, getMarinaDescription } from "@/data/marinas";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
 
@@ -238,7 +238,7 @@ function localizedMarinaDescription(
     return `${marina.title} je marina u destinaciji ${localizedCityDisplayName(marina.city, lang)} za najam jahti, katamarane i ture brodom.`;
   }
 
-  return marina.description;
+  return getMarinaDescription(marina, lang);
 }
 
 type Props = {

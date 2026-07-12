@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { COUNTRIES, CITIES, type CountryDefinition } from "@/data/geography";
-import { MARINAS } from "@/data/marinas";
+import { MARINAS, getMarinaDescription } from "@/data/marinas";
 import { RENTAL_TYPES } from "@/data/rental-types";
 import { isLang, LANGS, type Lang } from "@/i18n";
 import { absoluteSiteUrl, breadcrumbJsonLd, faqJsonLd, itemListJsonLd, webPageJsonLd, SITE_URL } from "@/lib/seo-jsonld";
@@ -255,7 +255,7 @@ export default async function CountryPage({ params }: Props) {
               <Link key={marina.slug} className="geo-card" href={`/${lang}/marina/${marina.slug}`}>
                 <p className="kicker">{marina.city}</p>
                 <h3>{marina.title}</h3>
-                <p>{marina.description}</p>
+                <p>{getMarinaDescription(marina, lang)}</p>
                 <span>{copy.viewMarina}</span>
               </Link>
             ))}

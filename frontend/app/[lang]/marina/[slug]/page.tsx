@@ -3,7 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { LANGS, type Lang } from "@/i18n";
-import { MARINAS, type MarinaDefinition } from "@/data/marinas";
+import { MARINAS, type MarinaDefinition, getMarinaDescription, getMarinaSeoTitle, getMarinaSeoDescription } from "@/data/marinas";
 import { fetchBoats, type Boat } from "@/lib/strapi";
 import { getBoatCardImage } from "@/lib/media";
 import { applyMarketplaceFee } from "@/lib/pricing";
@@ -310,8 +310,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const canonical = `${SITE_URL}${marinaPath(lang, marina.slug)}`;
 
   return {
-    title: marina.seoTitle,
-    description: marina.seoDescription,
+    title: getMarinaSeoTitle(marina, lang),
+    description: getMarinaSeoDescription(marina, lang),
     alternates: {
       canonical,
       languages: {
@@ -320,8 +320,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       },
     },
     openGraph: {
-      title: marina.seoTitle,
-      description: marina.seoDescription,
+      title: getMarinaSeoTitle(marina, lang),
+      description: getMarinaSeoDescription(marina, lang),
       url: canonical,
       siteName: "Sharmar",
       type: "website",
@@ -345,8 +345,8 @@ export default async function MarinaPage({ params }: PageProps) {
   const jsonLd = [
     webPageJsonLd({
       url: marinaUrl,
-      name: marina.seoTitle,
-      description: marina.seoDescription,
+      name: getMarinaSeoTitle(marina, lang),
+      description: getMarinaSeoDescription(marina, lang),
     }),
     breadcrumbJsonLd([
       { name: pageCopy(lang).home, url: absoluteSiteUrl(`/${lang}`) },
@@ -414,7 +414,7 @@ export default async function MarinaPage({ params }: PageProps) {
         <section className="marina-hero">
           <p className="kicker">{marina.region}</p>
           <h1>{marina.title}</h1>
-          <p className="marina-description">{marina.description}</p>
+          <p className="marina-description">{getMarinaDescription(marina, lang)}</p>
 
           <div className="marina-meta">
             <span>{marina.city}</span>
