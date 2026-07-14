@@ -854,7 +854,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     setTranslationSaveDraftError(null);
   }
 
-  const boats = data?.boats ?? [];
+  const boats = useMemo(() => data?.boats ?? [], [data?.boats]);
   const filteredBoats = useMemo(() => {
     const q = search.trim().toLowerCase();
     return boats.filter((boat) => {

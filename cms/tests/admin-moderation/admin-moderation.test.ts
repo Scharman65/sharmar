@@ -211,6 +211,23 @@ test("publish requires approved owner, three locales and media", async () => {
     ).length,
     3
   );
+
+  const updateIndexes = ready.calls
+    .map((call, index) =>
+      call.name.endsWith("documents.update") ? index : -1
+    )
+    .filter((index) => index >= 0);
+  const publishIndexes = ready.calls
+    .map((call, index) =>
+      call.name.endsWith("documents.publish") ? index : -1
+    )
+    .filter((index) => index >= 0);
+
+  assert.equal(updateIndexes.length, 3);
+  assert.equal(publishIndexes.length, 3);
+  assert.ok(
+    Math.max(...updateIndexes) < Math.min(...publishIndexes)
+  );
 });
 
 test("owner approval requires at least one uploaded document", async () => {

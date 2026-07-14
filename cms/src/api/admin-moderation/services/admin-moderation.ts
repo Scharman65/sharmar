@@ -453,20 +453,29 @@ async function moderateBoat(
     }
 
     if (input.action === "publish") {
+      // Strapi copies the current draft into the published row.
+      // Store the final moderation state before publish() so both rows match.
+      await updateBoatSharedFields(
+        cms,
+        documentId,
+        locales,
+        updateData
+      );
+
       for (const locale of REQUIRED_LOCALES) {
         await cms.documents("api::boat.boat").publish({
           documentId,
           locale,
         });
       }
+    } else {
+      await updateBoatSharedFields(
+        cms,
+        documentId,
+        locales,
+        updateData
+      );
     }
-
-    await updateBoatSharedFields(
-      cms,
-      documentId,
-      locales,
-      updateData
-    );
 
     await createAuditEvent(cms, {
       entityType: "boat",
