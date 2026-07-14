@@ -9,6 +9,7 @@ export default ({ env }) => ({
   },
   dodo: {
     env: env("DODO_ENV", "test"),
+    apiBaseUrl: env("DODO_API_BASE_URL", ""),
     apiKey: env("DODO_API_KEY", ""),
     webhookSecret: env("DODO_WEBHOOK_SECRET", ""),
     returnUrl: env("DODO_RETURN_URL", ""),

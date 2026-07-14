@@ -1,111 +1,12 @@
-import crypto from "crypto";
-
-const DODO_WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
-
-function getHeaderValue(ctx: any, names: string[]): string {
-  const headers = {
-    ...(ctx?.req?.headers || {}),
-    ...(ctx?.request?.headers || {}),
-  };
-
-  for (const name of names) {
-    const direct = headers[name];
-    const lower = headers[name.toLowerCase()];
-    const value = direct ?? lower;
-    if (Array.isArray(value)) return String(value[0] || "").trim();
-    if (value !== undefined && value !== null) return String(value).trim();
-  }
-
-  return "";
-}
-
-function rawBodyToString(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (Buffer.isBuffer(value)) return value.toString("utf8");
-  return null;
-}
-
-function getRawWebhookBody(ctx: any): string | null {
-  const sym = Symbol.for("unparsedBody");
-  const body = ctx?.request?.body ?? null;
-  return (
-    rawBodyToString(body?.[sym]) ||
-    rawBodyToString(ctx?.request?.rawBody) ||
-    rawBodyToString(ctx?.req?.rawBody) ||
-    rawBodyToString(ctx?.req?.body) ||
-    rawBodyToString(body)
-  );
-}
-
-function getDodoSigningKeys(secret: string): Buffer[] {
-  const clean = secret.trim();
-  if (!clean) return [];
-
-  if (clean.startsWith("whsec_")) {
-    return [Buffer.from(clean.slice("whsec_".length), "base64")];
-  }
-
-  return [Buffer.from(clean, "utf8")];
-}
-
-function signatureMatches(expected: Buffer, candidate: string): boolean {
-  try {
-    const actual = Buffer.from(candidate, "base64");
-    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-}
-
-function verifyDodoWebhookSignature(ctx: any, secret: string): { ok: true; rawBody: string } | { ok: false; error: string } {
-  const webhookId = getHeaderValue(ctx, ["webhook-id"]);
-  const webhookTimestamp = getHeaderValue(ctx, ["webhook-timestamp"]);
-  const webhookSignature = getHeaderValue(ctx, ["webhook-signature"]);
-
-  if (!webhookId || !webhookTimestamp || !webhookSignature) {
-    return { ok: false, error: "dodo_standard_webhook_headers_missing" };
-  }
-
-  if (webhookId.includes(".") || webhookTimestamp.includes(".")) {
-    return { ok: false, error: "dodo_standard_webhook_headers_invalid" };
-  }
-
-  const timestampSeconds = Number(webhookTimestamp);
-  if (!Number.isFinite(timestampSeconds)) {
-    return { ok: false, error: "dodo_webhook_timestamp_invalid" };
-  }
-
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (Math.abs(nowSeconds - timestampSeconds) > DODO_WEBHOOK_TOLERANCE_SECONDS) {
-    return { ok: false, error: "dodo_webhook_timestamp_out_of_tolerance" };
-  }
-
-  const rawBody = getRawWebhookBody(ctx);
-  if (!rawBody) {
-    return { ok: false, error: "dodo_raw_body_missing" };
-  }
-
-  const signedPayload = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-  const keys = getDodoSigningKeys(secret);
-  const signatures = webhookSignature
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const [version, value] = part.split(",", 2);
-      return version === "v1" && value ? value.trim() : "";
-    })
-    .filter(Boolean);
-
-  for (const key of keys) {
-    const expected = crypto.createHmac("sha256", key).update(signedPayload).digest();
-    if (signatures.some((signature) => signatureMatches(expected, signature))) {
-      return { ok: true, rawBody };
-    }
-  }
-
-  return { ok: false, error: "dodo_signature_invalid" };
-}
+import {
+  dodoIdempotencyConflicts,
+  extractDodoStatusDecision,
+  getHeaderValue,
+  resolveDodoApiBaseUrl,
+  shouldApplyDodoStatusUpdate,
+  stableDodoIdempotencyHash,
+  verifyDodoWebhookSignature,
+} from "../services/dodo";
 
 export default {
   async health(ctx) {
@@ -146,6 +47,10 @@ export default {
       return;
     }
 
+    const idempotencyRequestHash = stableDodoIdempotencyHash({
+      public_token: publicToken,
+    });
+
     const existing = await strapi.db.connection
       .select(
         "id",
@@ -163,12 +68,19 @@ export default {
 
     if (existing) {
       const meta = (existing.metadata as any) || {};
+      if (dodoIdempotencyConflicts(meta, idempotencyRequestHash)) {
+        ctx.status = 409;
+        ctx.body = { error: "idempotency_key_conflict" };
+        return;
+      }
       ctx.status = 200;
       ctx.body = {
         payment_id: existing.id,
         provider: existing.provider,
         provider_intent_id: existing.provider_intent_id,
         client_secret: meta.client_secret || null,
+        session_id: meta.session_id || null,
+        checkout_url: meta.checkout_url || null,
         amount_cents: existing.amount_cents,
         currency: existing.currency,
         status: existing.status,
@@ -540,187 +452,255 @@ export default {
     const paymentProvider = String(cfg?.provider || "stripe").toLowerCase();
 
     if (paymentProvider === "dodo") {
-      const existingDodoRows = await strapi.db.connection.raw(
-        `
-        select
-          id,
-          provider,
-          provider_intent_id,
-          amount_cents,
-          currency,
-          status,
-          booking_request_id,
-          metadata,
-          metadata->>'session_id' as session_id,
-          metadata->>'checkout_url' as checkout_url
-        from public.payments
-        where provider = 'dodo'
-          and booking_request_id = ?
-          and status = 'pending'
-          and amount_cents = ?
-          and lower(currency) = lower(?)
-          and metadata->>'checkout_url' is not null
-        order by id desc
-        limit 1
-        `,
-        [br.id, amountCents, currency.toLowerCase()]
-      );
+      await strapi.db.connection.transaction(async (trx) => {
+        await trx.raw("select pg_advisory_xact_lock(hashtext(?)), pg_advisory_xact_lock(hashtext(?))", [
+          "dodo_idempotency:" + idk,
+          "dodo_booking_request:" + String(br.id),
+        ]);
 
-      const existingDodo = existingDodoRows?.rows?.[0] || null;
-      const existingDodoCheckoutUrl = String(existingDodo?.checkout_url || "");
+        const existingByKey = await trx("public.payments")
+          .select(
+            "id",
+            "provider",
+            "provider_intent_id",
+            "amount_cents",
+            "currency",
+            "status",
+            "booking_request_id",
+            "metadata"
+          )
+          .where("idempotency_key", idk)
+          .first();
 
-      if (existingDodo && existingDodoCheckoutUrl.startsWith("http")) {
-        ctx.status = 200;
-        ctx.body = {
-          payment_id: existingDodo.id,
-          provider: "dodo",
-          provider_intent_id: existingDodo.provider_intent_id,
-          session_id: existingDodo.session_id || existingDodo.provider_intent_id,
-          checkout_url: existingDodoCheckoutUrl,
-          amount_cents: existingDodo.amount_cents,
-          currency: String(existingDodo.currency || currency).toLowerCase(),
-          status: existingDodo.status,
-          booking_request_id: existingDodo.booking_request_id,
-          reused: true,
-        };
-        return;
-      }
+        if (existingByKey) {
+          const meta = (existingByKey.metadata as any) || {};
+          if (dodoIdempotencyConflicts(meta, idempotencyRequestHash)) {
+            ctx.status = 409;
+            ctx.body = { error: "idempotency_key_conflict" };
+            return;
+          }
 
-      const dodoCfg = strapi.service("api::payment.payment").getConfig().dodo;
+          ctx.status = 200;
+          ctx.body = {
+            payment_id: existingByKey.id,
+            provider: existingByKey.provider,
+            provider_intent_id: existingByKey.provider_intent_id,
+            session_id: meta.session_id || null,
+            checkout_url: meta.checkout_url || null,
+            amount_cents: existingByKey.amount_cents,
+            currency: existingByKey.currency,
+            status: existingByKey.status,
+            booking_request_id: existingByKey.booking_request_id,
+            reused: true,
+          };
+          return;
+        }
 
-      if (!dodoCfg.apiKey) {
-        ctx.status = 503;
-        ctx.body = { error: "dodo_api_key_missing" };
-        return;
-      }
+        const existingDodoRows = await trx.raw(
+          `
+          select
+            id,
+            provider,
+            provider_intent_id,
+            amount_cents,
+            currency,
+            status,
+            booking_request_id,
+            metadata,
+            metadata->>'session_id' as session_id,
+            metadata->>'checkout_url' as checkout_url
+          from public.payments
+          where provider = 'dodo'
+            and booking_request_id = ?
+            and status = 'pending'
+            and amount_cents = ?
+            and lower(currency) = lower(?)
+            and metadata->>'checkout_url' is not null
+          order by id desc
+          limit 1
+          `,
+          [br.id, amountCents, currency.toLowerCase()]
+        );
 
-      if (!dodoCfg.productId) {
-        ctx.status = 503;
-        ctx.body = { error: "dodo_product_id_missing" };
-        return;
-      }
+        const existingDodo = existingDodoRows?.rows?.[0] || null;
+        const existingDodoCheckoutUrl = String(existingDodo?.checkout_url || "");
 
-      const dodoBase =
-        dodoCfg.env === "live"
-          ? "https://live.dodopayments.com"
-          : "https://test.dodopayments.com";
+        if (existingDodo && existingDodoCheckoutUrl.startsWith("http")) {
+          ctx.status = 200;
+          ctx.body = {
+            payment_id: existingDodo.id,
+            provider: "dodo",
+            provider_intent_id: existingDodo.provider_intent_id,
+            session_id: existingDodo.session_id || existingDodo.provider_intent_id,
+            checkout_url: existingDodoCheckoutUrl,
+            amount_cents: existingDodo.amount_cents,
+            currency: String(existingDodo.currency || currency).toLowerCase(),
+            status: existingDodo.status,
+            booking_request_id: existingDodo.booking_request_id,
+            reused: true,
+          };
+          return;
+        }
 
-      const checkoutPayload = {
-        product_cart: [
-          {
-            product_id: dodoCfg.productId,
-            quantity: 1,
-            amount: amountCents,
+        const dodoCfg = strapi.service("api::payment.payment").getConfig().dodo;
+
+        if (!dodoCfg.apiKey) {
+          ctx.status = 503;
+          ctx.body = { error: "dodo_api_key_missing" };
+          return;
+        }
+
+        if (!dodoCfg.productId) {
+          ctx.status = 503;
+          ctx.body = { error: "dodo_product_id_missing" };
+          return;
+        }
+
+        let dodoBase: string;
+        try {
+          dodoBase = resolveDodoApiBaseUrl({
+            env: dodoCfg.env,
+            apiBaseUrl: dodoCfg.apiBaseUrl,
+          });
+        } catch (e) {
+          ctx.status = 503;
+          ctx.body = { error: e instanceof Error ? e.message : "dodo_api_base_url_invalid" };
+          return;
+        }
+
+        const checkoutPayload = {
+          product_cart: [
+            {
+              product_id: dodoCfg.productId,
+              quantity: 1,
+              amount: amountCents,
+            },
+          ],
+          metadata: {
+            booking_request_id: String(br.id),
+            boat_id: String(boatId),
+            public_token: String(br.public_token || publicToken),
+            amount_source: amountSource,
+            owner_amount: ownerAmount != null && Number.isFinite(ownerAmount) ? String(ownerAmount) : "",
+            marketplace_fee_amount: marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) ? String(marketplaceFeeAmount) : "",
+            customer_total_amount: customerTotalAmount != null && Number.isFinite(customerTotalAmount) ? String(customerTotalAmount) : "",
           },
-        ],
-        metadata: {
+          return_url: dodoCfg.returnUrl,
+          cancel_url: dodoCfg.cancelUrl,
+        };
+
+        let res: Response;
+        try {
+          const controller = new AbortController();
+          const timeoutMs = Number(process.env.DODO_CHECKOUT_TIMEOUT_MS || 15000);
+          const timeout = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 15000);
+          try {
+            res = await fetch(dodoBase + "/checkouts", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + dodoCfg.apiKey,
+              },
+              body: JSON.stringify(checkoutPayload),
+              signal: controller.signal,
+            });
+          } finally {
+            clearTimeout(timeout);
+          }
+        } catch (e) {
+          ctx.status = 502;
+          ctx.body = { error: "dodo_checkout_request_failed", detail: e instanceof Error ? e.name : "fetch_failed" };
+          return;
+        }
+
+        let data: any = null;
+        try {
+          data = (await res.json()) as any;
+        } catch {
+          ctx.status = 502;
+          ctx.body = { error: "dodo_checkout_invalid_json", status: res.status };
+          return;
+        }
+
+        if (!res.ok) {
+          ctx.status = 502;
+          ctx.body = {
+            error: "dodo_checkout_failed",
+            status: res.status,
+            response: data,
+          };
+          return;
+        }
+
+        const dodoSessionId = String(data.session_id || "");
+        const dodoPaymentId = String(data.payment_id || data.paymentId || data.id || "");
+        const dodoProviderIntentId = dodoPaymentId || dodoSessionId;
+        const dodoCheckoutUrl = String(data.checkout_url || data.payment_link || data.url || "");
+
+        if (!dodoProviderIntentId) {
+          ctx.status = 502;
+          ctx.body = { error: "dodo_payment_id_missing", response: data };
+          return;
+        }
+
+        if (!dodoCheckoutUrl || !dodoCheckoutUrl.startsWith("http")) {
+          ctx.status = 502;
+          ctx.body = { error: "dodo_checkout_url_missing", response: data };
+          return;
+        }
+
+        const dodoMetadata = {
+          provider_status: "checkout_created",
+          session_id: dodoSessionId,
+          payment_id: dodoPaymentId,
+          checkout_url: dodoCheckoutUrl,
           booking_request_id: String(br.id),
           boat_id: String(boatId),
           public_token: String(br.public_token || publicToken),
           amount_source: amountSource,
+          idempotency_request_hash: idempotencyRequestHash,
           owner_amount: ownerAmount != null && Number.isFinite(ownerAmount) ? String(ownerAmount) : "",
           marketplace_fee_amount: marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) ? String(marketplaceFeeAmount) : "",
           customer_total_amount: customerTotalAmount != null && Number.isFinite(customerTotalAmount) ? String(customerTotalAmount) : "",
-        },
-        return_url: dodoCfg.returnUrl,
-        cancel_url: dodoCfg.cancelUrl,
-      };
-
-      const res = await fetch(dodoBase + "/checkouts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + dodoCfg.apiKey,
-        },
-        body: JSON.stringify(checkoutPayload),
-      });
-
-      const data = (await res.json()) as any;
-
-      if (!res.ok) {
-        ctx.status = 502;
-        ctx.body = {
-          error: "dodo_checkout_failed",
-          status: res.status,
-          response: data,
         };
-        return;
-      }
 
-      const dodoSessionId = String(data.session_id || "");
-      const dodoPaymentId = String(data.payment_id || data.paymentId || data.id || "");
-      const dodoProviderIntentId = dodoPaymentId || dodoSessionId;
-      const dodoCheckoutUrl = String(data.checkout_url || data.payment_link || data.url || "");
+        const insertedDodo = await trx.raw(
+          `
+          insert into public.payments
+            (provider, provider_intent_id, amount_cents, currency, status, booking_request_id, metadata, idempotency_key, created_at, updated_at)
+          values
+            (?, ?, ?, ?, ?, ?, ?::jsonb, ?, now(), now())
+          on conflict (idempotency_key) where idempotency_key is not null
+          do nothing
+          returning id, provider, provider_intent_id, amount_cents, currency, status, booking_request_id, metadata
+          `,
+          [
+            "dodo",
+            dodoProviderIntentId,
+            amountCents,
+            currency.toLowerCase(),
+            "pending",
+            br.id,
+            JSON.stringify(dodoMetadata),
+            idk,
+          ]
+        );
 
-      if (!dodoProviderIntentId) {
-        ctx.status = 502;
-        ctx.body = { error: "dodo_payment_id_missing", response: data };
-        return;
-      }
+        const dodoPayment = insertedDodo?.rows?.[0] || null;
 
-      if (!dodoCheckoutUrl || !dodoCheckoutUrl.startsWith("http")) {
-        ctx.status = 502;
-        ctx.body = { error: "dodo_checkout_url_missing", response: data };
-        return;
-      }
-
-      const dodoMetadata = {
-        provider_status: "checkout_created",
-        session_id: dodoSessionId,
-        payment_id: dodoPaymentId,
-        checkout_url: dodoCheckoutUrl,
-        booking_request_id: String(br.id),
-        boat_id: String(boatId),
-        public_token: String(br.public_token || publicToken),
-        amount_source: amountSource,
-        owner_amount: ownerAmount != null && Number.isFinite(ownerAmount) ? String(ownerAmount) : "",
-        marketplace_fee_amount: marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) ? String(marketplaceFeeAmount) : "",
-        customer_total_amount: customerTotalAmount != null && Number.isFinite(customerTotalAmount) ? String(customerTotalAmount) : "",
-      };
-
-      const insertedDodo = await strapi.db.connection.raw(
-        `
-        insert into public.payments
-          (provider, provider_intent_id, amount_cents, currency, status, booking_request_id, metadata, idempotency_key, created_at, updated_at)
-        values
-          (?, ?, ?, ?, ?, ?, ?::jsonb, ?, now(), now())
-        on conflict (idempotency_key) where idempotency_key is not null
-        do update set
-          provider_intent_id = excluded.provider_intent_id,
-          amount_cents = excluded.amount_cents,
-          currency = excluded.currency,
-          status = excluded.status,
-          booking_request_id = excluded.booking_request_id,
-          metadata = public.payments.metadata || excluded.metadata,
-          updated_at = now()
-        returning id, provider, provider_intent_id, amount_cents, currency, status, booking_request_id, metadata
-        `,
-        [
-          "dodo",
-          dodoProviderIntentId,
-          amountCents,
-          currency.toLowerCase(),
-          "pending",
-          br.id,
-          JSON.stringify(dodoMetadata),
-          idk,
-        ]
-      );
-
-      const dodoPayment = insertedDodo?.rows?.[0] || null;
-
-      ctx.status = 200;
-      ctx.body = {
-        payment_id: dodoPayment?.id || null,
-        provider: "dodo",
-        provider_intent_id: dodoProviderIntentId,
-        session_id: dodoSessionId,
-        checkout_url: dodoCheckoutUrl,
-        amount_cents: amountCents,
-        currency: currency.toLowerCase(),
-        status: "pending",
-        booking_request_id: br.id,
-      };
+        ctx.status = 200;
+        ctx.body = {
+          payment_id: dodoPayment?.id || null,
+          provider: "dodo",
+          provider_intent_id: dodoProviderIntentId,
+          session_id: dodoSessionId,
+          checkout_url: dodoCheckoutUrl,
+          amount_cents: amountCents,
+          currency: currency.toLowerCase(),
+          status: "pending",
+          booking_request_id: br.id,
+        };
+      });
       return;
     }
 
@@ -865,47 +845,42 @@ export default {
               return;
             }
           }
-          const eventType = String(body.type || body.event_type || body.event || "").toLowerCase();
-          const data = body.data || body.payload || body.object || body;
-
-          const providerPaymentId = String(
-            data.payment_id ||
-            data.id ||
-            body.payment_id ||
-            body.id ||
-            ""
-          ).trim();
-          const providerSessionId = String(
-            data.session_id ||
-            data.checkout_session_id ||
-            data.checkout_id ||
-            body.session_id ||
-            body.checkout_session_id ||
-            body.checkout_id ||
-            ""
-          ).trim();
-          const providerIntentId = providerPaymentId || providerSessionId;
-
-          const providerStatus = String(
-            data.status ||
-            data.payment_status ||
-            body.status ||
-            body.payment_status ||
-            ""
-          ).toLowerCase();
-
-          const paidEvent =
-            eventType.includes("payment.succeeded") ||
-            eventType.includes("payment.completed") ||
-            eventType.includes("checkout.completed") ||
-            providerStatus === "succeeded" ||
-            providerStatus === "paid" ||
-            providerStatus === "completed";
+          const dodoDecision = extractDodoStatusDecision(body);
+          const eventType = dodoDecision.eventType;
+          const providerStatus = dodoDecision.providerStatus;
+          const providerIntentId = dodoDecision.providerIntentId;
+          const providerSessionId = dodoDecision.providerSessionId;
+          const paidEvent = dodoDecision.paidEvent;
 
           if (!providerIntentId) {
             ctx.status = 200;
             ctx.body = { ok: true, provider: "dodo", ignored: true, reason: "provider_intent_id_missing" };
             return;
+          }
+
+          const dodoWebhookId = getHeaderValue(ctx, ["webhook-id"]);
+          try {
+            const insDodoEvent = await strapi.db.connection.raw(
+              `
+              insert into public.dodo_webhook_events
+                (webhook_id, event_type, provider_intent_id, received_at, payload)
+              values
+                (?, ?, ?, now(), ?::jsonb)
+              on conflict (webhook_id) do nothing
+              returning id
+              `,
+              [dodoWebhookId, eventType, providerIntentId, JSON.stringify(body)]
+            );
+            const insertedEventId =
+              (insDodoEvent && (insDodoEvent.rows?.[0]?.id || (Array.isArray(insDodoEvent[0]) ? insDodoEvent[0][0]?.id : null))) || null;
+            if (!insertedEventId) {
+              ctx.status = 200;
+              ctx.body = { ok: true, provider: "dodo", replay: true, webhook_id: dodoWebhookId };
+              return;
+            }
+          } catch (e) {
+            const code = String((e as any)?.code || "");
+            if (code !== "42P01") throw e;
           }
 
           if (!paidEvent) {
@@ -920,12 +895,7 @@ export default {
               [JSON.stringify(webhookMeta), providerIntentId, providerSessionId]
             );
 
-            const expiredEvent =
-              eventType.includes("expired") ||
-              eventType.includes("cancel") ||
-              providerStatus === "expired" ||
-              providerStatus === "cancelled" ||
-              providerStatus === "canceled";
+            const expiredEvent = dodoDecision.expiredEvent;
 
             if (expiredEvent) {
               await strapi.db.connection.raw(

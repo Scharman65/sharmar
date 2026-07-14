@@ -10,6 +10,7 @@ type PaymentsConfig = {
   };
   dodo: {
     env: string;
+    apiBaseUrl: string;
     apiKey: string;
     webhookSecret: string;
     returnUrl: string;
@@ -31,6 +32,7 @@ export default () => ({
       },
       dodo: {
         env: String(cfg?.dodo?.env || "test"),
+        apiBaseUrl: String(cfg?.dodo?.apiBaseUrl || ""),
         apiKey: String(cfg?.dodo?.apiKey || ""),
         webhookSecret: String(cfg?.dodo?.webhookSecret || ""),
         returnUrl: String(cfg?.dodo?.returnUrl || ""),

@@ -4,6 +4,8 @@ import { bookingCustomerRequestEmail } from "@/app/lib/emailTemplates";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MAX_NOTIFY_BODY_BYTES = 16 * 1024;
+
 type JsonRecord = Record<string, unknown>;
 
 function json(status: number, body: unknown) {
@@ -109,7 +111,11 @@ export async function POST(req: Request) {
 
   let body: unknown = null;
   try {
-    body = await req.json();
+    const raw = await req.text();
+    if (Buffer.byteLength(raw, "utf8") > MAX_NOTIFY_BODY_BYTES) {
+      return json(413, { ok: false, error: "payload_too_large" });
+    }
+    body = JSON.parse(raw);
   } catch {
     return json(400, { ok: false, error: "invalid_json" });
   }
@@ -131,6 +137,11 @@ export async function POST(req: Request) {
     customer_email_sent: false,
     warnings: [] as string[],
   };
+
+  if (process.env.NODE_ENV !== "production" && process.env.SHARMAR_EMAIL_MOCK === "true") {
+    result.warnings.push("email_mock_enabled");
+    return json(200, result);
+  }
 
   if (!resend) {
     result.warnings.push("resend_not_configured");

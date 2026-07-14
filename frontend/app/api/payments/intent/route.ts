@@ -2,6 +2,12 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MAX_PAYMENT_INTENT_BODY_BYTES = 16 * 1024;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function json(status: number, obj: unknown, extra?: Record<string, string>) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -37,15 +43,19 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: Request) {
-  let body: any = null;
+  let body: unknown = null;
 
   try {
-    body = await req.json();
+    const raw = await req.text();
+    if (Buffer.byteLength(raw, "utf8") > MAX_PAYMENT_INTENT_BODY_BYTES) {
+      return json(413, { error: "payload_too_large" });
+    }
+    body = JSON.parse(raw);
   } catch {
     return json(400, { error: "invalid_json" });
   }
 
-  const public_token = body?.public_token;
+  const public_token = isRecord(body) ? body.public_token : undefined;
   if (typeof public_token !== "string" || public_token.trim().length < 8) {
     return json(400, { error: "invalid_public_token" });
   }
@@ -82,9 +92,9 @@ export async function POST(req: Request) {
       "X-Sharmar-Strapi-Base": STRAPI_BASE,
       "X-Sharmar-Idempotency-Key": idk,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     const detail =
-      e && (e.stack || e.message) ? String(e.stack || e.message) : String(e);
+      e instanceof Error && (e.stack || e.message) ? String(e.stack || e.message) : String(e);
 
     return json(
       502,
