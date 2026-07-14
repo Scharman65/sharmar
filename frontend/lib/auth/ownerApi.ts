@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { OWNER_SESSION_COOKIE_NAME } from "@/app/api/auth/owner-session/cookies";
+import { OWNER_SESSION_COOKIE_NAME, parseOwnerSessionCookie } from "@/app/api/auth/owner-session/cookies";
 
 type JsonObject = Record<string, unknown>;
 
@@ -17,11 +17,19 @@ export type OwnerAuth = {
 export const NO_STORE_HEADERS = { "cache-control": "no-store" };
 
 export function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 export function getServerToken(): string {
@@ -49,14 +57,19 @@ export function getBearerToken(req: NextRequest): string | null {
     if (headerToken) return headerToken;
   }
 
-  const cookieToken = req.cookies.get(OWNER_SESSION_COOKIE_NAME)?.value?.trim();
-  return cookieToken || null;
+  const cookieSession = parseOwnerSessionCookie(req.cookies.get(OWNER_SESSION_COOKIE_NAME)?.value);
+  return cookieSession?.token || null;
+}
+
+function getCookieSessionVersion(req: NextRequest): number | null {
+  const cookieSession = parseOwnerSessionCookie(req.cookies.get(OWNER_SESSION_COOKIE_NAME)?.value);
+  return cookieSession?.sessionVersion ?? null;
 }
 
 export function getClientIp(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for") || "";
-  const firstForwarded = forwardedFor.split(",")[0]?.trim();
-  if (firstForwarded) return firstForwarded;
+  const vercelForwardedFor = req.headers.get("x-vercel-forwarded-for") || "";
+  const firstVercelForwarded = vercelForwardedFor.split(",")[0]?.trim();
+  if (firstVercelForwarded) return firstVercelForwarded;
 
   return (
     req.headers.get("x-real-ip") ||
@@ -115,7 +128,7 @@ function decodeJwtIssuedAt(token: string): number | null {
   try {
     const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as JsonObject;
     const iat = asNumber(payload.iat);
-    return iat === null ? null : iat * 1000;
+    return iat === null ? null : iat;
   } catch {
     return null;
   }
@@ -129,7 +142,14 @@ function sessionIsFresh(userJwt: string, ownerProfile: JsonObject | null): boole
   const issuedAt = decodeJwtIssuedAt(userJwt);
   if (!Number.isFinite(changedAt) || issuedAt === null) return false;
 
-  return issuedAt >= changedAt;
+  return issuedAt >= Math.floor(changedAt / 1000);
+}
+
+function sessionVersionIsFresh(req: NextRequest, ownerProfile: JsonObject): boolean {
+  const currentVersion = asNumber(ownerProfile.session_version) ?? 0;
+  const cookieVersion = getCookieSessionVersion(req);
+  if (currentVersion <= 0 && cookieVersion === null) return true;
+  return cookieVersion === currentVersion;
 }
 
 export async function getAuthenticatedOwner(req: NextRequest): Promise<
@@ -151,15 +171,24 @@ export async function getAuthenticatedOwner(req: NextRequest): Promise<
   }
 
   const serverToken = getServerToken();
-  let ownerProfile: JsonObject | null = null;
+  if (!serverToken) {
+    return { ok: false, status: 503, code: "owner_profile_unavailable" };
+  }
 
-  if (serverToken) {
-    const profileRes = await strapiFetchJson(`/api/owner/profile-by-user?user_id=${id}`, { method: "GET" }, serverToken);
-    const profile = isRecord(profileRes.json) && isRecord(profileRes.json.profile) ? profileRes.json.profile : null;
-    ownerProfile = profile;
+  const profileRes = await strapiFetchJson(`/api/owner/profile-by-user?user_id=${id}`, { method: "GET" }, serverToken);
+  if (!profileRes.ok) {
+    return { ok: false, status: 503, code: "owner_profile_unavailable" };
+  }
+  const ownerProfile = isRecord(profileRes.json) && isRecord(profileRes.json.profile) ? profileRes.json.profile : null;
+  if (!ownerProfile) {
+    return { ok: false, status: 401, code: "owner_profile_missing" };
   }
 
   if (!sessionIsFresh(userJwt, ownerProfile)) {
+    return { ok: false, status: 401, code: "owner_session_expired" };
+  }
+
+  if (!sessionVersionIsFresh(req, ownerProfile)) {
     return { ok: false, status: 401, code: "owner_session_expired" };
   }
 

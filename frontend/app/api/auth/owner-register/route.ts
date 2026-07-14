@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setOwnerSessionCookie } from "../owner-session/cookies";
+import { getClientIp } from "@/lib/auth/ownerApi";
+import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
 
 type PreferredLanguage = "ru" | "me" | "en";
 
@@ -9,11 +11,19 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LANGS = new Set<PreferredLanguage>(["ru", "me", "en"]);
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -72,14 +82,55 @@ function getStrapiErrorCode(json: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  const ipLimit =
+    await checkPersistentRateLimit(
+      "owner-register-ip",
+      getClientIp(req),
+      8,
+      60 * 60 * 1000
+    );
+
+  if (!ipLimit.allowed) {
+    return jsonError(
+      ipLimit.unavailable
+        ? "rate_limit_unavailable"
+        : "too_many_attempts",
+      ipLimit.unavailable ? 503 : 429
+    );
+  }
+
   const body = await parseJson(req);
 
   if (!body) return jsonError("invalid_request", 400);
 
   const firstName = readString(body, "first_name");
   const lastName = readString(body, "last_name");
-  const email = readString(body, "email").toLowerCase();
-  const whatsappNumber = readString(body, "whatsapp_number");
+  const email =
+    readString(body, "email").toLowerCase();
+
+  if (email) {
+    const emailLimit =
+      await checkPersistentRateLimit(
+        "owner-register-email",
+        email,
+        4,
+        24 * 60 * 60 * 1000
+      );
+
+    if (!emailLimit.allowed) {
+      return jsonError(
+        emailLimit.unavailable
+          ? "rate_limit_unavailable"
+          : "too_many_attempts",
+        emailLimit.unavailable
+          ? 503
+          : 429
+      );
+    }
+  }
+
+  const whatsappNumber =
+    readString(body, "whatsapp_number");
   const password = typeof body.password === "string" ? body.password : "";
   const confirmPassword = typeof body.confirm_password === "string" ? body.confirm_password : "";
   const preferredLanguage =
@@ -169,7 +220,9 @@ export async function POST(req: NextRequest) {
     { status: 200, headers: { "cache-control": "no-store" } }
   );
 
-  setOwnerSessionCookie(response, registerJson.jwt);
+  const profile = isRecord(profileJson.profile) ? profileJson.profile : null;
+  const sessionVersion = typeof profile?.session_version === "number" ? profile.session_version : 0;
+  setOwnerSessionCookie(response, registerJson.jwt, sessionVersion);
 
   return response;
 }

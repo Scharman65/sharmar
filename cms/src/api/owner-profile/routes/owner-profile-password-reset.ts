@@ -20,8 +20,20 @@ export default {
     },
     {
       method: "POST",
+      path: "/owner/profile-password-reset/complete",
+      handler: "owner-profile-password-reset.completeReset",
+      config: { auth: false },
+    },
+    {
+      method: "POST",
       path: "/owner/profile-password-changed",
       handler: "owner-profile-password-reset.passwordChanged",
+      config: { auth: false },
+    },
+    {
+      method: "POST",
+      path: "/owner/profile-change-password",
+      handler: "owner-profile-password-reset.changePassword",
       config: { auth: false },
     },
   ],

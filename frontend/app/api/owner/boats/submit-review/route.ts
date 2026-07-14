@@ -11,7 +11,7 @@ import {
   strapiFetchJson,
 } from "@/lib/auth/ownerApi";
 
-const SUBMITTABLE_STATUSES = new Set(["draft", "needs_changes", "rejected", "submitted"]);
+const SUBMITTABLE_STATUSES = new Set(["draft", "needs_changes", "rejected"]);
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuthenticatedOwner(req);

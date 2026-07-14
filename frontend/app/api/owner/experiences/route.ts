@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
+import { verifyOwnerMedia } from "@/lib/auth/ownerMedia";
 
 type JsonObject = Record<string, unknown>;
-
-type CreateExperienceBody = {
-  boatId?: number;
-  title?: string;
-  durationHours?: number;
-  price?: number;
-  shortDescription?: string;
-  fullDescription?: string;
-  includedServices?: string;
-  meetingPoint?: string;
-  maxGuests?: number;
-  sortOrder?: number;
-  coverId?: number;
-  galleryIds?: number[];
-  locale?: string;
-  sourceLocale?: string;
-};
 
 type ParsedCreateExperienceBody = {
   boatId: number;
@@ -37,11 +21,19 @@ type ParsedCreateExperienceBody = {
 };
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -50,18 +42,6 @@ function getServerToken(): string {
 
 function isRecord(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null;
-}
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (h) {
-    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-    const headerToken = m?.[1]?.trim();
-    if (headerToken) return headerToken;
-  }
-
-  const cookieToken = req.cookies.get("sharmar_owner_session")?.value?.trim();
-  return cookieToken || null;
 }
 
 function asString(v: unknown): string | null {
@@ -197,37 +177,6 @@ function extractNumberId(value: unknown): number | null {
     return Number.isFinite(n) ? n : null;
   }
   return null;
-}
-
-async function getOwner(req: NextRequest) {
-  const userJwt = getBearerToken(req);
-
-  if (!userJwt) {
-    return { ok: false as const, status: 401, error: "Missing Authorization Bearer token" };
-  }
-
-  const me = await strapiJson("/api/users/me", { method: "GET" }, userJwt);
-
-  if (!me.ok || !isRecord(me.json)) {
-    return { ok: false as const, status: 401, error: "User authentication failed" };
-  }
-
-  const id = extractNumberId(me.json.id);
-  const email = asString(me.json.email);
-
-  if (!id || !email) {
-    return { ok: false as const, status: 401, error: "User authentication failed" };
-  }
-
-  return {
-    ok: true as const,
-    userJwt,
-    owner: {
-      id,
-      email,
-      username: asString(me.json.username),
-    },
-  };
 }
 
 function getBoatOwnerId(boat: JsonObject): number | null {
@@ -436,6 +385,16 @@ export async function POST(req: NextRequest) {
   }
 
   const p = parsed.data;
+  const requestedMediaIds = [p.coverId, ...p.galleryIds].filter((id): id is number => typeof id === "number");
+  if (requestedMediaIds.length > 0) {
+    const mediaAllowed = await verifyOwnerMedia(ownerRes.owner.id, requestedMediaIds);
+    if (!mediaAllowed) {
+      return NextResponse.json(
+        { ok: false, error: "Media files are not available for this owner" },
+        { status: 403, headers: { "cache-control": "no-store" } }
+      );
+    }
+  }
   const boatRes = await getOwnerBoat(p.boatId, ownerRes.owner.id, serverToken);
 
   if (!boatRes.ok) {

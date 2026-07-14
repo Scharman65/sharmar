@@ -2,32 +2,39 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { clearOwnerSessionCookie } from "../owner-session/cookies";
 import { getClientIp, getServerToken, getStrapiBase, jsonError, readJson, requireAuthenticatedOwner } from "@/lib/auth/ownerApi";
-import { checkRateLimit } from "@/lib/security/ownerRateLimit";
+import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
 import { validateOwnerPassword } from "@/lib/security/ownerPassword";
 
-async function markPasswordChanged(userId: number, changedAt: string, serverToken: string): Promise<boolean> {
-  const res = await fetch(`${getStrapiBase()}/api/owner/profile-password-changed`, {
+async function changePasswordInCms(userId: number, currentPassword: string, password: string, serverToken: string): Promise<{ ok: boolean; status: number; code: string }> {
+  const res = await fetch(`${getStrapiBase()}/api/owner/profile-change-password`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-owner-api-token": serverToken,
     },
     cache: "no-store",
-    body: JSON.stringify({ user_id: userId, changed_at: changedAt }),
+    body: JSON.stringify({
+      user_id: userId,
+      current_password: currentPassword,
+      password,
+    }),
   });
-  await readJson(res);
-  return res.ok;
+  const json = await readJson(res);
+  const code = typeof json === "object" && json !== null && "error" in json && typeof json.error === "string"
+    ? json.error
+    : "password_change_failed";
+  return { ok: res.ok, status: res.status, code };
 }
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuthenticatedOwner(req);
   if (!auth.ok) return auth.response;
 
-  const ipLimit = checkRateLimit("owner-change-password-ip", getClientIp(req), 12, 60 * 60 * 1000);
-  if (!ipLimit.allowed) return jsonError("too_many_attempts", 429, { retryAfter: ipLimit.retryAfter });
+  const ipLimit = await checkPersistentRateLimit("owner-change-password-ip", getClientIp(req), 12, 60 * 60 * 1000);
+  if (!ipLimit.allowed) return jsonError(ipLimit.unavailable ? "rate_limit_unavailable" : "too_many_attempts", ipLimit.unavailable ? 503 : 429, { retryAfter: ipLimit.retryAfter });
 
-  const emailLimit = checkRateLimit("owner-change-password-user", String(auth.auth.owner.id), 8, 60 * 60 * 1000);
-  if (!emailLimit.allowed) return jsonError("too_many_attempts", 429, { retryAfter: emailLimit.retryAfter });
+  const emailLimit = await checkPersistentRateLimit("owner-change-password-user", String(auth.auth.owner.id), 8, 60 * 60 * 1000);
+  if (!emailLimit.allowed) return jsonError(emailLimit.unavailable ? "rate_limit_unavailable" : "too_many_attempts", emailLimit.unavailable ? 503 : 429, { retryAfter: emailLimit.retryAfter });
 
   let body: Record<string, unknown>;
   try {
@@ -47,28 +54,11 @@ export async function POST(req: NextRequest) {
   const passwordValidation = validateOwnerPassword(password);
   if (!passwordValidation.ok) return jsonError(passwordValidation.code, 400);
 
-  const changeRes = await fetch(`${getStrapiBase()}/api/auth/change-password`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.auth.userJwt}`,
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      currentPassword,
-      password,
-      passwordConfirmation: confirmPassword,
-    }),
-  });
-  await readJson(changeRes);
-  if (!changeRes.ok) return jsonError("current_password_invalid", 400);
-
   const serverToken = getServerToken();
   if (!serverToken) return jsonError("owner_profile_missing", 502);
 
-  const changedAt = new Date().toISOString();
-  const profileUpdated = await markPasswordChanged(auth.auth.owner.id, changedAt, serverToken);
-  if (!profileUpdated) return jsonError("password_change_finalize_failed", 502);
+  const changed = await changePasswordInCms(auth.auth.owner.id, currentPassword, password, serverToken);
+  if (!changed.ok) return jsonError(changed.code, changed.status >= 400 && changed.status < 600 ? changed.status : 502);
 
   const response = NextResponse.json({ ok: true }, { status: 200, headers: { "cache-control": "no-store" } });
   clearOwnerSessionCookie(response);

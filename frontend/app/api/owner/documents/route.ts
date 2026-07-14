@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OWNER_SESSION_COOKIE_NAME } from "../../auth/owner-session/cookies";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
+import { registerOwnerMedia } from "@/lib/auth/ownerMedia";
 
 type JsonObject = Record<string, unknown>;
 type DocumentType = "passport" | "identity" | "license";
@@ -24,11 +24,19 @@ type UploadedFile = {
 };
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -46,18 +54,6 @@ function jsonResponse(body: JsonObject, status: number) {
   });
 }
 
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (h) {
-    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-    const headerToken = m?.[1]?.trim();
-    if (headerToken) return headerToken;
-  }
-
-  const cookieToken = req.cookies.get(OWNER_SESSION_COOKIE_NAME)?.value?.trim();
-  return cookieToken || null;
-}
-
 async function readJson(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return null;
@@ -67,16 +63,6 @@ async function readJson(res: Response): Promise<unknown> {
   } catch {
     return text;
   }
-}
-
-async function strapiJson(path: string, authToken: string): Promise<{ ok: boolean; status: number; json: unknown }> {
-  const res = await fetch(`${getStrapiBase()}${path}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${authToken}` },
-    cache: "no-store",
-  });
-
-  return { ok: res.ok, status: res.status, json: await readJson(res) };
 }
 
 function normalizeStrapiUrl(url: unknown): string | null {
@@ -205,6 +191,11 @@ export async function POST(req: NextRequest) {
 
   if (!uploadedFile?.id) {
     return jsonResponse({ ok: false, error: "Uploaded file id missing" }, 502);
+  }
+
+  const registered = await registerOwnerMedia(authenticatedUserId, [uploadedFile.id], "owner_document");
+  if (!registered) {
+    return jsonResponse({ ok: false, error: "Could not register uploaded document for owner" }, 502);
   }
 
   let attachRes: Response;

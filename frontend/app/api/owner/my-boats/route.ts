@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuthenticatedOwner } from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -16,18 +25,6 @@ function getServerToken(): string {
 
 function isRecord(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null;
-}
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (h) {
-    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-    const headerToken = m?.[1]?.trim();
-    if (headerToken) return headerToken;
-  }
-
-  const cookieToken = req.cookies.get("sharmar_owner_session")?.value?.trim();
-  return cookieToken || null;
 }
 
 async function strapiJson(path: string, authToken?: string): Promise<{ ok: boolean; status: number; json: unknown }> {
@@ -50,28 +47,11 @@ async function strapiJson(path: string, authToken?: string): Promise<{ ok: boole
 }
 
 export async function GET(req: NextRequest) {
-  const userJwt = getBearerToken(req);
+  const auth = await requireAuthenticatedOwner(req);
+  if (!auth.ok) return auth.response;
 
-  if (!userJwt) {
-    return NextResponse.json(
-      { ok: false, error: "Missing Authorization Bearer token" },
-      { status: 401, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  const me = await strapiJson("/api/users/me", userJwt);
-
-  if (!me.ok || !isRecord(me.json) || typeof me.json.email !== "string") {
-    return NextResponse.json(
-      { ok: false, error: "User authentication failed" },
-      { status: 401, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  const ownerId =
-    typeof me.json.id === "number"
-      ? me.json.id
-      : Number(me.json.id || 0);
+  const me = auth.auth.owner;
+  const ownerId = me.id;
 
   const serverToken = getServerToken();
 
@@ -105,9 +85,9 @@ export async function GET(req: NextRequest) {
     {
       ok: true,
       owner: {
-        id: typeof me.json.id === "number" ? me.json.id : null,
-        username: typeof me.json.username === "string" ? me.json.username : null,
-        email: typeof me.json.email === "string" ? me.json.email : null,
+        id: me.id,
+        username: me.username,
+        email: me.email,
       },
       boats: ownerBoats,
     },

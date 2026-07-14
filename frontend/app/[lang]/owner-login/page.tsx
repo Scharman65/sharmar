@@ -37,6 +37,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical,
       languages: languageAlternates("owner-login"),
     },
+    robots: {
+      index: false,
+      follow: false,
+    },
     openGraph: {
       title: seo.title,
       description: seo.description,

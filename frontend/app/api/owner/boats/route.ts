@@ -1,30 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
+import { verifyOwnerMedia } from "@/lib/auth/ownerMedia";
 
 type JsonObject = Record<string, unknown>;
-
-type CreateBoatBody = {
-  title?: string;
-  description?: string;
-  listingType?: "rent" | "sale";
-  vesselType?: "motorboat" | "sailboat";
-  capacity?: number;
-  lengthM?: number | null;
-  year?: number | null;
-  engineHp?: number | null;
-  rentPriceHour?: number | null;
-  rentPriceDay?: number | null;
-  rentPriceWeek?: number | null;
-  minRentalHours?: number | null;
-  salePrice?: number | null;
-  ownerPhone?: string;
-  homeMarinaId?: number | null;
-  imageIds?: number[];
-  ownerEmail?: string;
-  currency?: "EUR";
-  locale?: string;
-  instantBooking?: boolean;
-};
 
 type ParsedCreateBoatBody = {
   title: string;
@@ -56,11 +34,19 @@ type StrapiUsersMe = {
 };
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -82,19 +68,6 @@ function extractNumberId(value: unknown): number | null {
   }
 
   return null;
-}
-
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (h) {
-    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-    const headerToken = m?.[1]?.trim();
-    if (headerToken) return headerToken;
-  }
-
-  const cookieToken = req.cookies.get("sharmar_owner_session")?.value?.trim();
-  return cookieToken || null;
 }
 
 
@@ -502,6 +475,15 @@ export async function POST(req: NextRequest) {
 
   const me = ownerAuth.auth.owner as StrapiUsersMe;
   const p = parsed.data;
+  if (Array.isArray(p.imageIds) && p.imageIds.length > 0) {
+    const mediaAllowed = await verifyOwnerMedia(me.id, p.imageIds);
+    if (!mediaAllowed) {
+      return NextResponse.json(
+        { ok: false, error: "Media files are not available for this owner" },
+        { status: 403, headers: { "cache-control": "no-store" } }
+      );
+    }
+  }
 
   const createPayload = {
     data: {
@@ -651,9 +633,28 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
+  const currentStatus = isRecord(ownedBoat) && typeof ownedBoat.moderation_status === "string"
+    ? ownedBoat.moderation_status
+    : "draft";
+  if (["submitted", "under_review", "approved", "published", "archived"].includes(currentStatus)) {
+    return NextResponse.json(
+      { ok: false, error: "Boat cannot be edited in its current moderation status" },
+      { status: 409, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   const p = parsed.data;
 
   const requestedImageIds = Array.isArray(p.imageIds) && p.imageIds.length > 0 ? p.imageIds : null;
+  if (requestedImageIds) {
+    const mediaAllowed = await verifyOwnerMedia(me.id, requestedImageIds);
+    if (!mediaAllowed) {
+      return NextResponse.json(
+        { ok: false, error: "Media files are not available for this owner" },
+        { status: 403, headers: { "cache-control": "no-store" } }
+      );
+    }
+  }
   const ownerBoatMedia = requestedImageIds ? null : mediaIdsFromOwnerBoat(ownedBoat);
   const existingMedia =
     requestedImageIds || !ownerBoatMedia

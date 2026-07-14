@@ -145,6 +145,12 @@
       "type": "datetime",
       "required": false,
       "private": true
+    },
+    "session_version": {
+      "type": "integer",
+      "default": 0,
+      "required": true,
+      "private": true
     }
   }
 }

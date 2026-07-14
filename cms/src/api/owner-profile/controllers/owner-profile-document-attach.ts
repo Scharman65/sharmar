@@ -1,3 +1,5 @@
+import { isOwnerInternalAuthorized } from "../../../utils/ownerInternalAuth";
+
 const DOCUMENT_FIELD_BY_TYPE = {
   passport: "passport_document",
   identity: "identity_document",
@@ -5,21 +7,6 @@ const DOCUMENT_FIELD_BY_TYPE = {
 };
 
 const OWNER_PROFILE_RELATED_TYPE = "api::owner-profile.owner-profile";
-
-function getExpectedToken() {
-  return String(
-    process.env.OWNER_API_TOKEN ||
-      process.env.STRAPI_WRITE_TOKEN ||
-      process.env.STRAPI_TOKEN ||
-      ""
-  ).trim();
-}
-
-function getHeader(ctx, name) {
-  const lowerName = String(name).toLowerCase();
-  const value = ctx.request?.headers?.[lowerName] || ctx.get?.(name);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 function getPositiveInteger(value) {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -35,10 +22,7 @@ function getDocumentField(value) {
 export default {
   async attach(ctx) {
     try {
-      const expectedToken = getExpectedToken();
-      const providedToken = getHeader(ctx, "x-owner-api-token");
-
-      if (!expectedToken || providedToken !== expectedToken) {
+      if (!isOwnerInternalAuthorized(ctx)) {
         ctx.status = 401;
         ctx.body = { ok: false, error: "unauthorized" };
         return;
@@ -79,6 +63,43 @@ export default {
       if (!file?.id) {
         ctx.status = 404;
         ctx.body = { ok: false, error: "file_not_found" };
+        return;
+      }
+
+      const ownershipTableExists =
+        await knex.raw(
+          "select to_regclass(" +
+          "'public.owner_media_files'" +
+          ") as table_name"
+        );
+
+      if (
+        !ownershipTableExists?.rows?.[0]
+          ?.table_name
+      ) {
+        ctx.status = 403;
+        ctx.body = {
+          ok: false,
+          error: "document_not_owned_by_owner",
+        };
+        return;
+      }
+
+      const ownedMedia =
+        await knex("owner_media_files")
+          .select("file_id")
+          .where({
+            user_id: userId,
+            file_id: fileId,
+          })
+          .first();
+
+      if (!ownedMedia?.file_id) {
+        ctx.status = 403;
+        ctx.body = {
+          ok: false,
+          error: "document_not_owned_by_owner",
+        };
         return;
       }
 

@@ -76,11 +76,19 @@ type OwnerDocumentStatus = {
 };
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -126,18 +134,6 @@ function buildOwnerDocumentStatus(ownerProfile: JsonObject | null): OwnerDocumen
     identity_uploaded: hasRelatedFile(ownerProfile?.identity_document),
     license_uploaded: hasRelatedFile(ownerProfile?.license_document),
   };
-}
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (h) {
-    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-    const headerToken = m?.[1]?.trim();
-    if (headerToken) return headerToken;
-  }
-
-  const cookieToken = req.cookies.get("sharmar_owner_session")?.value?.trim();
-  return cookieToken || null;
 }
 
 async function strapiJson(path: string, authToken?: string): Promise<{ ok: boolean; status: number; json: unknown }> {

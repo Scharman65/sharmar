@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
+import { registerOwnerMedia } from "@/lib/auth/ownerMedia";
 
 type JsonObject = Record<string, unknown>;
 
@@ -17,11 +18,19 @@ type UploadedFile = {
 };
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error(
+      "STRAPI_URL is not configured"
+    );
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -30,18 +39,6 @@ function getServerToken(): string {
 
 function isRecord(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null;
-}
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (h) {
-    const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-    const headerToken = m?.[1]?.trim();
-    if (headerToken) return headerToken;
-  }
-
-  const cookieToken = req.cookies.get("sharmar_owner_session")?.value?.trim();
-  return cookieToken || null;
 }
 
 function jsonResponse(body: JsonObject, status: number) {
@@ -83,25 +80,6 @@ function normalizeUploadedFile(item: unknown): UploadedFile | null {
     mime: typeof item.mime === "string" ? item.mime : null,
     size: getUploadSize(item.size),
   };
-}
-
-async function strapiJson(path: string, authToken: string): Promise<{ ok: boolean; status: number; json: unknown }> {
-  const res = await fetch(`${getStrapiBase()}${path}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${authToken}` },
-    cache: "no-store",
-  });
-
-  const text = await res.text();
-  let json: unknown = null;
-
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = text;
-  }
-
-  return { ok: res.ok, status: res.status, json };
 }
 
 function getFiles(formData: FormData): File[] {
@@ -211,6 +189,15 @@ export async function POST(req: NextRequest) {
   const normalizedFiles = uploadedItems
     .map(normalizeUploadedFile)
     .filter((file): file is UploadedFile => file !== null);
+
+  const registered = await registerOwnerMedia(
+    ownerAuth.auth.owner.id,
+    normalizedFiles.map((file) => file.id),
+    "owner_image"
+  );
+  if (!registered) {
+    return jsonResponse({ ok: false, error: "Could not register uploaded files for owner" }, 502);
+  }
 
   return jsonResponse({ ok: true, files: normalizedFiles }, 200);
 }

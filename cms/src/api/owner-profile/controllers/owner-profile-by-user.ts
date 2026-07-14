@@ -1,5 +1,13 @@
+import { isOwnerInternalAuthorized } from "../../../utils/ownerInternalAuth";
+
 export default {
   async get(ctx) {
+    if (!isOwnerInternalAuthorized(ctx)) {
+      ctx.status = 401;
+      ctx.body = { ok: false, error: "unauthorized" };
+      return;
+    }
+
     try {
       const userIdRaw = String(ctx.query?.user_id || "").trim();
       const userId = Number(userIdRaw);
@@ -33,6 +41,7 @@ export default {
           op.rejected_at,
           op.rejection_reason,
           op.password_changed_at,
+          coalesce(op.session_version, 0) as session_version,
           op.created_at,
           op.updated_at,
           l.user_id

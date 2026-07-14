@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { setOwnerSessionCookie } from "../owner-session/cookies";
-import { getClientIp, getStrapiBase, jsonError, readJson } from "@/lib/auth/ownerApi";
-import { checkRateLimit } from "@/lib/security/ownerRateLimit";
+import { asNumber, getClientIp, getServerToken, getStrapiBase, isRecord, jsonError, readJson, strapiFetchJson } from "@/lib/auth/ownerApi";
+import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
 import { normalizeOwnerEmail } from "@/lib/security/ownerPassword";
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const ipLimit = checkRateLimit("owner-login-ip", ip, 20, 15 * 60 * 1000);
-  if (!ipLimit.allowed) return jsonError("too_many_attempts", 429, { retryAfter: ipLimit.retryAfter });
+  const ipLimit = await checkPersistentRateLimit("owner-login-ip", ip, 20, 15 * 60 * 1000);
+  if (!ipLimit.allowed) return jsonError(ipLimit.unavailable ? "rate_limit_unavailable" : "too_many_attempts", ipLimit.unavailable ? 503 : 429, { retryAfter: ipLimit.retryAfter });
 
   let body: Record<string, unknown>;
   try {
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
   const identifier = normalizeOwnerEmail(body.identifier);
   const password = typeof body.password === "string" ? body.password : "";
 
-  const emailLimit = checkRateLimit("owner-login-email", identifier, 8, 15 * 60 * 1000);
-  if (!emailLimit.allowed) return jsonError("too_many_attempts", 429, { retryAfter: emailLimit.retryAfter });
+  const emailLimit = await checkPersistentRateLimit("owner-login-email", identifier, 8, 15 * 60 * 1000);
+  if (!emailLimit.allowed) return jsonError(emailLimit.unavailable ? "rate_limit_unavailable" : "too_many_attempts", emailLimit.unavailable ? 503 : 429, { retryAfter: emailLimit.retryAfter });
 
   if (!identifier || !password) return jsonError("invalid_credentials", 400);
 
@@ -38,7 +38,17 @@ export async function POST(req: NextRequest) {
     return jsonError("invalid_credentials", 401);
   }
 
+  const loginUser = isRecord(loginJson) && isRecord(loginJson.user) ? loginJson.user : null;
+  const userId = asNumber(loginUser?.id);
+  const serverToken = getServerToken();
+  if (!userId || !serverToken) return jsonError("owner_profile_unavailable", 503);
+
+  const profileRes = await strapiFetchJson(`/api/owner/profile-by-user?user_id=${userId}`, { method: "GET" }, serverToken);
+  const profile = isRecord(profileRes.json) && isRecord(profileRes.json.profile) ? profileRes.json.profile : null;
+  if (!profileRes.ok || !profile) return jsonError("owner_profile_unavailable", 503);
+  const sessionVersion = asNumber(profile.session_version) ?? 0;
+
   const response = NextResponse.json({ ok: true }, { status: 200, headers: { "cache-control": "no-store" } });
-  setOwnerSessionCookie(response, (loginJson as { jwt: string }).jwt);
+  setOwnerSessionCookie(response, (loginJson as { jwt: string }).jwt, sessionVersion);
   return response;
 }

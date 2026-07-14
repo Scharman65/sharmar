@@ -33,6 +33,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical,
       languages: languageAlternates("owner-forgot-password"),
     },
+    robots: {
+      index: false,
+      follow: false,
+    },
   };
 }
 

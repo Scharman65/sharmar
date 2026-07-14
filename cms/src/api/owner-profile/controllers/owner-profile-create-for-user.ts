@@ -1,5 +1,13 @@
+import { isOwnerInternalAuthorized } from "../../../utils/ownerInternalAuth";
+
 export default {
   async create(ctx) {
+    if (!isOwnerInternalAuthorized(ctx)) {
+      ctx.status = 401;
+      ctx.body = { ok: false, error: "unauthorized" };
+      return;
+    }
+
     try {
       const body = ctx.request?.body || {};
 
@@ -64,6 +72,7 @@ export default {
           op.rejected_at,
           op.rejection_reason,
           op.password_changed_at,
+          coalesce(op.session_version, 0) as session_version,
           op.created_at,
           op.updated_at,
           l.user_id
@@ -103,6 +112,7 @@ export default {
           email_verified,
           whatsapp_verified,
           verification_status,
+          session_version,
           created_at,
           updated_at,
           published_at
@@ -118,6 +128,7 @@ export default {
           false,
           false,
           'new',
+          0,
           now(),
           now(),
           now()
@@ -174,6 +185,7 @@ export default {
           op.rejected_at,
           op.rejection_reason,
           op.password_changed_at,
+          coalesce(op.session_version, 0) as session_version,
           op.created_at,
           op.updated_at,
           l.user_id
