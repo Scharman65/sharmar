@@ -2,6 +2,7 @@ import {
   dodoIdempotencyConflicts,
   extractDodoStatusDecision,
   getHeaderValue,
+  parseDodoMetadata,
   resolveDodoApiBaseUrl,
   shouldApplyDodoStatusUpdate,
   stableDodoIdempotencyHash,
@@ -67,7 +68,7 @@ export default {
       .first();
 
     if (existing) {
-      const meta = (existing.metadata as any) || {};
+      const meta = parseDodoMetadata(existing.metadata);
       if (dodoIdempotencyConflicts(meta, idempotencyRequestHash)) {
         ctx.status = 409;
         ctx.body = { error: "idempotency_key_conflict" };
@@ -879,8 +880,10 @@ export default {
               return;
             }
           } catch (e) {
-            const code = String((e as any)?.code || "");
-            if (code !== "42P01") throw e;
+            strapi.log.warn(`DODO_REPLAY_STORAGE_UNAVAILABLE ${(e as any)?.code || "unknown"}`);
+            ctx.status = 503;
+            ctx.body = { error: "dodo_replay_storage_unavailable" };
+            return;
           }
 
           if (!paidEvent) {

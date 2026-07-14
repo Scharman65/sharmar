@@ -52,11 +52,24 @@ export function stableDodoIdempotencyHash(input: unknown): string {
 }
 
 export function dodoIdempotencyConflicts(existingMetadata: unknown, requestHash: string): boolean {
-  const meta = parseMetadata(existingMetadata);
+  const meta = parseDodoMetadata(existingMetadata);
   const existingHash = typeof meta.idempotency_request_hash === "string"
     ? meta.idempotency_request_hash
     : "";
   return Boolean(existingHash && requestHash && existingHash !== requestHash);
+}
+
+export function parseDodoMetadata(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 export function getHeaderValue(ctx: any, names: string[]): string {
@@ -207,19 +220,6 @@ export function shouldApplyDodoStatusUpdate(currentStatus: string, nextStatus: s
     succeeded: 100,
   };
   return (rank[nextStatus] || 0) >= (rank[currentStatus] || 0);
-}
-
-function parseMetadata(value: unknown): Record<string, unknown> {
-  if (!value) return {};
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-  return typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 function stableStringify(v: any): string {
