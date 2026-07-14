@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
-import { bookingAdminEmail, bookingCustomerRequestEmail, ownerDecisionEmail } from "@/app/lib/emailTemplates";
+import { bookingAdminEmail, bookingCustomerRequestEmail } from "@/app/lib/emailTemplates";
 import crypto from "node:crypto";
 import { calculateMarketplaceBreakdown } from "@/lib/pricing";
+import {
+  hashProviderMessageId,
+  notifyOwnerOfBookingRequest,
+  type NotificationResult,
+} from "@/app/lib/ownerNotifications";
 
 type JsonObj = Record<string, unknown>;
 
@@ -324,6 +329,11 @@ async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
   return json;
 }
 
+function internalSecretHeaders(): Record<string, string> {
+  const secret = (process.env.SHARMAR_INTERNAL_NOTIFY_SECRET ?? "").trim();
+  return secret ? { "x-sharmar-internal-secret": secret } : {};
+}
+
 function isObjectRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -365,20 +375,20 @@ async function getBoatPricingBySlug(slug: string): Promise<BoatPricing | null> {
   const json = await strapiFetch(`/api/boats?${qs.toString()}`);
 
   if (!isRecord(json)) return null;
-  const data = (json as any).data;
+  const data = json.data;
 
   if (!Array.isArray(data) || data.length === 0) return null;
   const first = data[0];
 
   if (!isRecord(first)) return null;
 
-  const id = getNum((first as any).id);
+  const id = getNum(first.id);
   if (!id) return null;
 
   return {
     id,
-    currency: getStr((first as any).currency) || "EUR",
-    pricePerHour: getNum((first as any).price_per_hour),
+    currency: getStr(first.currency) || "EUR",
+    pricePerHour: getNum(first.price_per_hour),
   };
 }
 
@@ -407,15 +417,15 @@ async function getExperiencePricingForBoat(
   const json = await strapiFetch(`/api/experiences?${qs.toString()}`);
 
   if (!isRecord(json)) return null;
-  const data = (json as any).data;
+  const data = json.data;
   if (!Array.isArray(data) || data.length === 0) return null;
 
   const first = data[0];
   if (!isRecord(first)) return null;
 
-  const id = getNum((first as any).id);
-  const durationHours = getNum((first as any).duration_hours);
-  const price = getNum((first as any).price);
+  const id = getNum(first.id);
+  const durationHours = getNum(first.duration_hours);
+  const price = getNum(first.price);
 
   if (!id || !durationHours || durationHours <= 0 || !price || price <= 0) {
     return null;
@@ -423,10 +433,10 @@ async function getExperiencePricingForBoat(
 
   return {
     id,
-    title: getStr((first as any).title),
+    title: getStr(first.title),
     durationHours,
     price,
-    currency: getStr((first as any).currency) || "EUR",
+    currency: getStr(first.currency) || "EUR",
   };
 }
 
@@ -450,6 +460,7 @@ type OwnerContact = {
   owner_phone: string | null;
   owner_whatsapp: string | null;
   owner_viber: string | null;
+  notifications_allowed?: boolean;
 };
 
 function detectLangFromRequest(req: Request): "en" | "ru" | "me" {
@@ -472,56 +483,11 @@ function buildOwnerUrl(req: Request, token: string): string {
   return `${origin}/${lang}/owner/${encodeURIComponent(token)}`;
 }
 
-function normalizePhoneLike(value: string | null | undefined): string | null {
-  const raw = String(value || "").trim();
-  if (!raw) return null;
-
-  const cleaned = raw.replace(/[^\d+]/g, "");
-  if (!cleaned) return null;
-
-  if (cleaned.startsWith("00")) {
-    return "+" + cleaned.slice(2);
-  }
-
-  return cleaned;
-}
-
-function buildOwnerMessage(
-  boatTitle: string,
-  clientName: string,
-  clientPhone: string,
-  start: string,
-  end: string,
-  ownerUrl: string
-): string {
-  return [
-    "New booking request",
-    `Boat: ${boatTitle}`,
-    `Client: ${clientName}`,
-    `Phone: ${clientPhone}`,
-    `From: ${start}`,
-    `To: ${end}`,
-    `Open: ${ownerUrl}`,
-  ].join("\n");
-}
-
-function buildOwnerWhatsAppUrl(ownerWhatsApp: string | null | undefined, message: string): string | null {
-  const phone = normalizePhoneLike(ownerWhatsApp);
-  if (!phone) return null;
-
-  const digits = phone.replace(/^\+/, "");
-  return `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(message)}`;
-}
-
-function buildOwnerViberUrl(ownerViber: string | null | undefined, message: string): string | null {
-  const phone = normalizePhoneLike(ownerViber);
-  if (!phone) return null;
-
-  return `viber://chat?number=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}`;
-}
-
 async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null> {
-  const json = await strapiFetch(`/api/boats-owner-contact-by-slug/${encodeURIComponent(slug)}`);
+  const json = await strapiFetch(`/api/boats-owner-contact-by-slug/${encodeURIComponent(slug)}`, {
+    method: "GET",
+    headers: internalSecretHeaders(),
+  });
 
   if (!isRecord(json)) return null;
   if (json.ok !== true) return null;
@@ -533,8 +499,60 @@ async function getOwnerContactBySlug(slug: string): Promise<OwnerContact | null>
   const owner_phone = typeof data.owner_phone === "string" && data.owner_phone.trim().length ? data.owner_phone.trim() : null;
   const owner_whatsapp = typeof data.owner_whatsapp === "string" && data.owner_whatsapp.trim().length ? data.owner_whatsapp.trim() : null;
   const owner_viber = typeof data.owner_viber === "string" && data.owner_viber.trim().length ? data.owner_viber.trim() : null;
+  const notifications_allowed = data.notifications_allowed === true;
 
-  return { owner_email, owner_phone, owner_whatsapp, owner_viber };
+  return { owner_email, owner_phone, owner_whatsapp, owner_viber, notifications_allowed };
+}
+
+async function claimNotificationDelivery(input: {
+  deduplicationKey: string;
+  requestId: number;
+  publicToken: string;
+  channel: NotificationResult["channel"];
+  provider: string;
+}): Promise<{ claimed: boolean }> {
+  const json = await strapiFetch("/api/internal/notification-deliveries/claim", {
+    method: "POST",
+    headers: internalSecretHeaders(),
+    body: JSON.stringify({
+      data: {
+        deduplication_key: input.deduplicationKey,
+        request_id: input.requestId,
+        public_token: input.publicToken,
+        event_type: "booking_request_owner",
+        channel: input.channel,
+        provider: input.provider,
+        metadata: { source: "frontend_api_request" },
+      },
+    }),
+  });
+
+  return { claimed: isRecord(json) ? json.claimed === true : true };
+}
+
+async function recordNotificationDelivery(input: {
+  deduplicationKey: string;
+  result: NotificationResult;
+}): Promise<void> {
+  await strapiFetch("/api/internal/notification-deliveries/record", {
+    method: "POST",
+    headers: internalSecretHeaders(),
+    body: JSON.stringify({
+      data: {
+        deduplication_key: input.deduplicationKey,
+        provider: input.result.provider,
+        status: input.result.accepted ? "accepted" : input.result.attempted ? "failed" : "skipped",
+        accepted_at: input.result.accepted ? new Date().toISOString() : null,
+        provider_message_id_hash: hashProviderMessageId(input.result.providerMessageId),
+        error_code: input.result.errorCode || input.result.skippedReason || null,
+        metadata: {
+          channel: input.result.channel,
+          attempted: input.result.attempted,
+          accepted: input.result.accepted,
+        },
+      },
+    }),
+  });
 }
 
 function emailLocaleFromRequest(req: Request): string {
@@ -740,27 +758,13 @@ export async function POST(req: Request) {
     const ownerUrl = buildOwnerUrl(req, publicToken);
 
     let ownerContact: OwnerContact | null = null;
-    let ownerEmailSent = false;
-    let ownerWhatsAppUrl: string | null = null;
-    let ownerViberUrl: string | null = null;
+    let ownerNotificationResults: NotificationResult[] = [];
 
     try {
       ownerContact = await getOwnerContactBySlug(p.boatSlug);
     } catch (e) {
       console.error("OWNER_CONTACT_LOOKUP_FAILED", e);
     }
-
-    const ownerMessage = buildOwnerMessage(
-      p.boatTitle || p.boatSlug,
-      p.name,
-      p.phone,
-      start,
-      end,
-      ownerUrl
-    );
-
-    ownerWhatsAppUrl = buildOwnerWhatsAppUrl(ownerContact?.owner_whatsapp, ownerMessage);
-    ownerViberUrl = buildOwnerViberUrl(ownerContact?.owner_viber, ownerMessage);
 
     if (id > 0 && BOOKING_TO && resend) {
       try {
@@ -790,33 +794,32 @@ export async function POST(req: Request) {
       }
     }
 
-    if (id > 0 && ownerContact?.owner_email && resend) {
+    if (id > 0) {
       try {
-        const mail = ownerDecisionEmail({
+        ownerNotificationResults = await notifyOwnerOfBookingRequest({
+          requestId: id,
+          publicToken,
           locale: emailLocale,
           boatTitle: p.boatTitle || p.boatSlug,
           boatSlug: p.boatSlug,
           ownerUrl,
           clientName: p.name,
           clientPhone: p.phone,
-          clientEmail: p.email || undefined,
+          clientEmail: p.email || null,
           start,
           end,
           people,
           skipper: Boolean(p.needSkipper),
-          notes: p.message || undefined,
+          notes: p.message || null,
+          ownerContact,
+        }, {
+          resend,
+          bookingFrom: BOOKING_FROM,
+          claimDelivery: claimNotificationDelivery,
+          recordDelivery: recordNotificationDelivery,
         });
-
-        await resend.emails.send({
-          from: BOOKING_FROM,
-          to: ownerContact.owner_email,
-          subject: mail.subject,
-          text: mail.text,
-        });
-
-        ownerEmailSent = true;
       } catch (e) {
-        console.error("OWNER_EMAIL_SEND_FAILED", e);
+        console.error("OWNER_NOTIFICATION_FAILED", e);
       }
     }
 
@@ -855,6 +858,14 @@ export async function POST(req: Request) {
       id,
       fingerprint: fp,
       source_ip: ip,
+      owner_notifications: ownerNotificationResults.map((r) => ({
+        channel: r.channel,
+        provider: r.provider,
+        attempted: r.attempted,
+        accepted: r.accepted,
+        skippedReason: r.skippedReason,
+        errorCode: r.errorCode,
+      })),
     });
     return NextResponse.json(
       {
@@ -862,13 +873,15 @@ export async function POST(req: Request) {
         id,
         token: publicToken,
         ownerUrl,
-        ownerEmailSent,
-        ownerEmail: ownerContact?.owner_email ?? null,
-        ownerPhone: ownerContact?.owner_phone ?? null,
-        ownerWhatsApp: ownerContact?.owner_whatsapp ?? null,
-        ownerViber: ownerContact?.owner_viber ?? null,
-        ownerWhatsAppUrl,
-        ownerViberUrl,
+        ownerNotifications: ownerNotificationResults.map((r) => ({
+          channel: r.channel,
+          provider: r.provider,
+          attempted: r.attempted,
+          accepted: r.accepted,
+          providerMessageId: r.providerMessageId || null,
+          skippedReason: r.skippedReason || null,
+          errorCode: r.errorCode || null,
+        })),
       },
       { status: 200, headers: { "cache-control": "no-store" } }
     );
@@ -889,7 +902,7 @@ export async function POST(req: Request) {
     }
 
     const errorClass =
-      typeof e === "object" && e !== null && "name" in e && typeof (e as any).name === "string" ? String((e as any).name) : "Error";
+      isRecord(e) && typeof e.name === "string" ? String(e.name) : "Error";
     logBookingEvent({
       request_id: requestId,
       public_token: publicToken,
