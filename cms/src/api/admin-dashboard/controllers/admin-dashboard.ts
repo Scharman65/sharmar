@@ -34,6 +34,22 @@ function nullableBoolean(value) {
   return Boolean(value);
 }
 
+
+function jsonArray(value) {
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
 async function countTable(tableName: string, warnings: string[], label: string) {
   try {
     const result = await strapi.db.connection.raw(`select count(*)::int as count from ${tableName}`);
@@ -208,6 +224,37 @@ async function loadOwners(warnings: string[]) {
         u.blocked,
         nullif(trim(concat(coalesce(op.first_name, ''), ' ', coalesce(op.last_name, ''))), '') as display_name,
         op.phone,
+        op.verification_status,
+        op.documents_uploaded_at,
+        op.verified_at,
+        op.rejected_at,
+        op.rejection_reason,
+        coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object(
+                'id', file.id,
+                'name', file.name,
+                'url', file.url,
+                'mime', file.mime,
+                'field', relation.field
+              )
+              order by relation.field, relation."order", file.id
+            )
+            from public.files_related_mph relation
+            inner join public.files file
+              on file.id = relation.file_id
+            where
+              relation.related_type = 'api::owner-profile.owner-profile'
+              and relation.related_id = op.id
+              and relation.field in (
+                'passport_document',
+                'identity_document',
+                'license_document'
+              )
+          ),
+          '[]'::jsonb
+        ) as documents,
         op.created_at,
         op.updated_at
       from public.owner_profiles op
@@ -231,6 +278,13 @@ async function loadOwners(warnings: string[]) {
       profile_id: nullableNumber(row.profile_id),
       display_name: nullableString(row.display_name),
       phone: nullableString(row.phone),
+      verification_status: nullableString(row.verification_status),
+      documents_uploaded_at: nullableString(row.documents_uploaded_at),
+      verified_at: nullableString(row.verified_at),
+      rejected_at: nullableString(row.rejected_at),
+      rejection_reason: nullableString(row.rejection_reason),
+      documents: jsonArray(row.documents),
+      document_count: jsonArray(row.documents).length,
       created_at: nullableString(row.created_at),
       updated_at: nullableString(row.updated_at),
     }));

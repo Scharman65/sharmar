@@ -21,11 +21,17 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_OPENAI_TRANSLATION_MODEL = "gpt-4.1-mini";
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error("STRAPI_URL is not configured");
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {

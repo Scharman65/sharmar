@@ -3,8 +3,19 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
+import AdminModerationActions from "./AdminModerationActions";
 
-type StatusFilter = "all" | "draft" | "published" | "awaiting";
+type StatusFilter =
+  | "all"
+  | "draft"
+  | "submitted"
+  | "under_review"
+  | "needs_changes"
+  | "approved"
+  | "published"
+  | "rejected"
+  | "archived"
+  | "awaiting";
 type LocaleFilter = "all" | "ru" | "en" | "sr-Latn-ME";
 type ListingTypeFilter = "all" | "rent" | "sale";
 type AdminSection = "overview" | "boats" | "routes" | "owners" | "bookings" | "payments" | "translations" | "quality" | "system";
@@ -16,6 +27,7 @@ type Summary = {
   draftBoats?: number | null;
   publishedBoats?: number | null;
   boatsAwaitingReview?: number | null;
+  moderationCounts?: Record<string, number>;
   totalOwners?: number | null;
   totalExperiences?: number | null;
   totalBookingRequests?: number | null;
@@ -55,6 +67,11 @@ type BoatRow = {
   currency?: string | null;
   instant_booking?: boolean | null;
   contacts_visible?: boolean | null;
+  moderation_status?: string | null;
+  moderation_comment?: string | null;
+  submitted_for_review_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
 };
 
 type ExperienceRow = {
@@ -80,6 +97,19 @@ type OwnerRow = {
   profile_id?: number | null;
   display_name?: string | null;
   phone?: string | null;
+  verification_status?: string | null;
+  documents_uploaded_at?: string | null;
+  verified_at?: string | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
+  document_count?: number | null;
+  documents?: Array<{
+    id?: number | null;
+    name?: string | null;
+    url?: string | null;
+    mime?: string | null;
+    field?: string | null;
+  }>;
   created_at?: string | null;
 };
 
@@ -265,7 +295,7 @@ const copy: Record<Lang, {
 }> = {
   en: {
     subtitle: "Admin dashboard",
-    intro: "Read-only admin cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
+    intro: "Protected admin cockpit for review, translation drafts, owner verification, approval and publication.",
     token: "Admin token",
     load: "Load dashboard",
     loading: "Loading...",
@@ -279,7 +309,7 @@ const copy: Record<Lang, {
   },
   ru: {
     subtitle: "Панель администратора",
-    intro: "Read-only admin cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
+    intro: "Protected admin cockpit for review, translation drafts, owner verification, approval and publication.",
     token: "Admin token",
     load: "Загрузить данные",
     loading: "Загрузка...",
@@ -293,7 +323,7 @@ const copy: Record<Lang, {
   },
   me: {
     subtitle: "Admin dashboard",
-    intro: "Read-only admin cockpit. Данные загружаются только для просмотра, изменения не сохраняются.",
+    intro: "Protected admin cockpit for review, translation drafts, owner verification, approval and publication.",
     token: "Admin token",
     load: "Load dashboard",
     loading: "Učitavanje...",
@@ -325,7 +355,10 @@ function dateDisplay(value: string | null | undefined): string {
 }
 
 function isAwaitingReview(boat: BoatRow): boolean {
-  return boat.state === "draft";
+  return (
+    boat.moderation_status === "submitted" ||
+    boat.moderation_status === "under_review"
+  );
 }
 
 function boatKey(boat: BoatRow, index = 0): string {
@@ -825,9 +858,13 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
   const filteredBoats = useMemo(() => {
     const q = search.trim().toLowerCase();
     return boats.filter((boat) => {
-      if (status === "draft" && boat.state !== "draft") return false;
-      if (status === "published" && boat.state !== "published") return false;
+      if (status === "draft" && boat.moderation_status !== "draft") return false;
+      if (status === "published" && boat.moderation_status !== "published") return false;
       if (status === "awaiting" && !isAwaitingReview(boat)) return false;
+      if (
+        !["all", "draft", "published", "awaiting"].includes(status) &&
+        boat.moderation_status !== status
+      ) return false;
       if (locale !== "all" && boat.locale !== locale) return false;
       if (listingType !== "all" && boat.listing_type !== listingType) return false;
       if (!q) return true;
@@ -848,7 +885,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
     me: boats.filter((boat) => boat.locale === "sr-Latn-ME" || boat.locale === "me").length,
   };
   const quality = {
-    draftBoats: boats.filter((boat) => boat.state === "draft").length,
+    draftBoats: boats.filter((boat) => boat.moderation_status === "draft").length,
     missingOwner: boats.filter((boat) => !hasOwnerDisplay(boat)).length,
     missingTitle: boats.filter((boat) => !boat.title).length,
     missingSlug: boats.filter((boat) => !boat.slug).length,
@@ -1050,7 +1087,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                   </div>
                   <div>
                     <dt>Phase</dt>
-                    <dd>Read-only Phase 2A. No changes are saved here.</dd>
+                    <dd>Protected moderation workflow. All writes are server-gated and audited.</dd>
                   </div>
                 </dl>
               </div>
@@ -1062,7 +1099,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
               <div className="admin-section-heading">
                 <div>
                   <h2 id="admin-boats-title">{ui.boats}</h2>
-                  <p>Moderation preparation view. No approve, publish, reject, or delete actions are available yet.</p>
+                  <p>Protected moderation queue with server-enforced status transitions and audit events.</p>
                 </div>
                 <span>{filteredBoats.length} / {boats.length}</span>
               </div>
@@ -1076,9 +1113,15 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                     <span>Status</span>
                     <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
                       <option value="all">all</option>
-                      <option value="draft">draft</option>
-                      <option value="published">published</option>
                       <option value="awaiting">awaiting review</option>
+                      <option value="draft">draft</option>
+                      <option value="submitted">submitted</option>
+                      <option value="under_review">under_review</option>
+                      <option value="needs_changes">needs_changes</option>
+                      <option value="approved">approved</option>
+                      <option value="published">published</option>
+                      <option value="rejected">rejected</option>
+                      <option value="archived">archived</option>
                     </select>
                   </label>
                   <label>
@@ -1124,7 +1167,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <th>listing_type</th>
                         <th>boat / vessel</th>
                         <th>owner / created_by</th>
-                        <th>state</th>
+                        <th>moderation</th>
+                        <th>publication</th>
                         <th>created_at</th>
                         <th>updated_at</th>
                         <th>cover</th>
@@ -1178,7 +1222,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             <td>{display(boat.listing_type)}</td>
                             <td>{display(boat.boat_type || boat.vessel_type)}</td>
                             <td>{ownerDisplay(boat)}</td>
-                            <td><span className={`admin-state ${boat.state === "published" ? "published" : "draft"}`}>{display(boat.state)}</span></td>
+                            <td><span className={`admin-state ${boat.moderation_status === "published" || boat.moderation_status === "approved" ? "published" : "draft"}`}>{display(boat.moderation_status)}</span></td>
+                            <td>{display(boat.state)}</td>
                             <td>{dateDisplay(boat.created_at)}</td>
                             <td>{dateDisplay(boat.updated_at)}</td>
                             <td>{numberDisplay(boat.cover_count)}</td>
@@ -1244,7 +1289,11 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                       <strong>{display(selectedBoat.locale)}</strong>
                     </div>
                     <div>
-                      <span>state</span>
+                      <span>moderation status</span>
+                      <strong>{display(selectedBoat.moderation_status)}</strong>
+                    </div>
+                    <div>
+                      <span>publication state</span>
                       <strong>{display(selectedBoat.state)}</strong>
                     </div>
                     <div>
@@ -1276,7 +1325,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <div><dt>slug</dt><dd>{display(selectedBoat.slug)}</dd></div>
                         <div><dt>listing_type</dt><dd>{display(selectedBoat.listing_type)}</dd></div>
                         <div><dt>boat_type / vessel_type</dt><dd>{display(selectedBoat.boat_type || selectedBoat.vessel_type)}</dd></div>
-                        <div><dt>state</dt><dd>{display(selectedBoat.state)}</dd></div>
+                        <div><dt>moderation_status</dt><dd>{display(selectedBoat.moderation_status)}</dd></div>
+                        <div><dt>publication state</dt><dd>{display(selectedBoat.state)}</dd></div>
+                        <div><dt>moderation_comment</dt><dd>{display(selectedBoat.moderation_comment)}</dd></div>
+                        <div><dt>submitted_for_review_at</dt><dd>{dateDisplay(selectedBoat.submitted_for_review_at)}</dd></div>
+                        <div><dt>reviewed_at</dt><dd>{dateDisplay(selectedBoat.reviewed_at)}</dd></div>
+                        <div><dt>reviewed_by</dt><dd>{display(selectedBoat.reviewed_by)}</dd></div>
                         <div><dt>created_at</dt><dd>{dateDisplay(selectedBoat.created_at)}</dd></div>
                         <div><dt>updated_at</dt><dd>{dateDisplay(selectedBoat.updated_at)}</dd></div>
                       </dl>
@@ -1811,8 +1865,17 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                   </section>
 
                   <section className="admin-detail-section">
-                    <h4>Next actions placeholder</h4>
-                    <p className="admin-empty">Actions will be added after backend moderation endpoints are protected. Publish, reject, request changes, and AI translation save actions are intentionally not available in this read-only phase.</p>
+                    <h4>Protected moderation actions</h4>
+                    <p className="admin-empty">
+                      The server validates every transition. Publication requires an approved owner, RU/EN/ME versions with title and slug, and at least one boat image.
+                    </p>
+                    <AdminModerationActions
+                      adminToken={adminToken}
+                      entityType="boat"
+                      documentId={selectedBoat.documentId}
+                      status={selectedBoat.moderation_status}
+                      onComplete={loadDashboard}
+                    />
                   </section>
                 </section>
               ) : null}
@@ -1870,7 +1933,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
               <div className="admin-section-heading">
                 <div>
                   <h2 id="admin-owners-title">Owners</h2>
-                  <p>Read-only owner profile and user account overview.</p>
+                  <p>Owner identity and document verification queue with audited actions.</p>
                 </div>
                 <span>{owners.length}</span>
               </div>
@@ -1886,8 +1949,12 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                           <th>username</th>
                           <th>display_name</th>
                           <th>phone</th>
+                          <th>verification_status</th>
+                          <th>documents</th>
                           <th>confirmed</th>
                           <th>blocked</th>
+                          <th>review comment</th>
+                          <th>actions</th>
                           <th>created_at</th>
                         </tr>
                       </thead>
@@ -1900,8 +1967,35 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             <td>{display(owner.username)}</td>
                             <td>{display(owner.display_name)}</td>
                             <td>{display(owner.phone)}</td>
+                            <td>{display(owner.verification_status)}</td>
+                            <td>
+                              <div>{numberDisplay(owner.document_count)}</div>
+                              {owner.documents?.length ? (
+                                <ul className="admin-owner-documents">
+                                  {owner.documents.map((document, documentIndex) => (
+                                    <li key={`${document.id ?? document.name ?? "document"}-${documentIndex}`}>
+                                      {document.url ? (
+                                        <a href={document.url} target="_blank" rel="noreferrer">
+                                          {display(document.field)}: {display(document.name)}
+                                        </a>
+                                      ) : `${display(document.field)}: ${display(document.name)}`}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </td>
                             <td>{display(owner.confirmed)}</td>
                             <td>{display(owner.blocked)}</td>
+                            <td>{display(owner.rejection_reason)}</td>
+                            <td>
+                              <AdminModerationActions
+                                adminToken={adminToken}
+                                entityType="owner_profile"
+                                profileId={owner.profile_id ?? owner.id}
+                                status={owner.verification_status}
+                                onComplete={loadDashboard}
+                              />
+                            </td>
                             <td>{dateDisplay(owner.created_at)}</td>
                           </tr>
                         ))}
@@ -2020,11 +2114,11 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
               <div className="admin-section-heading">
                 <div>
                   <h2 id="admin-translations-title">Translations</h2>
-                  <p>Translation workflow will manage RU/EN/ME locale versions here.</p>
+                  <p>Generate, review and save RU/EN/ME drafts before protected moderation publication.</p>
                 </div>
               </div>
               <div className="admin-card">
-                <p>Next phase: generate, review, save draft translations, publish locale versions.</p>
+                <p>AI preview and protected draft saving are integrated into each boat moderation card.</p>
                 <dl className="admin-definition-grid">
                   <div>
                     <dt>Boats with locale ru</dt>
@@ -2094,7 +2188,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                 <dl className="admin-definition-grid">
                   <div>
                     <dt>Mode</dt>
-                    <dd>Preview / read-only</dd>
+                    <dd>Protected moderation</dd>
                   </div>
                   <div>
                     <dt>Data source</dt>
@@ -2907,6 +3001,19 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
         .admin-warning-list ul,
         .admin-notes {
           margin-bottom: 0;
+        }
+
+        .admin-owner-documents {
+          display: grid;
+          gap: 4px;
+          margin: 6px 0 0;
+          padding-left: 16px;
+          white-space: normal;
+        }
+
+        .admin-owner-documents a {
+          color: #b9ddff;
+          overflow-wrap: anywhere;
         }
 
         @media (max-width: 860px) {

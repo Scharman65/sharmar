@@ -54,11 +54,17 @@ const BOAT_SKIPPED_FIELDS = ["slug", "publishedAt", "owner", "media", "pricing",
 const EXPERIENCE_SKIPPED_FIELDS = ["slug", "publishedAt", "price", "currency", "duration_hours", "media", "boat"];
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error("STRAPI_URL is not configured");
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {

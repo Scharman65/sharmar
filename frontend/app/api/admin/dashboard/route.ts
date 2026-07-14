@@ -38,11 +38,17 @@ type BoatOwnerLink = {
 };
 
 function getStrapiBase(): string {
-  return (
+  const configured = (
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
-    "https://api.sharmar.me"
-  ).replace(/\/+$/, "");
+    ""
+  ).trim();
+
+  if (!configured) {
+    throw new Error("STRAPI_URL is not configured");
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function getServerToken(): string {
@@ -172,6 +178,11 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[14]=currency",
     "fields[15]=instant_booking",
     "fields[16]=contacts_visible",
+    "fields[17]=moderation_status",
+    "fields[18]=moderation_comment",
+    "fields[19]=submitted_for_review_at",
+    "fields[20]=reviewed_at",
+    "fields[21]=reviewed_by",
     "populate[cover][fields][0]=id",
     "populate[images][fields][0]=id",
     "populate[experiences][fields][0]=id",
@@ -230,6 +241,11 @@ function normalizeBoat(item: unknown, status: RowStatus) {
     currency: asString(row.currency),
     instant_booking: asBoolean(row.instant_booking),
     contacts_visible: asBoolean(row.contacts_visible),
+    moderation_status: asString(row.moderation_status) || "draft",
+    moderation_comment: asString(row.moderation_comment),
+    submitted_for_review_at: asString(row.submitted_for_review_at),
+    reviewed_at: asString(row.reviewed_at),
+    reviewed_by: asString(row.reviewed_by),
   };
 }
 
@@ -321,6 +337,31 @@ function normalizeExperience(item: unknown, status: RowStatus) {
     publishedAt,
     created_at: asString(row.createdAt ?? row.created_at),
     updated_at: asString(row.updatedAt ?? row.updated_at),
+  };
+}
+
+function normalizeOwnerDocuments(item: unknown): unknown {
+  if (!isRecord(item)) return item;
+
+  const documents = Array.isArray(item.documents)
+    ? item.documents
+    : [];
+
+  return {
+    ...item,
+    documents: documents.map((document) => {
+      if (!isRecord(document)) return document;
+
+      const url = asString(document.url);
+
+      return {
+        ...document,
+        url:
+          url && !/^https?:\/\//i.test(url)
+            ? `${getStrapiBase()}${url.startsWith("/") ? url : `/${url}`}`
+            : url,
+      };
+    }),
   };
 }
 
@@ -428,6 +469,21 @@ export async function GET(req: NextRequest) {
 
   const draftBoats = boatResult.totals.draft ?? boats.filter((boat) => boat.state === "draft").length;
   const publishedBoats = boatResult.totals.published ?? boats.filter((boat) => boat.state === "published").length;
+  const uniqueModerationBoats = Array.from(
+    new Map(
+      boats
+        .filter((boat) => boat.documentId)
+        .map((boat) => [boat.documentId, boat])
+    ).values()
+  );
+  const moderationCounts = uniqueModerationBoats.reduce<Record<string, number>>((counts, boat) => {
+    const moderationStatus = boat.moderation_status || "draft";
+    counts[moderationStatus] = (counts[moderationStatus] || 0) + 1;
+    return counts;
+  }, {});
+  const boatsAwaitingReview =
+    (moderationCounts.submitted || 0) +
+    (moderationCounts.under_review || 0);
   const totalOwners = asNumber(cmsSummary?.summary?.totalOwners) ?? (Array.isArray(cmsSummary?.owners) ? cmsSummary.owners.length : null);
   const totalBookingRequests = asNumber(cmsSummary?.summary?.totalBookingRequests) ?? (Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests.length : null);
   const totalPayments = asNumber(cmsSummary?.summary?.totalPayments) ?? (Array.isArray(cmsSummary?.payments) ? cmsSummary.payments.length : null);
@@ -439,7 +495,8 @@ export async function GET(req: NextRequest) {
         totalBoats: draftBoats + publishedBoats,
         draftBoats,
         publishedBoats,
-        boatsAwaitingReview: draftBoats,
+        boatsAwaitingReview,
+        moderationCounts,
         totalOwners,
         totalExperiences:
           (experienceResult.totals.draft ?? 0) + (experienceResult.totals.published ?? 0),
@@ -451,7 +508,9 @@ export async function GET(req: NextRequest) {
       experiences,
       bookingRequests: Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests : [],
       payments: Array.isArray(cmsSummary?.payments) ? cmsSummary.payments : [],
-      owners: Array.isArray(cmsSummary?.owners) ? cmsSummary.owners : [],
+      owners: Array.isArray(cmsSummary?.owners)
+        ? cmsSummary.owners.map(normalizeOwnerDocuments)
+        : [],
       feeSettings: {
         defaultMarketplaceFeeRate: MARKETPLACE_FEE_RATE,
         defaultMarketplaceFeePercent: MARKETPLACE_FEE_RATE * 100,

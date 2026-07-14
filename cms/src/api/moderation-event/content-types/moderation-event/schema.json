@@ -1,0 +1,64 @@
+{
+  "kind": "collectionType",
+  "collectionName": "moderation_events",
+  "info": {
+    "singularName": "moderation-event",
+    "pluralName": "moderation-events",
+    "displayName": "Moderation Event",
+    "description": "Immutable audit trail for admin moderation actions"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": false
+    }
+  },
+  "attributes": {
+    "entity_type": {
+      "type": "enumeration",
+      "enum": [
+        "boat",
+        "owner_profile"
+      ],
+      "required": true
+    },
+    "entity_document_id": {
+      "type": "string",
+      "required": false
+    },
+    "entity_id": {
+      "type": "integer",
+      "required": false
+    },
+    "action": {
+      "type": "string",
+      "required": true
+    },
+    "previous_status": {
+      "type": "string",
+      "required": true
+    },
+    "new_status": {
+      "type": "string",
+      "required": true
+    },
+    "comment": {
+      "type": "text",
+      "required": false
+    },
+    "actor": {
+      "type": "string",
+      "required": true
+    },
+    "metadata": {
+      "type": "json",
+      "required": false
+    },
+    "occurred_at": {
+      "type": "datetime",
+      "required": true
+    }
+  }
+}
