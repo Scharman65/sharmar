@@ -43,7 +43,7 @@ export function normalizePropulsion(value: unknown, vesselType: VesselType): Pro
 export function vesselTypeLabel(value: unknown, lang: PublicLang): string {
   const vesselType = normalizeVesselType(value);
   if (vesselType === "catamaran") {
-    return lang === "ru" ? "Катамаран" : "Catamaran";
+    return lang === "ru" ? "Катамаран" : lang === "me" || lang === "sr-Latn-ME" ? "Katamaran" : "Catamaran";
   }
   if (vesselType === "sailboat") {
     return lang === "ru" ? "Парусная лодка" : lang === "me" || lang === "sr-Latn-ME" ? "Jedrilica" : "Sail boat";
@@ -51,8 +51,8 @@ export function vesselTypeLabel(value: unknown, lang: PublicLang): string {
   return lang === "ru" ? "Моторная лодка" : lang === "me" || lang === "sr-Latn-ME" ? "Motorni brod" : "Motor boat";
 }
 
-export function propulsionLabel(value: unknown, lang: PublicLang): string {
-  const propulsion = asPropulsion(value) ?? "sail";
+export function propulsionLabel(value: unknown, vesselTypeValue: unknown, lang: PublicLang): string {
+  const propulsion = normalizePropulsion(value, normalizeVesselType(vesselTypeValue));
   if (propulsion === "motor") {
     return lang === "ru" ? "Моторный" : "Motor";
   }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
+import { propulsionLabel, vesselTypeLabel } from "@/lib/boatClassification";
 import AdminModerationActions from "./AdminModerationActions";
 
 type StatusFilter =
@@ -597,6 +598,14 @@ function hasOwnerDisplay(boat: BoatRow): boolean {
       ?? boat.owner_email
       ?? boat.owner_username
   );
+}
+
+function boatClassificationDisplay(boat: BoatRow, lang: Lang): string {
+  return vesselTypeLabel(boat.vessel_type ?? boat.boat_type, lang);
+}
+
+function boatPropulsionDisplay(boat: BoatRow, lang: Lang): string {
+  return propulsionLabel(boat.propulsion, boat.vessel_type ?? boat.boat_type, lang);
 }
 
 export default function AdminDashboardClient({ lang }: { lang: Lang }) {
@@ -1222,8 +1231,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             <td>{display(boat.title)}</td>
                             <td>{display(boat.slug)}</td>
                             <td>{display(boat.listing_type)}</td>
-                            <td>{display(boat.boat_type || boat.vessel_type)}</td>
-                            <td>{display(boat.propulsion)}</td>
+                            <td>{boatClassificationDisplay(boat, lang)}</td>
+                            <td>{boatPropulsionDisplay(boat, lang)}</td>
                             <td>{ownerDisplay(boat)}</td>
                             <td><span className={`admin-state ${boat.moderation_status === "published" || boat.moderation_status === "approved" ? "published" : "draft"}`}>{display(boat.moderation_status)}</span></td>
                             <td>{display(boat.state)}</td>
@@ -1327,8 +1336,8 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <div><dt>title</dt><dd>{display(selectedBoat.title)}</dd></div>
                         <div><dt>slug</dt><dd>{display(selectedBoat.slug)}</dd></div>
                         <div><dt>listing_type</dt><dd>{display(selectedBoat.listing_type)}</dd></div>
-                        <div><dt>boat_type / vessel_type</dt><dd>{display(selectedBoat.boat_type || selectedBoat.vessel_type)}</dd></div>
-                        <div><dt>propulsion</dt><dd>{display(selectedBoat.propulsion)}</dd></div>
+                        <div><dt>boat_type / vessel_type</dt><dd>{boatClassificationDisplay(selectedBoat, lang)}</dd></div>
+                        <div><dt>propulsion</dt><dd>{boatPropulsionDisplay(selectedBoat, lang)}</dd></div>
                         <div><dt>moderation_status</dt><dd>{display(selectedBoat.moderation_status)}</dd></div>
                         <div><dt>publication state</dt><dd>{display(selectedBoat.state)}</dd></div>
                         <div><dt>moderation_comment</dt><dd>{display(selectedBoat.moderation_comment)}</dd></div>

@@ -45,11 +45,31 @@ test("normalizes legacy raw boat_type values from existing rows", () => {
 test("localizes catamaran and propulsion labels", () => {
   assert.equal(vesselTypeLabel("catamaran", "en"), "Catamaran");
   assert.equal(vesselTypeLabel("catamaran", "ru"), "Катамаран");
-  assert.equal(vesselTypeLabel("catamaran", "me"), "Catamaran");
-  assert.equal(propulsionLabel("sail", "en"), "Sail");
-  assert.equal(propulsionLabel("sail", "ru"), "Парусный");
-  assert.equal(propulsionLabel("sail", "me"), "Jedra");
-  assert.equal(propulsionLabel("motor", "en"), "Motor");
-  assert.equal(propulsionLabel("motor", "ru"), "Моторный");
-  assert.equal(propulsionLabel("motor", "me"), "Motor");
+  assert.equal(vesselTypeLabel("catamaran", "me"), "Katamaran");
+  assert.equal(vesselTypeLabel("catamaran", "sr-Latn-ME"), "Katamaran");
+  assert.notEqual(vesselTypeLabel("catamaran", "en"), "catamaran");
+  assert.equal(propulsionLabel("sail", "catamaran", "en"), "Sail");
+  assert.equal(propulsionLabel("sail", "catamaran", "ru"), "Парусный");
+  assert.equal(propulsionLabel("sail", "catamaran", "me"), "Jedra");
+  assert.equal(propulsionLabel("motor", "catamaran", "en"), "Motor");
+  assert.equal(propulsionLabel("motor", "catamaran", "ru"), "Моторный");
+  assert.equal(propulsionLabel("motor", "catamaran", "me"), "Motor");
+});
+
+test("propulsion display fallback follows vessel type for legacy rows", () => {
+  assert.equal(propulsionLabel(null, "motorboat", "en"), "Motor");
+  assert.equal(propulsionLabel(null, "motorboat", "ru"), "Моторный");
+  assert.equal(propulsionLabel(null, "motorboat", "me"), "Motor");
+
+  assert.equal(propulsionLabel(null, "sailboat", "en"), "Sail");
+  assert.equal(propulsionLabel(null, "sailboat", "ru"), "Парусный");
+  assert.equal(propulsionLabel(null, "sailboat", "me"), "Jedra");
+
+  assert.equal(propulsionLabel(null, "catamaran", "en"), "Sail");
+  assert.equal(propulsionLabel(null, "catamaran", "ru"), "Парусный");
+  assert.equal(propulsionLabel(null, "catamaran", "me"), "Jedra");
+
+  assert.equal(propulsionLabel("motor", "catamaran", "en"), "Motor");
+  assert.equal(propulsionLabel("motor", "catamaran", "ru"), "Моторный");
+  assert.equal(propulsionLabel("motor", "catamaran", "me"), "Motor");
 });

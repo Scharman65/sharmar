@@ -2011,7 +2011,7 @@ useEffect(() => {
                           {boat.title || `Boat #${boat.id}`}
                         </h3>
                         <p className="kicker" style={{ marginTop: 6 }}>
-                          {vesselTypeLabel(boat.vessel_type ?? boat.boat_type, displayLang)} · {propulsionLabel(boat.propulsion, displayLang)} · {boat.listing_type || "listing"}
+                          {vesselTypeLabel(boat.vessel_type ?? boat.boat_type, displayLang)} · {propulsionLabel(boat.propulsion, boat.vessel_type ?? boat.boat_type, displayLang)} · {boat.listing_type || "listing"}
                         </p>
                       </div>
 
@@ -2217,8 +2217,8 @@ useEffect(() => {
                                         }));
                                       }}
                                     >
-                                      <option value="sail">{propulsionLabel("sail", displayLang)}</option>
-                                      <option value="motor">{propulsionLabel("motor", displayLang)}</option>
+                                      <option value="sail">{propulsionLabel("sail", "catamaran", displayLang)}</option>
+                                      <option value="motor">{propulsionLabel("motor", "catamaran", displayLang)}</option>
                                     </select>
                                   </label>
                                 ) : null}
