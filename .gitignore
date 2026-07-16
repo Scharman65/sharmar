@@ -39,6 +39,10 @@ backups/
 .env.*
 !.env.example
 
+# Production runtime secrets — never commit
+/shared/*.env
+/shared/**/*.env
+
 # macOS
 .DS_Store
 
