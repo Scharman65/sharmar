@@ -23,6 +23,21 @@ const REQUEST_SEO: Record<Lang, { title: string; description: string }> = {
   },
 };
 
+const REQUEST_LOADING: Record<Lang, { title: string; text: string }> = {
+  en: {
+    title: "Preparing booking request",
+    text: "Loading the request form...",
+  },
+  ru: {
+    title: "Подготовка заявки",
+    text: "Загружаем форму заявки...",
+  },
+  me: {
+    title: "Priprema zahtjeva",
+    text: "Učitavamo formu zahtjeva...",
+  },
+};
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang: raw } = await params;
   const lang = normalizeLang(raw);
@@ -43,9 +58,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: "Sharmar",
       type: "website",
     },
+    robots: {
+      index: false,
+      follow: false,
+    },
   };
 }
 
-export default function RequestLayout({ children }: Props) {
-  return <Suspense fallback={null}>{children}</Suspense>;
+function RequestFallback({ lang }: { lang: Lang }) {
+  const copy = REQUEST_LOADING[lang];
+
+  return (
+    <div className="container request-container">
+        <section
+          aria-live="polite"
+          aria-busy="true"
+          style={{
+            marginTop: 42,
+            maxWidth: 720,
+            border: "1px solid rgba(255, 255, 255, 0.14)",
+            borderRadius: 18,
+            padding: 24,
+            background: "rgba(255, 255, 255, 0.055)",
+          }}
+        >
+          <p className="kicker request-eyebrow">{copy.title}</p>
+          <h1 className="h1 request-title">{copy.text}</h1>
+        </section>
+    </div>
+  );
+}
+
+export default async function RequestLayout({ children, params }: Props) {
+  const { lang: raw } = await params;
+  const lang = normalizeLang(raw);
+
+  return <Suspense fallback={<RequestFallback lang={lang} />}>{children}</Suspense>;
 }

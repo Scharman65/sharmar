@@ -254,7 +254,21 @@
       "type": "enumeration",
       "enum": [
         "motorboat",
-        "sailboat"
+        "sailboat",
+        "catamaran"
+      ],
+      "required": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
+    },
+    "propulsion": {
+      "type": "enumeration",
+      "enum": [
+        "motor",
+        "sail"
       ],
       "required": false,
       "pluginOptions": {

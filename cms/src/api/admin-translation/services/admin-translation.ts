@@ -41,6 +41,7 @@ const BOAT_SHARED_SCALAR_FIELDS = [
   "currency",
   "listing_type",
   "vesselType",
+  "propulsion",
   "owner_phone",
   "owner_user_id",
   "owner_whatsapp",

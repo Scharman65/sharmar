@@ -31,6 +31,7 @@ export type Boat = {
   license_required?: boolean | null;
   skipper_available?: boolean | null;
   vesselType?: string | null;
+  propulsion?: string | null;
   listing_type?: string | null;
     home_marina?: Marina | null;
   price_per_hour?: number | null;
@@ -158,6 +159,7 @@ function normalizeBoat(item: any): Boat | null {
     license_required: item.license_required ?? null,
     skipper_available: item.skipper_available ?? null,
     vesselType: item.vesselType ?? null,
+    propulsion: item.propulsion ?? null,
     listing_type: item.listing_type ?? null,
     price_per_hour: item.price_per_hour ?? null,
     price_per_day: item.price_per_day ?? null,
@@ -254,7 +256,7 @@ function sortBoatsByMarketplaceRank(boats: Boat[]): Boat[] {
 export type BoatFilters = {
   listingType?: "rent" | "sale";
   homeMarinaSlug?: string;
-  vesselType?: "motorboat" | "sailboat";
+  vesselType?: "motorboat" | "sailboat" | "catamaran";
   boatType?: string;
 };
 

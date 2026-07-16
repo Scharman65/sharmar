@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   planBoatModerationTransition,
   planOwnerModerationTransition,
-} from "../../src/api/admin-moderation/services/state-machine";
+} from "../../dist/src/api/admin-moderation/services/state-machine.js";
 
 test("boat moderation allows the intended happy path", () => {
   const steps = [

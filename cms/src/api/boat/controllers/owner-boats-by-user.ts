@@ -24,6 +24,7 @@ export default {
           boats.description,
           boats.boat_type,
           boats.vessel_type,
+          boats.propulsion,
           boats.listing_type,
           boats.capacity,
           boats.length_m,

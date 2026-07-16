@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { BoatFormLocation, BoatFormMode, BoatFormValues } from "./types";
+import { defaultPropulsionForVesselType, type VesselType } from "@/lib/boatClassification";
 
 
 
@@ -41,6 +42,10 @@ const translations = {
     sale: "Sale",
     motorBoat: "Motor boat",
     sailBoat: "Sail boat",
+    catamaran: "Catamaran",
+    propulsion: "Propulsion",
+    propulsionSail: "Sail",
+    propulsionMotor: "Motor",
     placeholderBoatTitle: "Boat name or short listing title",
     placeholderDescription: "Short description, condition, and useful details",
     placeholderGuests: "Guests",
@@ -109,6 +114,10 @@ const translations = {
     sale: "Продажа",
     motorBoat: "Моторная лодка",
     sailBoat: "Парусная лодка",
+    catamaran: "Катамаран",
+    propulsion: "Тип хода",
+    propulsionSail: "Парусный",
+    propulsionMotor: "Моторный",
     placeholderBoatTitle: "Название лодки или краткий заголовок",
     placeholderDescription: "Краткое описание, состояние и важные детали",
     placeholderGuests: "Количество гостей",
@@ -177,6 +186,10 @@ const translations = {
     sale: "Prodaja",
     motorBoat: "Motorni brod",
     sailBoat: "Jedrilica",
+    catamaran: "Katamaran",
+    propulsion: "Pogon",
+    propulsionSail: "Jedra",
+    propulsionMotor: "Motor",
     placeholderBoatTitle: "Naziv broda ili kratki naslov",
     placeholderDescription: "Kratak opis, stanje i važne informacije",
     placeholderGuests: "Broj gostiju",
@@ -298,14 +311,22 @@ function defaultValues(): BoatFormValues {
     minRentalHours: "1",
     salePrice: "",
     motorHorsePower: "",
+    propulsion: "sail",
   };
 }
 
 function buildTitle(mode: BoatFormMode) {
   if (mode.kind === "rent" && mode.boatType === "motor") return "Add motor boat for rent";
   if (mode.kind === "rent" && mode.boatType === "sail") return "Add sail boat for rent";
+  if (mode.kind === "rent" && mode.boatType === "catamaran") return "Add catamaran for rent";
   if (mode.kind === "sale" && mode.boatType === "motor") return "Add motor boat for sale";
+  if (mode.kind === "sale" && mode.boatType === "catamaran") return "Add catamaran for sale";
   return "Add sail boat for sale";
+}
+
+function vesselTypeFromMode(mode: BoatFormMode): VesselType {
+  if (mode.boatType === "catamaran") return "catamaran";
+  return mode.boatType === "motor" ? "motorboat" : "sailboat";
 }
 
 function validate(values: BoatFormValues, mode: BoatFormMode) {
@@ -384,6 +405,10 @@ export function BoatForm({
   const strapiLocale = normalizeOwnerLocale(uiLang) || "en";
 
   const title = useMemo(() => buildTitle(mode), [mode]);
+  const vesselType = useMemo(() => vesselTypeFromMode(mode), [mode]);
+  const propulsion = mode.boatType === "catamaran"
+    ? values.propulsion
+    : defaultPropulsionForVesselType(vesselType);
 
   const errors = useMemo(() => validate(values, mode), [values, mode]);
   const hasErrors = Object.keys(errors).length > 0;
@@ -397,7 +422,8 @@ export function BoatForm({
       title: values.title.trim(),
       description: values.description.trim(),
       listingType: mode.kind,
-      vesselType: mode.boatType === "motor" ? "motorboat" : "sailboat",
+      vesselType,
+      propulsion,
       capacity: toNumberOrNull(values.capacityGuests),
       lengthM: toNumberOrNull(values.lengthM),
       year: toNumberOrNull(values.year),
@@ -414,7 +440,7 @@ export function BoatForm({
       locale: strapiLocale,
       imageIds: uploadedImages.map((image) => image.id),
     }),
-    [values, mode, uploadedImages, strapiLocale]
+    [values, mode, uploadedImages, strapiLocale, vesselType, propulsion]
   );
 
 
@@ -573,7 +599,7 @@ export function BoatForm({
                   {mode.kind === "rent" ? ui.rent : ui.sale}
                 </span>
                 <span>
-                  {mode.boatType === "motor" ? ui.motorBoat : ui.sailBoat}
+                  {mode.boatType === "motor" ? ui.motorBoat : mode.boatType === "catamaran" ? ui.catamaran : ui.sailBoat}
                 </span>
               </div>
             </div>
@@ -671,6 +697,20 @@ export function BoatForm({
                 />
                 {fieldError("motorHorsePower")}
               </div>
+
+              {mode.boatType === "catamaran" ? (
+                <div className={fieldGroup()}>
+                  <div className={labelBase()}>{ui.propulsion}</div>
+                  <select
+                    className={inputBase()}
+                    value={values.propulsion}
+                    onChange={(e) => set("propulsion", e.target.value === "motor" ? "motor" : "sail")}
+                  >
+                    <option value="sail">{ui.propulsionSail}</option>
+                    <option value="motor">{ui.propulsionMotor}</option>
+                  </select>
+                </div>
+              ) : null}
             </div>
           </section>
 

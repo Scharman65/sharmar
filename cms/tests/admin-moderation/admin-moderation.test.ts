@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createAdminModerationService } from "../../src/api/admin-moderation/services/admin-moderation";
+import { createAdminModerationService } from "../../dist/src/api/admin-moderation/services/admin-moderation.js";
 
 type JsonObject = Record<string, unknown>;
 

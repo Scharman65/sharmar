@@ -23,7 +23,6 @@ async function shouldIncludeTopLevelCategory(
   try {
     const boats = await fetchBoats(lang, {
       listingType,
-      vesselType: "sailboat",
       boatType: "Catamaran",
     });
     return boats.length > 0;

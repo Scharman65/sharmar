@@ -6,6 +6,16 @@ import type { CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { MARKETPLACE_FEE_RATE, applyMarketplaceFee } from "@/lib/pricing";
 import { OwnerAvailabilityCalendar } from "@/components/owner/OwnerAvailabilityCalendar";
+import {
+  defaultPropulsionForVesselType,
+  normalizePropulsion,
+  normalizeVesselType,
+  propulsionLabel,
+  vesselTypeLabel,
+  type Propulsion,
+  type PublicLang,
+  type VesselType,
+} from "@/lib/boatClassification";
 
 type DashboardCopy = {
   ownerDashboard: string;
@@ -14,8 +24,10 @@ type DashboardCopy = {
   logout: string;
   addMotorBoatRent: string;
   addSailBoatRent: string;
+  addCatamaranRent: string;
   addMotorBoatSale: string;
   addSailBoatSale: string;
+  addCatamaranSale: string;
   loading: string;
   activeBookings: string;
   activeHolds: string;
@@ -83,8 +95,10 @@ function pageCopy(lang: string): DashboardCopy {
       logout: "Выйти",
       addMotorBoatRent: "Добавить моторную лодку в аренду",
       addSailBoatRent: "Добавить парусную лодку в аренду",
+      addCatamaranRent: "Добавить катамаран в аренду",
       addMotorBoatSale: "Добавить моторную лодку на продажу",
       addSailBoatSale: "Добавить парусную лодку на продажу",
+      addCatamaranSale: "Добавить катамаран на продажу",
       loading: "Загрузка...",
       activeBookings: "Активные бронирования",
       activeHolds: "Активные удержания",
@@ -152,8 +166,10 @@ function pageCopy(lang: string): DashboardCopy {
       logout: "Odjava",
       addMotorBoatRent: "Dodaj motorno plovilo za najam",
       addSailBoatRent: "Dodaj jedrilicu za najam",
+      addCatamaranRent: "Dodaj katamaran za najam",
       addMotorBoatSale: "Dodaj motorno plovilo za prodaju",
       addSailBoatSale: "Dodaj jedrilicu za prodaju",
+      addCatamaranSale: "Dodaj katamaran za prodaju",
       loading: "Učitavanje...",
       activeBookings: "Aktivne rezervacije",
       activeHolds: "Aktivna zadržavanja",
@@ -220,8 +236,10 @@ function pageCopy(lang: string): DashboardCopy {
     logout: "Log out",
     addMotorBoatRent: "Add motor boat for rent",
     addSailBoatRent: "Add sail boat for rent",
+    addCatamaranRent: "Add catamaran for rent",
     addMotorBoatSale: "Add motor boat for sale",
     addSailBoatSale: "Add sail boat for sale",
+    addCatamaranSale: "Add catamaran for sale",
     loading: "Loading...",
     activeBookings: "Active bookings",
     activeHolds: "Active holds",
@@ -295,6 +313,7 @@ type OwnerBoat = {
   listing_type?: string | null;
   boat_type?: string | null;
   vessel_type?: string | null;
+  propulsion?: string | null;
   capacity?: number | null;
   length_m?: number | null;
   year?: number | null;
@@ -380,6 +399,8 @@ type ExperienceFormState = {
 };
 
 type BoatEditFormState = {
+  vesselType: VesselType;
+  propulsion: Propulsion;
   title: string;
   description: string;
   capacity: string;
@@ -812,6 +833,7 @@ export default function OwnerDashboardClient() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
   const lang = typeof params?.lang === "string" ? params.lang : "en";
+  const displayLang: PublicLang = lang === "ru" || lang === "me" ? lang : "en";
   const sourceLocale = lang === "me" ? "sr-Latn-ME" : lang;
 
   const [data, setData] = useState<ApiPayload | null>(null);
@@ -1024,6 +1046,8 @@ export default function OwnerDashboardClient() {
 
   function defaultBoatEditForm(): BoatEditFormState {
     return {
+      vesselType: "motorboat",
+      propulsion: "motor",
       title: "",
       description: "",
       capacity: "",
@@ -1053,7 +1077,10 @@ export default function OwnerDashboardClient() {
   }
 
   function boatToEditForm(boat: OwnerBoat): BoatEditFormState {
+    const vesselType = normalizeVesselType(boat.vessel_type ?? boat.boat_type);
     return {
+      vesselType,
+      propulsion: normalizePropulsion(boat.propulsion, vesselType),
       title: boat.title ?? "",
       description: boat.description ?? "",
       capacity: boat.capacity == null ? "" : String(boat.capacity),
@@ -1100,6 +1127,8 @@ export default function OwnerDashboardClient() {
   function boatFieldFromError(message: string): keyof BoatEditFormState | null {
     const text = message.toLowerCase();
     if (text.includes("title")) return "title";
+    if (text.includes("vesseltype")) return "vesselType";
+    if (text.includes("propulsion")) return "propulsion";
     if (text.includes("capacity")) return "capacity";
     if (text.includes("lengthm") || text.includes("length")) return "lengthM";
     if (text.includes("year")) return "year";
@@ -1281,7 +1310,8 @@ export default function OwnerDashboardClient() {
           title: form.title,
           description: form.description,
           listingType: boat.listing_type || "rent",
-          vesselType: boat.vessel_type || boat.boat_type || "motorboat",
+          vesselType: form.vesselType,
+          propulsion: form.propulsion,
           capacity: numberOrNull(form.capacity, "capacity"),
           lengthM: numberOrNull(form.lengthM, "lengthM"),
           year: numberOrNull(form.year, "year"),
@@ -1901,11 +1931,17 @@ useEffect(() => {
           <Link className="button secondary" href={`/${lang}/add/rent/sail`}>
             {pageCopy(lang).addSailBoatRent}
           </Link>
+          <Link className="button secondary" href={`/${lang}/add/rent/catamaran`}>
+            {pageCopy(lang).addCatamaranRent}
+          </Link>
           <Link className="button secondary" href={`/${lang}/add/sale/motor`}>
             {pageCopy(lang).addMotorBoatSale}
           </Link>
           <Link className="button secondary" href={`/${lang}/add/sale/sail`}>
             {pageCopy(lang).addSailBoatSale}
+          </Link>
+          <Link className="button secondary" href={`/${lang}/add/sale/catamaran`}>
+            {pageCopy(lang).addCatamaranSale}
           </Link>
         </div>
 
@@ -1975,7 +2011,7 @@ useEffect(() => {
                           {boat.title || `Boat #${boat.id}`}
                         </h3>
                         <p className="kicker" style={{ marginTop: 6 }}>
-                          {boat.boat_type || "Boat"} · {boat.listing_type || "listing"}
+                          {vesselTypeLabel(boat.vessel_type ?? boat.boat_type, displayLang)} · {propulsionLabel(boat.propulsion, displayLang)} · {boat.listing_type || "listing"}
                         </p>
                       </div>
 
@@ -2136,6 +2172,58 @@ useEffect(() => {
                             </p>
 
                             <div style={{ display: "grid", gap: 10 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+                                <label style={{ display: "grid", gap: 4 }}>
+                                  <span className="kicker" style={{ margin: 0 }}>
+                                    {lang === "ru" ? "Тип лодки" : lang === "me" ? "Tip plovila" : "Boat type"}
+                                  </span>
+                                  <select
+                                    value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).vesselType}
+                                    onChange={(e) => {
+                                      const nextVesselType = normalizeVesselType(e.target.value);
+                                      setBoatEditForm((prev) => ({
+                                        ...prev,
+                                        [boat.documentId!]: {
+                                          ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                          vesselType: nextVesselType,
+                                          propulsion: nextVesselType === "catamaran"
+                                            ? (prev[boat.documentId!]?.propulsion || "sail")
+                                            : defaultPropulsionForVesselType(nextVesselType),
+                                        },
+                                      }));
+                                    }}
+                                  >
+                                    <option value="motorboat">{vesselTypeLabel("motorboat", displayLang)}</option>
+                                    <option value="sailboat">{vesselTypeLabel("sailboat", displayLang)}</option>
+                                    <option value="catamaran">{vesselTypeLabel("catamaran", displayLang)}</option>
+                                  </select>
+                                </label>
+
+                                {(boatEditForm[boat.documentId] || defaultBoatEditForm()).vesselType === "catamaran" ? (
+                                  <label style={{ display: "grid", gap: 4 }}>
+                                    <span className="kicker" style={{ margin: 0 }}>
+                                      {lang === "ru" ? "Тип хода" : lang === "me" ? "Pogon" : "Propulsion"}
+                                    </span>
+                                    <select
+                                      value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).propulsion}
+                                      onChange={(e) => {
+                                        const nextPropulsion = e.target.value === "motor" ? "motor" : "sail";
+                                        setBoatEditForm((prev) => ({
+                                          ...prev,
+                                          [boat.documentId!]: {
+                                            ...(prev[boat.documentId!] || defaultBoatEditForm()),
+                                            propulsion: nextPropulsion,
+                                          },
+                                        }));
+                                      }}
+                                    >
+                                      <option value="sail">{propulsionLabel("sail", displayLang)}</option>
+                                      <option value="motor">{propulsionLabel("motor", displayLang)}</option>
+                                    </select>
+                                  </label>
+                                ) : null}
+                              </div>
+
                               <input
                                 value={(boatEditForm[boat.documentId] || defaultBoatEditForm()).title}
                                 onChange={(e) => {

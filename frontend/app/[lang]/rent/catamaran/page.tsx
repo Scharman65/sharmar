@@ -121,7 +121,6 @@ export default async function RentCatamaranPage({ params, searchParams }: Props)
   const locations = await fetchLocations(lang);
   const boats = await fetchBoats(lang, {
     listingType: "rent",
-    vesselType: "sailboat",
     boatType: "Catamaran",
     ...(marina ? { homeMarinaSlug: marina } : {}),
   });

@@ -9,7 +9,7 @@ export type CategoryKey =
   | "sale/sail"
   | "sale/catamaran";
 
-export type VesselType = "motorboat" | "sailboat";
+export type VesselType = "motorboat" | "sailboat" | "catamaran";
 
 export type CategoryDef = {
   key: CategoryKey;
@@ -34,7 +34,6 @@ export const CATEGORIES: Record<CategoryKey, CategoryDef> = {
     key: "rent/catamaran",
     listingType: "rent",
     boatType: "Catamaran",
-    vesselType: "sailboat",
   },
   "sale/motor": {
     key: "sale/motor",
@@ -51,6 +50,5 @@ export const CATEGORIES: Record<CategoryKey, CategoryDef> = {
     key: "sale/catamaran",
     listingType: "sale",
     boatType: "Catamaran",
-    vesselType: "sailboat",
   },
 };

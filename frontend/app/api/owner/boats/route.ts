@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 import { verifyOwnerMedia } from "@/lib/auth/ownerMedia";
+import {
+  asPropulsion,
+  asVesselType,
+  boatTypeFromVesselType,
+  defaultPropulsionForVesselType,
+  type Propulsion,
+  type VesselType,
+} from "@/lib/boatClassification";
 
 type JsonObject = Record<string, unknown>;
 
@@ -8,7 +16,8 @@ type ParsedCreateBoatBody = {
   title: string;
   description?: string;
   listingType: "rent" | "sale";
-  vesselType: "motorboat" | "sailboat";
+  vesselType: VesselType;
+  propulsion: Propulsion;
   capacity: number;
   lengthM: number | null;
   year: number | null;
@@ -97,14 +106,6 @@ function asListingType(v: unknown): "rent" | "sale" | null {
   return v === "rent" || v === "sale" ? v : null;
 }
 
-function asVesselType(v: unknown): "motorboat" | "sailboat" | null {
-  return v === "motorboat" || v === "sailboat" ? v : null;
-}
-
-function boatTypeFromVesselType(vesselType: "motorboat" | "sailboat"): "Motorboat" | "Sailboat" {
-  return vesselType === "motorboat" ? "Motorboat" : "Sailboat";
-}
-
 function slugify(input: string): string {
   const base = input
     .toLowerCase()
@@ -159,6 +160,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const description = asString(body.description);
   const listingType = asListingType(body.listingType);
   const vesselType = asVesselType(body.vesselType);
+  const propulsion = vesselType ? asPropulsion(body.propulsion) ?? defaultPropulsionForVesselType(vesselType) : null;
   const capacity = asNumber(body.capacity);
   const lengthM = body.lengthM == null ? null : asNumber(body.lengthM);
   const year = body.year == null ? null : asNumber(body.year);
@@ -179,7 +181,8 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
 
   if (!title) return { ok: false, error: "title is required" };
   if (!listingType) return { ok: false, error: "listingType must be rent or sale" };
-  if (!vesselType) return { ok: false, error: "vesselType must be motorboat or sailboat" };
+  if (!vesselType) return { ok: false, error: "vesselType must be motorboat, sailboat, or catamaran" };
+  if (body.propulsion != null && !asPropulsion(body.propulsion)) return { ok: false, error: "propulsion must be motor or sail" };
   if (capacity == null || capacity < 1) return { ok: false, error: "capacity must be >= 1" };
 
   if (lengthM != null && (lengthM <= 0 || lengthM > 200)) {
@@ -250,6 +253,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
       description: description || undefined,
       listingType,
       vesselType,
+      propulsion: propulsion ?? defaultPropulsionForVesselType(vesselType),
       capacity,
       lengthM,
       year,
@@ -492,6 +496,7 @@ export async function POST(req: NextRequest) {
       description: p.description ?? "",
       listing_type: p.listingType,
       vesselType: p.vesselType,
+      propulsion: p.propulsion,
       boat_type: boatTypeFromVesselType(p.vesselType),
       capacity: p.capacity,
       length_m: p.lengthM ?? null,
@@ -683,6 +688,7 @@ export async function PATCH(req: NextRequest) {
       description: p.description ?? "",
       listing_type: p.listingType,
       vesselType: p.vesselType,
+      propulsion: p.propulsion,
       boat_type: boatTypeFromVesselType(p.vesselType),
       capacity: p.capacity,
       length_m: p.lengthM ?? null,

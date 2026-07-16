@@ -44,6 +44,7 @@ type BoatRow = {
   listing_type?: string | null;
   boat_type?: string | null;
   vessel_type?: string | null;
+  propulsion?: string | null;
   owner_user_id?: number | null;
   created_by_id?: number | null;
   owner_profile_id?: number | null;
@@ -1166,6 +1167,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <th>slug</th>
                         <th>listing_type</th>
                         <th>boat / vessel</th>
+                        <th>propulsion</th>
                         <th>owner / created_by</th>
                         <th>moderation</th>
                         <th>publication</th>
@@ -1221,6 +1223,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                             <td>{display(boat.slug)}</td>
                             <td>{display(boat.listing_type)}</td>
                             <td>{display(boat.boat_type || boat.vessel_type)}</td>
+                            <td>{display(boat.propulsion)}</td>
                             <td>{ownerDisplay(boat)}</td>
                             <td><span className={`admin-state ${boat.moderation_status === "published" || boat.moderation_status === "approved" ? "published" : "draft"}`}>{display(boat.moderation_status)}</span></td>
                             <td>{display(boat.state)}</td>
@@ -1325,6 +1328,7 @@ export default function AdminDashboardClient({ lang }: { lang: Lang }) {
                         <div><dt>slug</dt><dd>{display(selectedBoat.slug)}</dd></div>
                         <div><dt>listing_type</dt><dd>{display(selectedBoat.listing_type)}</dd></div>
                         <div><dt>boat_type / vessel_type</dt><dd>{display(selectedBoat.boat_type || selectedBoat.vessel_type)}</dd></div>
+                        <div><dt>propulsion</dt><dd>{display(selectedBoat.propulsion)}</dd></div>
                         <div><dt>moderation_status</dt><dd>{display(selectedBoat.moderation_status)}</dd></div>
                         <div><dt>publication state</dt><dd>{display(selectedBoat.state)}</dd></div>
                         <div><dt>moderation_comment</dt><dd>{display(selectedBoat.moderation_comment)}</dd></div>

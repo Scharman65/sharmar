@@ -256,6 +256,22 @@ test("missing boat localization syncs non-localized fields from source entry", a
   assert.deepEqual(cms.calls.syncNonLocalizedAttributes[0].model, { uid: BOAT_UID });
 });
 
+test("boat translation draft preserves catamaran vessel type and propulsion", async () => {
+  const rows = baseRows();
+  rows[key(BOAT_UID, sourceDocumentId, "en")][0].boat_type = "Catamaran";
+  rows[key(BOAT_UID, sourceDocumentId, "en")][0].vesselType = "catamaran";
+  rows[key(BOAT_UID, sourceDocumentId, "en")][0].propulsion = "motor";
+
+  const cms = createMockCms(rows);
+  const result = await createAdminTranslationService(cms).saveDraft(savePayload());
+
+  assert.equal(result.status, 200);
+  assert.equal(cms.calls.update.length, 1);
+  assert.equal(cms.calls.update[0].params.data.boat_type, "Catamaran");
+  assert.equal(cms.calls.update[0].params.data.vesselType, "catamaran");
+  assert.equal(cms.calls.update[0].params.data.propulsion, "motor");
+});
+
 test("service rereads target draft after update", async () => {
   const cms = createMockCms(baseRows());
   await createAdminTranslationService(cms).saveDraft(savePayload());

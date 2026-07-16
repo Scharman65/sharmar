@@ -38,8 +38,10 @@ type PageCopy = {
   addLinks: {
     rentMotor: string;
     rentSail: string;
+    rentCatamaran: string;
     saleMotor: string;
     saleSail: string;
+    saleCatamaran: string;
   };
   steps: StepCopy[];
   faqItems: FaqCopy[];
@@ -67,8 +69,10 @@ const COPY: Record<Lang, PageCopy> = {
     addLinks: {
       rentMotor: "Motor boat rental",
       rentSail: "Sail boat rental",
+      rentCatamaran: "Catamaran rental",
       saleMotor: "Motor boat sale",
       saleSail: "Sail boat sale",
+      saleCatamaran: "Catamaran sale",
     },
     steps: [
       {
@@ -125,8 +129,10 @@ const COPY: Record<Lang, PageCopy> = {
     addLinks: {
       rentMotor: "Аренда моторной лодки",
       rentSail: "Аренда парусной лодки",
+      rentCatamaran: "Аренда катамарана",
       saleMotor: "Продажа моторной лодки",
       saleSail: "Продажа парусной лодки",
+      saleCatamaran: "Продажа катамарана",
     },
     steps: [
       {
@@ -183,8 +189,10 @@ const COPY: Record<Lang, PageCopy> = {
     addLinks: {
       rentMotor: "Najam motornog broda",
       rentSail: "Najam jedrilice",
+      rentCatamaran: "Najam katamarana",
       saleMotor: "Prodaja motornog broda",
       saleSail: "Prodaja jedrilice",
+      saleCatamaran: "Prodaja katamarana",
     },
     steps: [
       {
@@ -268,8 +276,10 @@ export default async function ListYourBoatPage({ params }: Props) {
   const addLinks = [
     { href: `/${lang}/add/rent/motor`, label: copy.addLinks.rentMotor },
     { href: `/${lang}/add/rent/sail`, label: copy.addLinks.rentSail },
+    { href: `/${lang}/add/rent/catamaran`, label: copy.addLinks.rentCatamaran },
     { href: `/${lang}/add/sale/motor`, label: copy.addLinks.saleMotor },
     { href: `/${lang}/add/sale/sail`, label: copy.addLinks.saleSail },
+    { href: `/${lang}/add/sale/catamaran`, label: copy.addLinks.saleCatamaran },
   ];
   const jsonLd = [
     webPageJsonLd({

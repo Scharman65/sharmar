@@ -1,11 +1,14 @@
 export type ListingKind = "rent" | "sale";
-export type BoatType = "motor" | "sail";
+export type BoatType = "motor" | "sail" | "catamaran";
+export type Propulsion = "motor" | "sail";
 
 export type BoatFormMode =
   | { kind: "rent"; boatType: "motor" }
   | { kind: "rent"; boatType: "sail" }
+  | { kind: "rent"; boatType: "catamaran" }
   | { kind: "sale"; boatType: "motor" }
-  | { kind: "sale"; boatType: "sail" };
+  | { kind: "sale"; boatType: "sail" }
+  | { kind: "sale"; boatType: "catamaran" };
 
 export type BoatFormLocation = {
   id: number;
@@ -32,4 +35,5 @@ export type BoatFormValues = {
 
   salePrice: string;
   motorHorsePower: string;
+  propulsion: Propulsion;
 };

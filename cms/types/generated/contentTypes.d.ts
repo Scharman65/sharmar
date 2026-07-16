@@ -636,6 +636,12 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
     price_per_day: Schema.Attribute.Decimal;
     price_per_hour: Schema.Attribute.Decimal;
     price_per_week: Schema.Attribute.Decimal;
+    propulsion: Schema.Attribute.Enumeration<['motor', 'sail']> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
     publishedAt: Schema.Attribute.DateTime;
     purposes: Schema.Attribute.Relation<'manyToMany', 'api::purpose.purpose'> &
       Schema.Attribute.SetPluginOptions<{
@@ -707,7 +713,9 @@ export interface ApiBoatBoat extends Struct.CollectionTypeSchema {
         };
       }> &
       Schema.Attribute.DefaultTo<false>;
-    vesselType: Schema.Attribute.Enumeration<['motorboat', 'sailboat']> &
+    vesselType: Schema.Attribute.Enumeration<
+      ['motorboat', 'sailboat', 'catamaran']
+    > &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: false;
