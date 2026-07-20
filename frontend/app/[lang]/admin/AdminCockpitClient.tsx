@@ -2,9 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
+import AdminCrudManager from "./AdminCrudManager";
 import AdminModerationActions from "./AdminModerationActions";
 
-type Section = "overview" | "owners" | "documents" | "boats" | "routes" | "translations" | "events";
+type Section = "overview" | "owners" | "documents" | "boats" | "routes" | "media" | "translations" | "events";
 type JsonRecord = Record<string, unknown>;
 
 type SessionState = {
@@ -35,13 +36,14 @@ const copy = {
     loading: "Загрузка...",
     noData: "Данные ещё не загружены",
     loadError: "Не удалось загрузить данные",
-    retry: "Повторить",
+    retry: "Обновить данные",
     sections: {
       overview: "Обзор",
       owners: "Владельцы",
       documents: "Документы",
       boats: "Лодки",
       routes: "Маршруты",
+      media: "Медиа",
       translations: "Переводы",
       events: "Журнал действий",
     },
@@ -145,13 +147,14 @@ const copy = {
     loading: "Loading...",
     noData: "Data has not been loaded yet",
     loadError: "Could not load data",
-    retry: "Retry",
+    retry: "Refresh data",
     sections: {
       overview: "Overview",
       owners: "Owners",
       documents: "Documents",
       boats: "Boats",
       routes: "Routes",
+      media: "Media",
       translations: "Translations",
       events: "Action log",
     },
@@ -255,13 +258,14 @@ const copy = {
     loading: "Učitavanje...",
     noData: "Podaci još nijesu učitani",
     loadError: "Podaci nijesu učitani",
-    retry: "Pokušaj ponovo",
+    retry: "Osvježi podatke",
     sections: {
       overview: "Pregled",
       owners: "Vlasnici",
       documents: "Dokumenti",
       boats: "Plovila",
       routes: "Rute",
+      media: "Mediji",
       translations: "Prevodi",
       events: "Dnevnik radnji",
     },
@@ -407,7 +411,21 @@ function statusLabel(lang: Lang, value: unknown): string {
 function display(value: unknown, lang: Lang): string {
   if (typeof value === "boolean") return value ? "✓" : "—";
   if (typeof value === "number") return String(value);
-  return asText(value) || copy[lang].missing;
+  const text = asText(value);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) {
+      const locale = lang === "ru" ? "ru-RU" : lang === "me" ? "sr-Latn-ME" : "en-GB";
+      return new Intl.DateTimeFormat(locale, {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    }
+  }
+  return text || copy[lang].missing;
 }
 
 function ownerName(owner: JsonRecord, lang: Lang): string {
@@ -420,6 +438,13 @@ function docList(owner: JsonRecord): JsonRecord[] {
 
 function hasDocument(owner: JsonRecord, field: string): boolean {
   return docList(owner).some((doc) => asText(doc.field) === field);
+}
+
+function documentFieldLabel(lang: Lang, field: unknown): string {
+  const value = asText(field);
+  if (value === "passport_document") return copy[lang].labels.passport;
+  if (value === "identity_document") return copy[lang].labels.identity;
+  return display(field, lang);
 }
 
 function textArray(value: unknown): string[] {
@@ -467,6 +492,15 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   const boats = data?.boats ?? [];
   const routes = data?.experiences ?? [];
   const events = data?.moderationEvents ?? [];
+  const documents = owners.flatMap((owner) =>
+    docList(owner).map((document) => ({
+      ...document,
+      owner_display_name: ownerName(owner, lang),
+      owner_profile_id: owner.profile_id ?? owner.id,
+      verification_status: owner.verification_status,
+      updated_at: document.updated_at ?? owner.documents_uploaded_at ?? owner.updated_at,
+    }))
+  );
   const ownersPending = owners.filter(awaitingOwner).length;
   const documentsPending = owners.filter((owner) => docList(owner).length > 0 && awaitingOwner(owner)).length;
   const boatsPending = boats.filter(awaitingBoat).length;
@@ -482,6 +516,15 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
     () => (Object.keys(ui.sections) as Section[]).map((id) => ({ id, label: ui.sections[id] })),
     [ui.sections]
   );
+
+  const setActiveSection = useCallback((section: Section) => {
+    setActive(section);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("section", section);
+      window.history.replaceState(null, "", url);
+    }
+  }, []);
 
   const refreshSession = useCallback(async () => {
     const response = await fetch("/api/admin/session", { cache: "no-store" });
@@ -551,6 +594,14 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   }, [refreshSession]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const section = new URLSearchParams(window.location.search).get("section");
+    if (section && (Object.keys(ui.sections) as string[]).includes(section)) {
+      setActive(section as Section);
+    }
+  }, [ui.sections]);
+
+  useEffect(() => {
     if (session.authenticated && !data && !loading) void loadDashboard();
   }, [data, loadDashboard, loading, session.authenticated]);
 
@@ -593,7 +644,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                 key={item.id}
                 type="button"
                 className={active === item.id ? "active" : ""}
-                onClick={() => setActive(item.id)}
+                onClick={() => setActiveSection(item.id)}
               >
                 {item.label}
               </button>
@@ -636,6 +687,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
               {active === "owners" ? (
                 <section className="admin-list">
+                  <AdminCrudManager lang={lang} entity="owner" dashboardRows={owners} onRefresh={loadDashboard} />
                   {owners.map((owner, index) => (
                     <article className="admin-card" key={`${display(owner.profile_id ?? owner.id, lang)}-${index}`}>
                       <div className="admin-row">
@@ -666,6 +718,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
               {active === "documents" ? (
                 <section className="admin-list">
+                  <AdminCrudManager lang={lang} entity="document" dashboardRows={documents} onRefresh={loadDashboard} />
                   {owners.map((owner, index) => (
                     <article className="admin-card" key={`docs-${display(owner.profile_id ?? owner.id, lang)}-${index}`}>
                       <div className="admin-row">
@@ -686,9 +739,9 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                           return (
                             <li key={`${display(document.id ?? document.name, lang)}-${docIndex}`}>
                               {url ? (
-                                <a href={url} target="_blank" rel="noreferrer">{ui.actions.openDocument}: {display(document.field, lang)}</a>
+                                <a href={url} target="_blank" rel="noreferrer">{ui.actions.openDocument}: {documentFieldLabel(lang, document.field)}</a>
                               ) : (
-                                <span>{display(document.field, lang)}: {display(document.name, lang)}</span>
+                                <span>{documentFieldLabel(lang, document.field)}: {display(document.name, lang)}</span>
                               )}
                             </li>
                           );
@@ -701,6 +754,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
               {active === "boats" ? (
                 <section className="admin-list">
+                  <AdminCrudManager lang={lang} entity="boat" dashboardRows={boats} onRefresh={loadDashboard} />
                   {boats.map((boat, index) => (
                     <article className="admin-card" key={`${display(boat.documentId ?? boat.id, lang)}-${index}`}>
                       <div className="admin-row">
@@ -736,6 +790,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
               {active === "routes" ? (
                 <section className="admin-list">
+                  <AdminCrudManager lang={lang} entity="experience" dashboardRows={routes} onRefresh={loadDashboard} />
                   {routes.map((route, index) => {
                     const hasBoat = Boolean(asText(route.boatDocumentId));
                     const locales = textArray(route.available_locales);
@@ -809,6 +864,10 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                     );
                   })}
                 </section>
+              ) : null}
+
+              {active === "media" ? (
+                <AdminCrudManager lang={lang} entity="media" dashboardRows={[]} onRefresh={loadDashboard} />
               ) : null}
 
               {active === "translations" ? (
