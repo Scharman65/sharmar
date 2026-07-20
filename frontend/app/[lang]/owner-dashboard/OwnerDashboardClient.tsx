@@ -84,6 +84,16 @@ type DashboardCopy = {
   submitForReview: string;
   resubmitForReview: string;
   submittedForReview: string;
+  listingSetup: string;
+  listingSetupIntro: string;
+  basicInformation: string;
+  photos: string;
+  documents: string;
+  routes: string;
+  availabilityCalendar: string;
+  submitReviewStep: string;
+  openStep: string;
+  selectedBoat: string;
 };
 
 function pageCopy(lang: string): DashboardCopy {
@@ -155,6 +165,16 @@ function pageCopy(lang: string): DashboardCopy {
       submitForReview: "Отправить на проверку",
       resubmitForReview: "Отправить повторно",
       submittedForReview: "Отправлено на проверку.",
+      listingSetup: "Настройка объявления",
+      listingSetupIntro: "Продолжите настройку выбранной лодки в уже существующих разделах кабинета владельца.",
+      basicInformation: "Основные данные",
+      photos: "Фотографии",
+      documents: "Документы",
+      routes: "Маршруты",
+      availabilityCalendar: "Календарь доступности",
+      submitReviewStep: "Отправка на проверку",
+      openStep: "Открыть",
+      selectedBoat: "Выбранная лодка",
     };
   }
 
@@ -226,6 +246,16 @@ function pageCopy(lang: string): DashboardCopy {
       submitForReview: "Pošalji na provjeru",
       resubmitForReview: "Pošalji ponovo",
       submittedForReview: "Poslato na provjeru.",
+      listingSetup: "Podešavanje oglasa",
+      listingSetupIntro: "Nastavite podešavanje izabranog plovila u postojećim sekcijama kabineta vlasnika.",
+      basicInformation: "Osnovni podaci",
+      photos: "Fotografije",
+      documents: "Dokumenti",
+      routes: "Rute",
+      availabilityCalendar: "Kalendar dostupnosti",
+      submitReviewStep: "Pošalji na provjeru",
+      openStep: "Otvori",
+      selectedBoat: "Izabrano plovilo",
     };
   }
 
@@ -296,6 +326,16 @@ function pageCopy(lang: string): DashboardCopy {
     submitForReview: "Submit for review",
     resubmitForReview: "Resubmit",
     submittedForReview: "Submitted for review.",
+    listingSetup: "Listing setup",
+    listingSetupIntro: "Continue setting up the selected boat in the existing owner dashboard sections.",
+    basicInformation: "Basic information",
+    photos: "Photos",
+    documents: "Documents",
+    routes: "Routes",
+    availabilityCalendar: "Availability calendar",
+    submitReviewStep: "Submit for review",
+    openStep: "Open",
+    selectedBoat: "Selected boat",
   };
 }
 
@@ -829,12 +869,40 @@ function isDocumentUploaded(data: ApiPayload | null, documentType: OwnerDocument
   return hasProfileDocument(data?.ownerProfile?.[documentProfileKey(documentType)]);
 }
 
+function boatSetupAnchor(boat: OwnerBoat, suffix: string): string {
+  const raw = boat.documentId || String(boat.id || boat.slug || "boat");
+  const safe = raw.replace(/[^a-zA-Z0-9_-]/g, "-");
+  return `owner-boat-${safe}-${suffix}`;
+}
+
+function boatHasBasicInformation(boat: OwnerBoat): boolean {
+  return Boolean(
+    boat.title?.trim() &&
+    boat.capacity &&
+    boat.owner_phone?.trim() &&
+    (boat.price_per_hour || boat.price_per_day || boat.price_per_week || boat.sale_price)
+  );
+}
+
+function boatHasPhotos(boat: OwnerBoat): boolean {
+  return Boolean(boat.cover_url?.trim());
+}
+
+function ownerHasRequiredDocuments(data: ApiPayload | null): boolean {
+  return isDocumentUploaded(data, "passport") && isDocumentUploaded(data, "identity");
+}
+
+function boatSubmittedForReview(boat: OwnerBoat): boolean {
+  return ["submitted", "under_review", "approved", "published"].includes(boat.moderation_status || "");
+}
+
 export default function OwnerDashboardClient() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
   const lang = typeof params?.lang === "string" ? params.lang : "en";
   const displayLang: PublicLang = lang === "ru" || lang === "me" ? lang : "en";
   const sourceLocale = lang === "me" ? "sr-Latn-ME" : lang;
+  const copy = pageCopy(lang);
 
   const [data, setData] = useState<ApiPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -881,6 +949,7 @@ export default function OwnerDashboardClient() {
   const [reviewBusy, setReviewBusy] = useState<Record<string, boolean>>({});
   const [reviewMessage, setReviewMessage] = useState<Record<string, string>>({});
   const [reviewError, setReviewError] = useState<Record<string, string>>({});
+  const [createdBoatParam, setCreatedBoatParam] = useState<string | null>(null);
 
 
 
@@ -1521,6 +1590,16 @@ export default function OwnerDashboardClient() {
   }
 
 const boats = useMemo(() => data?.boats ?? [], [data]);
+  const selectedBoat = useMemo(() => {
+    const target = createdBoatParam?.trim();
+    if (!target) return null;
+
+    return boats.find((boat) => (
+      boat.documentId === target ||
+      String(boat.id ?? "") === target ||
+      boat.slug === target
+    )) ?? null;
+  }, [boats, createdBoatParam]);
   const recentActivity = useMemo(() => data?.recentActivity ?? [], [data]);
   const ownerCalendarEvents = useMemo(() => data?.ownerCalendarEvents ?? [], [data]);
   const occupancyItems = useMemo(
@@ -1540,6 +1619,29 @@ const boats = useMemo(() => data?.boats ?? [], [data]);
   const expiredCalendarCount = ownerCalendarEvents.filter(
     (event) => event.displayType === "expired"
   ).length;
+
+  useEffect(() => {
+    setCreatedBoatParam(new URLSearchParams(window.location.search).get("createdBoat"));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBoat) return;
+
+    const documentId = selectedBoat.documentId || null;
+    if (documentId) {
+      setBoatEditForm((prev) => ({
+        ...prev,
+        [documentId]: prev[documentId] || boatToEditForm(selectedBoat),
+      }));
+    }
+
+    window.setTimeout(() => {
+      document.getElementById(boatSetupAnchor(selectedBoat, "card"))?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+  }, [selectedBoat]);
 
   
   useEffect(() => {
@@ -1755,7 +1857,7 @@ useEffect(() => {
         ) : null}
 
         {!isLoading && !error && data?.ownerProfile ? (
-          <section className="card" style={{ marginTop: 18, padding: 18 }}>
+          <section id="owner-profile" className="card" style={{ marginTop: 18, padding: 18 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).profile}</h2>
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 14 }}>
               {[
@@ -1801,7 +1903,7 @@ useEffect(() => {
         ) : null}
 
         {!isLoading && !error ? (
-          <section className="card" style={{ marginTop: 18, padding: 18 }}>
+          <section id="owner-documents" className="card" style={{ marginTop: 18, padding: 18 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).security}</h2>
             <p className="kicker" style={{ margin: "6px 0 0" }}>{pageCopy(lang).passwordRequirements}</p>
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 14 }}>
@@ -1989,6 +2091,85 @@ useEffect(() => {
 
             <h2 style={{ margin: "0 0 14px", fontSize: 24 }}>{pageCopy(lang).myBoats}</h2>
 
+            {selectedBoat ? (
+              <section
+                className="card"
+                style={{
+                  marginBottom: 18,
+                  padding: 18,
+                  border: "1px solid rgba(34,211,238,0.34)",
+                  background: "rgba(34,211,238,0.06)",
+                }}
+                aria-label={copy.listingSetup}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+                  <div>
+                    <p className="kicker" style={{ margin: 0 }}>{copy.selectedBoat}</p>
+                    <h3 style={{ margin: "6px 0 0", fontSize: 20 }}>{copy.listingSetup}</h3>
+                    <p className="kicker" style={{ margin: "6px 0 0" }}>
+                      {copy.listingSetupIntro}
+                    </p>
+                  </div>
+                  <span className="pill">{selectedBoat.title || `Boat #${selectedBoat.id}`}</span>
+                </div>
+
+                <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+                  {[
+                    {
+                      label: copy.basicInformation,
+                      done: boatHasBasicInformation(selectedBoat),
+                      href: `#${boatSetupAnchor(selectedBoat, "edit")}`,
+                    },
+                    {
+                      label: copy.photos,
+                      done: boatHasPhotos(selectedBoat),
+                      href: `#${boatSetupAnchor(selectedBoat, "edit")}`,
+                    },
+                    {
+                      label: copy.documents,
+                      done: ownerHasRequiredDocuments(data),
+                      href: "#owner-documents",
+                    },
+                    {
+                      label: copy.routes,
+                      done: (boatExperiences[getBoatExperienceKey(selectedBoat)] || []).length > 0,
+                      href: `#${boatSetupAnchor(selectedBoat, "routes")}`,
+                    },
+                    {
+                      label: copy.availabilityCalendar,
+                      done: (boatBlackouts[Number(selectedBoat.id)] || []).length > 0,
+                      href: `#${boatSetupAnchor(selectedBoat, "calendar")}`,
+                    },
+                    {
+                      label: copy.submitReviewStep,
+                      done: boatSubmittedForReview(selectedBoat),
+                      href: `#${boatSetupAnchor(selectedBoat, "submit-review")}`,
+                    },
+                  ].map((item) => (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        textDecoration: "none",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: item.done ? "rgba(22,163,74,0.12)" : "rgba(255,255,255,0.04)",
+                        color: "inherit",
+                      }}
+                    >
+                      <span>{item.done ? "✓" : "○"} {item.label}</span>
+                      <span className="kicker" style={{ margin: 0 }}>{copy.openStep}</span>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             {boats.length ? (
               <div style={{ display: "grid", gap: 14 }}>
                 {boats.map((boat) => (
@@ -1997,12 +2178,16 @@ useEffect(() => {
 
                     return (
                   <div
+                    id={boatSetupAnchor(boat, "card")}
                     key={boat.documentId || boat.id || boat.slug}
                     className="card"
                     style={{
                       padding: 18,
                       display: "grid",
                       gap: 10,
+                      border: selectedBoat && (selectedBoat.documentId === boat.documentId || selectedBoat.id === boat.id)
+                        ? "1px solid rgba(34,211,238,0.45)"
+                        : undefined,
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
@@ -2061,7 +2246,7 @@ useEffect(() => {
                     ) : null}
 
                     {boat.documentId && !["submitted", "under_review", "approved", "published", "archived"].includes(boat.moderation_status || "draft") ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                      <div id={boatSetupAnchor(boat, "submit-review")} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                         <button
                           type="button"
                           className="button secondary"
@@ -2111,6 +2296,7 @@ useEffect(() => {
 
                           {boat.documentId ? (
                             <button
+                              id={boatSetupAnchor(boat, "edit")}
                               type="button"
                               className={editingBoatDocumentId === boat.documentId ? "button primary" : "button secondary"}
                               onClick={() => {
@@ -2354,6 +2540,7 @@ useEffect(() => {
                         ) : null}
 
                         <div
+                          id={boatSetupAnchor(boat, "routes")}
                           className="card"
                           style={{
                             padding: 14,
@@ -2584,6 +2771,7 @@ useEffect(() => {
                         </div>
 
                         <div
+                          id={boatSetupAnchor(boat, "calendar")}
                           className="card"
                           style={{
                             padding: 14,

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
+import React, { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { BoatFormLocation, BoatFormMode, BoatFormValues } from "./types";
 import { defaultPropulsionForVesselType, type VesselType } from "@/lib/boatClassification";
 
@@ -9,12 +10,19 @@ import { defaultPropulsionForVesselType, type VesselType } from "@/lib/boatClass
 
 const translations = {
   en: {
+    titleRentMotor: "Add motor boat for rent",
+    titleRentSail: "Add sail boat for rent",
+    titleRentCatamaran: "Add catamaran for rent",
+    titleSaleMotor: "Add motor boat for sale",
+    titleSaleSail: "Add sail boat for sale",
+    titleSaleCatamaran: "Add catamaran for sale",
     createListingDesc: "Add yacht details and photos.",
     manualReviewDesc: "Sharmar verifies listings before publication.",
     receiveRequestsDesc: "Owners approve bookings before confirmation.",
     listingDetails: "Listing details",
     listingDetailsDesc: "Name the boat and describe what owners should know first.",
-    languageDetected: "{ui.languageDetected}",
+    languageDetected: "Listing language is automatically detected from the current site language.",
+    nextStepsIntro: "You are creating the basic boat listing. Documents, routes, and availability are added in the next step in the owner dashboard.",
     title: "Title",
     description: "Description",
     location: "Location",
@@ -30,7 +38,11 @@ const translations = {
     ownerContact: "Owner contact",
     ownerContactDesc: "Add the phone number for owner follow-up.",
     ownerPhone: "Owner phone",
-    reviewPending: "{ui.reviewPending}",
+    contactEmail: "Contact email",
+    contactEmailDesc: "Listing review and booking notifications will be sent to your account email.",
+    accountEmail: "Account email",
+    ownerProfileLink: "Open owner profile",
+    reviewPending: "Listing saved for review. Visible after approval.",
     boatPhotos: "Boat photos",
     uploadPhotos: "Upload boat photos",
     ownerListing: "Owner listing",
@@ -67,26 +79,54 @@ const translations = {
     currency: "Currency",
     placeholderSalePrice: "Sale price",
     placeholderPhone: "Phone number",
-    uploadHelp: "{ui.uploadHelp}",
+    uploadHelp: "Upload up to 8 JPG, PNG or WEBP images. The first image will become the cover later.",
     uploadingPhotos: "Uploading photos...",
-    dragDrop: "{ui.dragDrop}",
-    selectImages: "{ui.selectImages}",
-    uploadMeta: "{ui.uploadMeta}",
+    dragDrop: "Drag & drop images here or click below",
+    selectImages: "Select images",
+    uploadMeta: "JPG · PNG · WEBP · max 8MB · up to 8 photos",
     cover: "Cover",
     photo: "Photo",
-    remove: "{ui.remove}",
-    completeFields: "{ui.completeFields}",
-    submittedReview: "Submitted for review",
+    remove: "Remove",
+    completeFields: "Please complete the highlighted fields.",
+    submittedReview: "Opening dashboard...",
     saving: "Saving...",
-    saveForReview: "Save for review"
+    saveForReview: "Save basic listing",
+    authLoading: "Checking owner account...",
+    authRequiredTitle: "Sign in to create a listing",
+    authRequiredDesc: "Use your owner account before adding boat details. After sign in, you will return to this listing form.",
+    ownerLogin: "Sign in",
+    ownerRegister: "Register owner account",
+    couldNotLoadOwner: "Could not load owner account.",
+    maxImagesError: "Maximum 8 images per listing",
+    imageTypeError: "Only JPG, PNG and WEBP images are allowed",
+    imageSizeError: "Maximum file size is 8MB",
+    imageUploadFailed: "Image upload failed",
+    saveFailed: "Could not save this listing.",
+    requiredError: "Required",
+    validYearError: "Enter a valid year",
+    lengthError: "Enter length in meters",
+    capacityError: "Enter guest capacity",
+    horsepowerError: "Enter valid horsepower",
+    rentalPriceError: "Add at least one rental price",
+    minRentalError: "Enter minimum rental hours from 1 to 24",
+    instantBooking: "Instant booking",
+    instantBookingLater: "Instant booking can be enabled later in the owner dashboard after availability has been configured.",
+    redirectingToDashboard: "Basic listing saved. Opening owner dashboard for documents, routes, calendar, and review."
   },
   ru: {
+    titleRentMotor: "Добавить моторную лодку в аренду",
+    titleRentSail: "Добавить парусную лодку в аренду",
+    titleRentCatamaran: "Добавить катамаран в аренду",
+    titleSaleMotor: "Добавить моторную лодку на продажу",
+    titleSaleSail: "Добавить парусную лодку на продажу",
+    titleSaleCatamaran: "Добавить катамаран на продажу",
     createListingDesc: "Добавьте описание и фотографии яхты.",
     manualReviewDesc: "Sharmar проверяет объявления перед публикацией.",
     receiveRequestsDesc: "Владелец подтверждает бронирование вручную.",
     listingDetails: "Информация о яхте",
     listingDetailsDesc: "Укажите основные данные о яхте.",
     languageDetected: "Язык объявления определяется автоматически по языку сайта.",
+    nextStepsIntro: "Сейчас вы создаёте основную карточку лодки. Документы, маршруты и календарь доступности добавляются следующим шагом в кабинете владельца.",
     title: "Название",
     description: "Описание",
     location: "Локация",
@@ -102,6 +142,10 @@ const translations = {
     ownerContact: "Контакты владельца",
     ownerContactDesc: "Укажите номер телефона владельца.",
     ownerPhone: "Телефон владельца",
+    contactEmail: "Контактный email",
+    contactEmailDesc: "Уведомления о проверке объявления и бронированиях будут отправляться на email вашего аккаунта.",
+    accountEmail: "Email аккаунта",
+    ownerProfileLink: "Открыть профиль владельца",
     reviewPending: "Объявление отправлено на проверку. После одобрения станет видимым.",
     boatPhotos: "Фотографии яхты",
     uploadPhotos: "Загрузить фотографии",
@@ -150,15 +194,43 @@ const translations = {
     completeFields: "Пожалуйста, заполните выделенные поля.",
     submittedReview: "Отправлено на проверку",
     saving: "Сохранение...",
-    saveForReview: "Сохранить на проверку"
+    saveForReview: "Сохранить основную карточку",
+    authLoading: "Проверяем аккаунт владельца...",
+    authRequiredTitle: "Войдите, чтобы создать объявление",
+    authRequiredDesc: "Используйте аккаунт владельца перед заполнением данных лодки. После входа вы вернётесь к этой форме.",
+    ownerLogin: "Войти",
+    ownerRegister: "Зарегистрироваться",
+    couldNotLoadOwner: "Не удалось загрузить аккаунт владельца.",
+    maxImagesError: "Максимум 8 изображений для объявления",
+    imageTypeError: "Можно загрузить только JPG, PNG или WEBP",
+    imageSizeError: "Максимальный размер файла — 8MB",
+    imageUploadFailed: "Не удалось загрузить изображение",
+    saveFailed: "Не удалось сохранить объявление.",
+    requiredError: "Обязательное поле",
+    validYearError: "Укажите корректный год",
+    lengthError: "Укажите длину в метрах",
+    capacityError: "Укажите вместимость",
+    horsepowerError: "Укажите корректную мощность",
+    rentalPriceError: "Добавьте хотя бы одну цену аренды",
+    minRentalError: "Укажите минимальную аренду от 1 до 24 часов",
+    instantBooking: "Мгновенное бронирование",
+    instantBookingLater: "Мгновенное бронирование можно включить позже в кабинете владельца после настройки календаря доступности.",
+    redirectingToDashboard: "Основная карточка сохранена. Открываем кабинет владельца для документов, маршрутов, календаря и отправки на проверку."
   },
   me: {
+    titleRentMotor: "Dodaj motorno plovilo za najam",
+    titleRentSail: "Dodaj jedrilicu za najam",
+    titleRentCatamaran: "Dodaj katamaran za najam",
+    titleSaleMotor: "Dodaj motorno plovilo za prodaju",
+    titleSaleSail: "Dodaj jedrilicu za prodaju",
+    titleSaleCatamaran: "Dodaj katamaran za prodaju",
     createListingDesc: "Dodajte podatke i fotografije jahte.",
     manualReviewDesc: "Sharmar provjerava oglase prije objave.",
     receiveRequestsDesc: "Vlasnik potvrđuje rezervacije prije potvrde.",
     listingDetails: "Detalji jahte",
     listingDetailsDesc: "Dodajte osnovne informacije o jahti.",
     languageDetected: "Jezik oglasa se automatski određuje prema jeziku sajta.",
+    nextStepsIntro: "Sada kreirate osnovni oglas za plovilo. Dokumenti, rute i dostupnost dodaju se u sljedećem koraku u kabinetu vlasnika.",
     title: "Naziv",
     description: "Opis",
     location: "Lokacija",
@@ -174,6 +246,10 @@ const translations = {
     ownerContact: "Kontakt vlasnika",
     ownerContactDesc: "Dodajte broj telefona vlasnika.",
     ownerPhone: "Telefon vlasnika",
+    contactEmail: "Kontakt email",
+    contactEmailDesc: "Obavještenja o provjeri oglasa i rezervacijama biće poslata na email vašeg naloga.",
+    accountEmail: "Email naloga",
+    ownerProfileLink: "Otvori profil vlasnika",
     reviewPending: "Oglas je poslat na provjeru. Nakon odobrenja biće vidljiv.",
     boatPhotos: "Fotografije jahte",
     uploadPhotos: "Otpremi fotografije",
@@ -222,7 +298,28 @@ const translations = {
     completeFields: "Molimo popunite označena polja.",
     submittedReview: "Poslato na provjeru",
     saving: "Čuvanje...",
-    saveForReview: "Sačuvaj za provjeru"
+    saveForReview: "Sačuvaj osnovni oglas",
+    authLoading: "Provjeravamo nalog vlasnika...",
+    authRequiredTitle: "Prijavite se za kreiranje oglasa",
+    authRequiredDesc: "Koristite nalog vlasnika prije unosa podataka o plovilu. Nakon prijave vratićete se na ovu formu.",
+    ownerLogin: "Prijava",
+    ownerRegister: "Registracija vlasnika",
+    couldNotLoadOwner: "Nalog vlasnika nije učitan.",
+    maxImagesError: "Maksimalno 8 slika po oglasu",
+    imageTypeError: "Dozvoljene su samo JPG, PNG i WEBP slike",
+    imageSizeError: "Maksimalna veličina fajla je 8MB",
+    imageUploadFailed: "Otpremanje slike nije uspjelo",
+    saveFailed: "Oglas nije sačuvan.",
+    requiredError: "Obavezno polje",
+    validYearError: "Unesite ispravnu godinu",
+    lengthError: "Unesite dužinu u metrima",
+    capacityError: "Unesite kapacitet",
+    horsepowerError: "Unesite ispravnu snagu motora",
+    rentalPriceError: "Dodajte barem jednu cijenu najma",
+    minRentalError: "Unesite minimalni najam od 1 do 24 sata",
+    instantBooking: "Trenutna rezervacija",
+    instantBookingLater: "Trenutnu rezervaciju možete uključiti kasnije u kabinetu vlasnika nakon podešavanja dostupnosti.",
+    redirectingToDashboard: "Osnovni oglas je sačuvan. Otvaramo kabinet vlasnika za dokumente, rute, kalendar i slanje na provjeru."
   }
 };
 
@@ -245,6 +342,10 @@ type UploadedImage = {
   name?: string;
   mime?: string;
   size?: number;
+};
+
+type OwnerAccount = {
+  email: string | null;
 };
 
 function inputBase() {
@@ -304,7 +405,7 @@ function defaultValues(): BoatFormValues {
     capacityGuests: "",
     ownerPhone: "",
     homeMarinaId: "",
-    instantBooking: true,
+    instantBooking: false,
     rentPriceHour: "",
     rentPriceDay: "",
     rentPriceWeek: "",
@@ -315,13 +416,13 @@ function defaultValues(): BoatFormValues {
   };
 }
 
-function buildTitle(mode: BoatFormMode) {
-  if (mode.kind === "rent" && mode.boatType === "motor") return "Add motor boat for rent";
-  if (mode.kind === "rent" && mode.boatType === "sail") return "Add sail boat for rent";
-  if (mode.kind === "rent" && mode.boatType === "catamaran") return "Add catamaran for rent";
-  if (mode.kind === "sale" && mode.boatType === "motor") return "Add motor boat for sale";
-  if (mode.kind === "sale" && mode.boatType === "catamaran") return "Add catamaran for sale";
-  return "Add sail boat for sale";
+function buildTitle(mode: BoatFormMode, ui: typeof translations.en) {
+  if (mode.kind === "rent" && mode.boatType === "motor") return ui.titleRentMotor;
+  if (mode.kind === "rent" && mode.boatType === "sail") return ui.titleRentSail;
+  if (mode.kind === "rent" && mode.boatType === "catamaran") return ui.titleRentCatamaran;
+  if (mode.kind === "sale" && mode.boatType === "motor") return ui.titleSaleMotor;
+  if (mode.kind === "sale" && mode.boatType === "catamaran") return ui.titleSaleCatamaran;
+  return ui.titleSaleSail;
 }
 
 function vesselTypeFromMode(mode: BoatFormMode): VesselType {
@@ -329,52 +430,52 @@ function vesselTypeFromMode(mode: BoatFormMode): VesselType {
   return mode.boatType === "motor" ? "motorboat" : "sailboat";
 }
 
-function validate(values: BoatFormValues, mode: BoatFormMode) {
+function validate(values: BoatFormValues, mode: BoatFormMode, ui: typeof translations.en) {
   const errors: Record<string, string> = {};
 
   const requiredCommon: Array<keyof BoatFormValues> = ["title", "capacityGuests", "ownerPhone"];
 
   for (const k of requiredCommon) {
     if (!isNonEmpty(String(values[k] ?? ""))) {
-      errors[k] = "Required";
+      errors[k] = ui.requiredError;
     }
   }
 
   const yearN = toNumberOrNull(values.year);
   if (yearN !== null && (yearN < 1900 || yearN > 2100)) {
-    errors.year = "Enter a valid year";
+    errors.year = ui.validYearError;
   }
 
   const lengthN = toNumberOrNull(values.lengthM);
   if (lengthN !== null && (lengthN <= 0 || lengthN > 200)) {
-    errors.lengthM = "Enter length in meters";
+    errors.lengthM = ui.lengthError;
   }
 
   const guestsN = toNumberOrNull(values.capacityGuests);
   if (guestsN !== null && (guestsN <= 0 || guestsN > 200)) {
-    errors.capacityGuests = "Enter guest capacity";
+    errors.capacityGuests = ui.capacityError;
   }
 
   const hpN = toNumberOrNull(values.motorHorsePower);
   if (hpN !== null && (hpN < 0 || hpN > 100000)) {
-    errors.motorHorsePower = "Enter valid horsepower";
+    errors.motorHorsePower = ui.horsepowerError;
   }
 
   if (mode.kind === "rent") {
     if (!isNonEmpty(values.rentPriceHour) && !isNonEmpty(values.rentPriceDay) && !isNonEmpty(values.rentPriceWeek)) {
-      errors.rentPriceHour = "Add at least one rental price";
-      errors.rentPriceDay = "Add at least one rental price";
-      errors.rentPriceWeek = "Add at least one rental price";
+      errors.rentPriceHour = ui.rentalPriceError;
+      errors.rentPriceDay = ui.rentalPriceError;
+      errors.rentPriceWeek = ui.rentalPriceError;
     }
 
     const minRentalHoursN = toNumberOrNull(values.minRentalHours);
     if (minRentalHoursN === null || minRentalHoursN < 1 || minRentalHoursN > 24 || !Number.isInteger(minRentalHoursN)) {
-      errors.minRentalHours = "Enter minimum rental hours from 1 to 24";
+      errors.minRentalHours = ui.minRentalError;
     }
   }
 
   if (mode.kind === "sale" && !isNonEmpty(values.salePrice)) {
-    errors.salePrice = "Required";
+    errors.salePrice = ui.requiredError;
   }
 
   return errors;
@@ -389,6 +490,7 @@ export function BoatForm({
   locations?: BoatFormLocation[];
   listingLanguage?: string;
 }) {
+  const router = useRouter();
   const [values, setValues] = useState<BoatFormValues>(() => defaultValues());
   const [submitted, setSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -397,25 +499,72 @@ export function BoatForm({
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "unauthenticated" | "error">("loading");
+  const [ownerAccount, setOwnerAccount] = useState<OwnerAccount>({ email: null });
 
   const pathname = usePathname();
   const pathLang = pathname.split("/")[1] || "en";
   const uiLang = listingLanguage || pathLang;
   const ui = translations[normalizeUiLocale(uiLang)] || translations.en;
   const strapiLocale = normalizeOwnerLocale(uiLang) || "en";
+  const loginNext = encodeURIComponent(pathname || `/${uiLang}/add/rent/motor`);
 
-  const title = useMemo(() => buildTitle(mode), [mode]);
+  const title = useMemo(() => buildTitle(mode, ui), [mode, ui]);
   const vesselType = useMemo(() => vesselTypeFromMode(mode), [mode]);
   const propulsion = mode.boatType === "catamaran"
     ? values.propulsion
     : defaultPropulsionForVesselType(vesselType);
 
-  const errors = useMemo(() => validate(values, mode), [values, mode]);
+  const errors = useMemo(() => validate(values, mode, ui), [values, mode, ui]);
   const hasErrors = Object.keys(errors).length > 0;
 
   function set<K extends keyof BoatFormValues>(key: K, v: BoatFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: v }));
   }
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadOwnerAccount() {
+      setAuthStatus("loading");
+
+      try {
+        const response = await fetch("/api/owner/dashboard", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const json = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          owner?: {
+            email?: string | null;
+          };
+        } | null;
+
+        if (!alive) return;
+
+        if (response.status === 401 || response.status === 403) {
+          setAuthStatus("unauthenticated");
+          return;
+        }
+
+        if (!response.ok || !json?.ok) {
+          setAuthStatus("error");
+          return;
+        }
+
+        setOwnerAccount({ email: json.owner?.email ?? null });
+        setAuthStatus("authenticated");
+      } catch {
+        if (alive) setAuthStatus("error");
+      }
+    }
+
+    loadOwnerAccount();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const apiPayload = useMemo(
     () => ({
@@ -452,18 +601,18 @@ export function BoatForm({
     const selectedFiles = Array.from(files);
 
     if (uploadedImages.length + selectedFiles.length > 8) {
-      setUploadError("Maximum 8 images per listing");
+      setUploadError(ui.maxImagesError);
       return;
     }
 
     for (const file of selectedFiles) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        setUploadError("Only JPG, PNG and WEBP images are allowed");
+        setUploadError(ui.imageTypeError);
         return;
       }
 
       if (file.size > 8 * 1024 * 1024) {
-        setUploadError("Maximum file size is 8MB");
+        setUploadError(ui.imageSizeError);
         return;
       }
     }
@@ -490,7 +639,7 @@ export function BoatForm({
       };
 
       if (!response.ok || !data.ok) {
-        setUploadError(data.error || "Image upload failed");
+        setUploadError(data.error || ui.imageUploadFailed);
         return;
       }
 
@@ -500,7 +649,7 @@ export function BoatForm({
       ]);
     } catch (error) {
       console.error(error);
-      setUploadError("Image upload failed");
+      setUploadError(ui.imageUploadFailed);
     } finally {
       setUploadingImages(false);
     }
@@ -538,13 +687,21 @@ export function BoatForm({
             ? JSON.stringify((json as { details?: unknown }).details)
             : null;
 
-        setSaveError(apiError || details || "Could not save this listing.");
+        setSaveError(apiError || details || ui.saveFailed);
         return;
       }
 
       setListingSaved(true);
+      const boat = isRecord(json) && isRecord(json.boat) ? json.boat : null;
+      const documentId = typeof boat?.documentId === "string" ? boat.documentId.trim() : "";
+      const fallbackId = typeof boat?.id === "number" || typeof boat?.id === "string" ? String(boat.id).trim() : "";
+      const createdBoat = documentId || fallbackId;
+      const target = createdBoat
+        ? `/${uiLang}/owner-dashboard?createdBoat=${encodeURIComponent(createdBoat)}`
+        : `/${uiLang}/owner-dashboard`;
+      router.push(target);
     } catch {
-      setSaveError("Could not save this listing.");
+      setSaveError(ui.saveFailed);
     } finally {
       setIsSaving(false);
     }
@@ -557,6 +714,56 @@ export function BoatForm({
     return <div className="boat-form-error">{msg}</div>;
   }
 
+  if (authStatus === "loading") {
+    return (
+      <div className="boat-form-shell">
+        <div className="boat-form-card">
+          <div className="boat-form-hero">
+            <div className="boat-form-kicker">{ui.ownerListing}</div>
+            <h1>{title}</h1>
+            <p>{ui.authLoading}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authStatus === "unauthenticated") {
+    return (
+      <div className="boat-form-shell">
+        <div className="boat-form-card">
+          <div className="boat-form-hero">
+            <div className="boat-form-kicker">{ui.ownerListing}</div>
+            <h1>{ui.authRequiredTitle}</h1>
+            <p>{ui.authRequiredDesc}</p>
+            <div className="boat-form-auth-actions">
+              <Link className="boat-form-link-button" href={`/${uiLang}/owner-login?next=${loginNext}`}>
+                {ui.ownerLogin}
+              </Link>
+              <Link className="boat-form-link-button boat-form-link-button-secondary" href={`/${uiLang}/owner-register?next=${loginNext}`}>
+                {ui.ownerRegister}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authStatus === "error") {
+    return (
+      <div className="boat-form-shell">
+        <div className="boat-form-card">
+          <div className="boat-form-hero">
+            <div className="boat-form-kicker">{ui.ownerListing}</div>
+            <h1>{title}</h1>
+            <p>{ui.couldNotLoadOwner}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="boat-form-shell">
       <div className="boat-form-card">
@@ -564,6 +771,7 @@ export function BoatForm({
           <div className="boat-form-kicker">{ui.ownerListing}</div>
           <h1>{title}</h1>
           <p>{ui.heroDescription}</p>
+          <p>{ui.nextStepsIntro}</p>
 
           <div className="boat-form-owner-flow">
             <div className="boat-form-owner-flow-item">
@@ -591,7 +799,7 @@ export function BoatForm({
                 <p className={helpText()}>{ui.listingDetailsDesc}</p>
 
                 <div className="boat-form-language-note">
-                  Listing language is automatically detected from the current site language.
+                  {ui.languageDetected}
                 </div>
               </div>
               <div className="boat-form-badges">
@@ -777,12 +985,10 @@ export function BoatForm({
                   />
 
                   <div>
-                    <div className="font-medium">
-                      ⚡ Мгновенное бронирование
-                    </div>
+                    <div className="font-medium">{ui.instantBooking}</div>
 
                     <div className="text-sm text-black/60">
-                      Если включено — клиент сможет оплатить и сразу забронировать лодку без ручного подтверждения владельца.
+                      {ui.instantBookingLater}
                     </div>
                   </div>
                 </label>
@@ -833,8 +1039,22 @@ export function BoatForm({
                 {fieldError("ownerPhone")}
               </div>
 
+              <div className={fieldGroup()}>
+                <div className={labelBase()}>{ui.contactEmail}</div>
+                <input
+                  className={readonlyInput()}
+                  value={ownerAccount.email ?? ""}
+                  aria-label={ui.accountEmail}
+                  readOnly
+                />
+                <p className={helpText()}>{ui.contactEmailDesc}</p>
+                <Link className="boat-form-inline-link" href={`/${uiLang}/owner-dashboard#owner-profile`}>
+                  {ui.ownerProfileLink}
+                </Link>
+              </div>
+
               <div className="boat-form-note">
-                Listing saved for review. Visible after approval.
+                {ui.nextStepsIntro}
               </div>
             </div>
           </section>
@@ -843,7 +1063,7 @@ export function BoatForm({
               <div>
                 <h2 className={sectionTitle()}>{ui.boatPhotos}</h2>
                 <p className={helpText()}>
-                  Upload up to 8 JPG, PNG or WEBP images. The first image will become the cover later.
+                  {ui.uploadHelp}
                 </p>
               </div>
 
@@ -864,15 +1084,15 @@ export function BoatForm({
                 </span>
 
                 <span className="boat-form-upload-subtitle">
-                  Drag & drop images here or click below
+                  {ui.dragDrop}
                 </span>
 
                 <span className="boat-form-upload-button">
-                  Select images
+                  {ui.selectImages}
                 </span>
 
                 <span className="boat-form-upload-meta">
-                  JPG · PNG · WEBP · max 8MB · up to 8 photos
+                  {ui.uploadMeta}
                 </span>
 
                 <input
@@ -916,7 +1136,7 @@ export function BoatForm({
                           onClick={() => removeUploadedImage(image.id)}
                           className="boat-form-preview-remove"
                         >
-                          Remove
+                          {ui.remove}
                         </button>
                       </div>
                     </div>
@@ -928,9 +1148,9 @@ export function BoatForm({
 
           <div className="boat-form-actions">
             <div className="boat-form-status">
-              {submitted && hasErrors ? <div className="boat-form-error">Please complete the highlighted fields.</div> : null}
+              {submitted && hasErrors ? <div className="boat-form-error">{ui.completeFields}</div> : null}
               {saveError ? <div className="boat-form-error">{saveError}</div> : null}
-              {listingSaved ? <div className="boat-form-success">{ui.reviewPending}</div> : null}
+              {listingSaved ? <div className="boat-form-success">{ui.redirectingToDashboard}</div> : null}
             </div>
 
 
@@ -1023,6 +1243,42 @@ export function BoatForm({
   color: rgba(255,255,255,0.72);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.boat-form-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.boat-form-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #081316;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.boat-form-link-button-secondary {
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  color: #ffffff;
+}
+
+.boat-form-inline-link {
+  display: inline-flex;
+  margin-top: 8px;
+  color: rgba(125, 211, 252, 0.96);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 @media (max-width: 900px) {

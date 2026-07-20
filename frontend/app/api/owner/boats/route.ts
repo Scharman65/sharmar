@@ -177,7 +177,7 @@ function parseCreateBoatBody(body: unknown): { ok: true; data: ParsedCreateBoatB
   const currencyRaw = asString(body.currency);
   const rawLocale = asString(body.locale);
   const locale = normalizeOwnerLocale(rawLocale) || "en";
-  const instantBooking = body.instantBooking === false ? false : true;
+  const instantBooking = body.instantBooking === true;
 
   if (!title) return { ok: false, error: "title is required" };
   if (!listingType) return { ok: false, error: "listingType must be rent or sale" };

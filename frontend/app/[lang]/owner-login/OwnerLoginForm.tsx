@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -76,15 +76,29 @@ function inputBase() {
   return "w-full rounded-md border border-black/15 px-3 py-2 outline-none";
 }
 
+function safeNextPath(value: string | null, lang: string): string {
+  if (!value || !value.startsWith(`/${lang}/`) || value.startsWith("//")) {
+    return `/${lang}/owner-dashboard`;
+  }
+
+  return value;
+}
+
 export default function OwnerLoginForm() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
   const lang = typeof params?.lang === "string" ? params.lang : "en";
+  const [nextPath, setNextPath] = useState(`/${lang}/owner-dashboard`);
+  const nextQuery = encodeURIComponent(nextPath);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setNextPath(safeNextPath(new URLSearchParams(window.location.search).get("next"), lang));
+  }, [lang]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -109,7 +123,7 @@ export default function OwnerLoginForm() {
         return;
       }
 
-      router.push(`/${lang}/owner-dashboard`);
+      router.push(nextPath);
     } catch {
       setError(pageCopy(lang).tryAgain);
     } finally {
@@ -144,7 +158,7 @@ export default function OwnerLoginForm() {
 
           <p style={{ margin: 0 }}>
             {pageCopy(lang).noAccount}{" "}
-            <Link href={`/${lang}/owner-register`} style={{ textDecoration: "underline" }}>
+            <Link href={`/${lang}/owner-register?next=${nextQuery}`} style={{ textDecoration: "underline" }}>
               {pageCopy(lang).register}
             </Link>
           </p>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type RegisterCopy = {
   title: string;
@@ -131,11 +131,21 @@ function errorMessage(copy: RegisterCopy, code: string | null) {
   return copy.errors[code] || copy.genericError;
 }
 
+function safeNextPath(value: string | null, lang: string): string {
+  if (!value || !value.startsWith(`/${lang}/`) || value.startsWith("//")) {
+    return `/${lang}/owner-dashboard`;
+  }
+
+  return value;
+}
+
 export default function OwnerRegisterForm() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
   const lang = normalizeLang(params?.lang);
   const copy = pageCopy(lang);
+  const [nextPath, setNextPath] = useState(`/${lang}/owner-dashboard`);
+  const nextQuery = encodeURIComponent(nextPath);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -146,6 +156,10 @@ export default function OwnerRegisterForm() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setNextPath(safeNextPath(new URLSearchParams(window.location.search).get("next"), lang));
+  }, [lang]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -202,7 +216,7 @@ export default function OwnerRegisterForm() {
         return;
       }
 
-      router.push(`/${lang}/owner-dashboard`);
+      router.push(nextPath);
     } catch {
       setErrorCode("strapi_registration_failed");
     } finally {
@@ -271,7 +285,7 @@ export default function OwnerRegisterForm() {
 
           <p style={{ margin: 0 }}>
             {copy.haveAccount}{" "}
-            <Link href={`/${lang}/owner-login`} style={{ textDecoration: "underline" }}>
+            <Link href={`/${lang}/owner-login?next=${nextQuery}`} style={{ textDecoration: "underline" }}>
               {copy.signIn}
             </Link>
           </p>
