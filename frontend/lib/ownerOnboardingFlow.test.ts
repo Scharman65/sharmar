@@ -16,6 +16,10 @@ const dashboard = read("app/[lang]/owner-dashboard/OwnerDashboardClient.tsx");
 const ownerBoatsApi = read("app/api/owner/boats/route.ts");
 const loginForm = read("app/[lang]/owner-login/OwnerLoginForm.tsx");
 const registerForm = read("app/[lang]/owner-register/OwnerRegisterForm.tsx");
+const ownerInternalAuth = read("lib/auth/ownerInternalAuth.ts");
+const ownerRateLimit = read("lib/security/ownerRateLimit.ts");
+const ownerRegisterApi = read("app/api/auth/owner-register/route.ts");
+const ownerInternalProbe = read("app/api/auth/owner-internal-auth-probe/route.ts");
 
 function blockBetween(source: string, start: string, end: string): string {
   const startIndex = source.indexOf(start);
@@ -146,4 +150,35 @@ test("existing document, experience, and blackout APIs are reused without duplic
   assert.ok(dashboard.includes("/api/owner/documents"));
   assert.ok(dashboard.includes("/api/owner/experiences"));
   assert.ok(dashboard.includes("/api/owner/blackouts"));
+});
+
+test("owner internal token helper is server-only and not referenced by client components", () => {
+  assert.ok(ownerInternalAuth.includes('OWNER_INTERNAL_TOKEN_ENV = "OWNER_API_TOKEN"'));
+  assert.ok(ownerInternalAuth.includes('env.NODE_ENV !== "production"'));
+  assert.ok(ownerRateLimit.includes("getOwnerInternalToken()"));
+  assert.equal(boatForm.includes("OWNER_API_TOKEN"), false);
+  assert.equal(registerForm.includes("OWNER_API_TOKEN"), false);
+});
+
+test("owner registration keeps duplicate email mapping while using safe unavailable copy", () => {
+  assert.ok(ownerRegisterApi.includes('return "email_already_registered"'));
+  assert.ok(registerForm.includes("Сервис регистрации временно недоступен. Повторите попытку позже."));
+  assert.ok(registerForm.includes("Registration is temporarily unavailable. Please try again later."));
+  assert.ok(registerForm.includes("Registracija je privremeno nedostupna. Pokušajte ponovo kasnije."));
+});
+
+test("owner auth prompt links remain visually separated", () => {
+  assert.ok(boatForm.includes("boat-form-auth-actions"));
+  assert.ok(boatForm.includes("gap: 12px"));
+  assert.ok(boatForm.includes("owner-login?next="));
+  assert.ok(boatForm.includes("owner-register?next="));
+});
+
+test("owner internal auth probe does not send registration data", () => {
+  assert.ok(ownerInternalProbe.includes("checkPersistentRateLimit"));
+  assert.ok(ownerInternalProbe.includes("owner-internal-auth-probe"));
+  assert.equal(ownerInternalProbe.includes("owner-register"), false);
+  assert.equal(ownerInternalProbe.includes("email"), false);
+  assert.equal(ownerInternalProbe.includes("password"), false);
+  assert.equal(ownerInternalProbe.includes("whatsapp"), false);
 });

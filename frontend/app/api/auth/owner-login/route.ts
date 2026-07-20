@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { setOwnerSessionCookie } from "../owner-session/cookies";
-import { asNumber, getClientIp, getServerToken, getStrapiBase, isRecord, jsonError, readJson, strapiFetchJson } from "@/lib/auth/ownerApi";
+import { getOwnerInternalToken } from "@/lib/auth/ownerInternalAuth";
+import { asNumber, getClientIp, getStrapiBase, isRecord, jsonError, readJson, strapiFetchJson } from "@/lib/auth/ownerApi";
 import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
 import { normalizeOwnerEmail } from "@/lib/security/ownerPassword";
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const loginUser = isRecord(loginJson) && isRecord(loginJson.user) ? loginJson.user : null;
   const userId = asNumber(loginUser?.id);
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
   if (!userId || !serverToken) return jsonError("owner_profile_unavailable", 503);
 
   const profileRes = await strapiFetchJson(`/api/owner/profile-by-user?user_id=${userId}`, { method: "GET" }, serverToken);

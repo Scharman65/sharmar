@@ -1,18 +1,19 @@
-import { getServerToken, getStrapiBase, readJson } from "@/lib/auth/ownerApi";
+import { getOwnerInternalToken, OWNER_INTERNAL_HEADER } from "@/lib/auth/ownerInternalAuth";
+import { getStrapiBase, readJson } from "@/lib/auth/ownerApi";
 
 function uniquePositiveIds(ids: unknown[]): number[] {
   return Array.from(new Set(ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
 }
 
 async function callMediaOwnership(path: string, userId: number, fileIds: number[], purpose?: string): Promise<boolean> {
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
   if (!serverToken || fileIds.length === 0) return false;
 
   const res = await fetch(`${getStrapiBase()}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-owner-api-token": serverToken,
+      [OWNER_INTERNAL_HEADER]: serverToken,
     },
     cache: "no-store",
     body: JSON.stringify({

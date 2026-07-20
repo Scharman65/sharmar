@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { OWNER_SESSION_COOKIE_NAME, parseOwnerSessionCookie } from "@/app/api/auth/owner-session/cookies";
+import { getOwnerInternalToken } from "@/lib/auth/ownerInternalAuth";
 
 type JsonObject = Record<string, unknown>;
 
@@ -170,7 +171,7 @@ export async function getAuthenticatedOwner(req: NextRequest): Promise<
     return { ok: false, status: 401, code: "owner_session_invalid" };
   }
 
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
   if (!serverToken) {
     return { ok: false, status: 503, code: "owner_profile_unavailable" };
   }

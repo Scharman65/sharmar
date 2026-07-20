@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setOwnerSessionCookie } from "../owner-session/cookies";
+import { getOwnerInternalToken } from "@/lib/auth/ownerInternalAuth";
 import { getClientIp } from "@/lib/auth/ownerApi";
 import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
 
@@ -24,10 +25,6 @@ function getStrapiBase(): string {
   }
 
   return configured.replace(/\/+$/, "");
-}
-
-function getServerToken(): string {
-  return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -176,10 +173,10 @@ export async function POST(req: NextRequest) {
     return jsonError("registration_user_missing", 502);
   }
 
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
 
   if (!serverToken) {
-    return jsonError("server_token_missing", 500);
+    return jsonError("rate_limit_unavailable", 503);
   }
 
   const profileRes = await fetch(`${strapiBase}/api/owner/profile-create-for-user`, {

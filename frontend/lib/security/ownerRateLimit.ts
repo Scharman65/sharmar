@@ -1,9 +1,12 @@
 import crypto from "crypto";
 
+import { OWNER_INTERNAL_HEADER, getOwnerInternalToken } from "../auth/ownerInternalAuth";
+
 export type RateLimitResult = {
   allowed: boolean;
   retryAfter: number;
   unavailable?: boolean;
+  reason?: "missing_configuration" | "internal_auth_rejected" | "cms_unavailable" | "rate_limited";
 };
 
 type Entry = {
@@ -30,10 +33,6 @@ function getStrapiBase(): string {
   }
 
   return configured.replace(/\/+$/, "");
-}
-
-function getServerToken(): string {
-  return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
 }
 
 export function normalizeRateLimitKey(value: unknown): string {
@@ -74,8 +73,10 @@ export async function checkPersistentRateLimit(
   limit: number,
   windowMs: number
 ): Promise<RateLimitResult> {
-  const serverToken = getServerToken();
-  if (!serverToken) return { allowed: false, retryAfter: 60, unavailable: true };
+  const serverToken = getOwnerInternalToken();
+  if (!serverToken) {
+    return { allowed: false, retryAfter: 60, unavailable: true, reason: "missing_configuration" };
+  }
 
   const safeKey = normalizeRateLimitKey(key) || "unknown";
   const keyHash = crypto.createHash("sha256").update(safeKey).digest("hex");
@@ -85,7 +86,7 @@ export async function checkPersistentRateLimit(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-owner-api-token": serverToken,
+        [OWNER_INTERNAL_HEADER]: serverToken,
       },
       cache: "no-store",
       body: JSON.stringify({
@@ -96,14 +97,30 @@ export async function checkPersistentRateLimit(
       }),
     });
     const json = await res.json().catch(() => null) as Record<string, unknown> | null;
-    if (!res.ok || !json || json.ok !== true) return { allowed: false, retryAfter: 60, unavailable: true };
+
+    if (res.status === 401 || res.status === 403) {
+      return { allowed: false, retryAfter: 60, unavailable: true, reason: "internal_auth_rejected" };
+    }
+
+    if (res.status === 429) {
+      return {
+        allowed: false,
+        retryAfter: typeof json?.retryAfter === "number" ? json.retryAfter : 60,
+        reason: "rate_limited",
+      };
+    }
+
+    if (!res.ok || !json || json.ok !== true) {
+      return { allowed: false, retryAfter: 60, unavailable: true, reason: "cms_unavailable" };
+    }
 
     return {
       allowed: json.allowed === true,
       retryAfter: typeof json.retryAfter === "number" ? json.retryAfter : 0,
+      reason: json.allowed === true ? undefined : "rate_limited",
     };
   } catch {
-    return { allowed: false, retryAfter: 60, unavailable: true };
+    return { allowed: false, retryAfter: 60, unavailable: true, reason: "cms_unavailable" };
   }
 }
 

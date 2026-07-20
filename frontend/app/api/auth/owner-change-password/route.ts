@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { clearOwnerSessionCookie } from "../owner-session/cookies";
-import { getClientIp, getServerToken, getStrapiBase, jsonError, readJson, requireAuthenticatedOwner } from "@/lib/auth/ownerApi";
+import { getOwnerInternalToken, OWNER_INTERNAL_HEADER } from "@/lib/auth/ownerInternalAuth";
+import { getClientIp, getStrapiBase, jsonError, readJson, requireAuthenticatedOwner } from "@/lib/auth/ownerApi";
 import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
 import { validateOwnerPassword } from "@/lib/security/ownerPassword";
 
@@ -10,7 +11,7 @@ async function changePasswordInCms(userId: number, currentPassword: string, pass
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-owner-api-token": serverToken,
+      [OWNER_INTERNAL_HEADER]: serverToken,
     },
     cache: "no-store",
     body: JSON.stringify({
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
   const passwordValidation = validateOwnerPassword(password);
   if (!passwordValidation.ok) return jsonError(passwordValidation.code, 400);
 
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
   if (!serverToken) return jsonError("owner_profile_missing", 502);
 
   const changed = await changePasswordInCms(auth.auth.owner.id, currentPassword, password, serverToken);

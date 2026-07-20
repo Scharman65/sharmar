@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { clearOwnerSessionCookie } from "../owner-session/cookies";
+import { getOwnerInternalToken, OWNER_INTERNAL_HEADER } from "@/lib/auth/ownerInternalAuth";
 import {
   asString,
   getClientIp,
-  getServerToken,
   getStrapiBase,
   isRecord,
   jsonError,
@@ -18,7 +18,7 @@ async function completePasswordReset(tokenHash: string, password: string, server
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-owner-api-token": serverToken,
+      [OWNER_INTERNAL_HEADER]: serverToken,
     },
     cache: "no-store",
     body: JSON.stringify({
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   const tokenLimit = await checkPersistentRateLimit("owner-reset-password-token", tokenHash, 8, 60 * 60 * 1000);
   if (!tokenLimit.allowed) return jsonError(tokenLimit.unavailable ? "rate_limit_unavailable" : "too_many_attempts", tokenLimit.unavailable ? 503 : 429, { retryAfter: tokenLimit.retryAfter });
 
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
   if (!serverToken) return jsonError("server_token_missing", 503);
 
   const completed = await completePasswordReset(tokenHash, password, serverToken);

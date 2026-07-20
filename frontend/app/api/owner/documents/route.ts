@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getOwnerInternalToken, OWNER_INTERNAL_HEADER } from "@/lib/auth/ownerInternalAuth";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 import { registerOwnerMedia } from "@/lib/auth/ownerMedia";
 
@@ -131,6 +132,10 @@ export async function POST(req: NextRequest) {
   if (!serverToken) {
     return jsonResponse({ ok: false, error: "Server STRAPI_TOKEN is not configured" }, 500);
   }
+  const ownerInternalToken = getOwnerInternalToken();
+  if (!ownerInternalToken) {
+    return jsonResponse({ ok: false, error: "Owner internal service is not configured" }, 503);
+  }
 
   const authenticatedUserId = ownerAuth.auth.owner.id;
 
@@ -204,7 +209,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-owner-api-token": serverToken,
+        [OWNER_INTERNAL_HEADER]: ownerInternalToken,
       },
       cache: "no-store",
       body: JSON.stringify({

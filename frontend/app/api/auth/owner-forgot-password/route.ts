@@ -3,6 +3,7 @@ import { appendFile } from "node:fs/promises";
 
 import { BOOKING_FROM, resend } from "@/app/lib/email";
 import { ownerPasswordResetEmail } from "@/app/lib/emailTemplates";
+import { getOwnerInternalToken, OWNER_INTERNAL_HEADER } from "@/lib/auth/ownerInternalAuth";
 import {
   asNumber,
   asString,
@@ -56,17 +57,17 @@ async function findUserByEmail(email: string, serverToken: string): Promise<{ id
   return id && rowEmail ? { id, email: rowEmail } : null;
 }
 
-async function getOwnerProfile(userId: number, serverToken: string): Promise<Record<string, unknown> | null> {
-  const res = await strapiFetchJson(`/api/owner/profile-by-user?user_id=${userId}`, { method: "GET" }, serverToken);
+async function getOwnerProfile(userId: number, ownerInternalToken: string): Promise<Record<string, unknown> | null> {
+  const res = await strapiFetchJson(`/api/owner/profile-by-user?user_id=${userId}`, { method: "GET" }, ownerInternalToken);
   return isRecord(res.json) && isRecord(res.json.profile) ? res.json.profile : null;
 }
 
-async function setResetToken(userId: number, tokenHash: string, expiresAt: string, serverToken: string): Promise<boolean> {
+async function setResetToken(userId: number, tokenHash: string, expiresAt: string, ownerInternalToken: string): Promise<boolean> {
   const res = await fetch(`${getStrapiBase()}/api/owner/profile-password-reset`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-owner-api-token": serverToken,
+      [OWNER_INTERNAL_HEADER]: ownerInternalToken,
     },
     cache: "no-store",
     body: JSON.stringify({
@@ -121,6 +122,8 @@ export async function POST(req: NextRequest) {
 
   const serverToken = getServerToken();
   if (!serverToken) return jsonError("server_token_missing", 503);
+  const ownerInternalToken = getOwnerInternalToken();
+  if (!ownerInternalToken) return jsonError("rate_limit_unavailable", 503);
 
   if (!resend && !(process.env.NODE_ENV === "test" && process.env.OWNER_RESET_EMAIL_MOCK_FILE)) {
     return jsonError("email_unavailable", 503);
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(NEUTRAL_BODY, { status: 200, headers: { "cache-control": "no-store" } });
   }
 
-  const profile = await getOwnerProfile(user.id, serverToken);
+  const profile = await getOwnerProfile(user.id, ownerInternalToken);
   if (!asString(profile?.documentId)) {
     return NextResponse.json(NEUTRAL_BODY, { status: 200, headers: { "cache-control": "no-store" } });
   }
@@ -147,7 +150,7 @@ export async function POST(req: NextRequest) {
   const tokenHash = hashResetToken(token);
   const expiresAt = resetExpiryIso();
 
-  const updated = await setResetToken(user.id, tokenHash, expiresAt, serverToken);
+  const updated = await setResetToken(user.id, tokenHash, expiresAt, ownerInternalToken);
 
   if (!updated) return jsonError("password_reset_prepare_failed", 502);
 

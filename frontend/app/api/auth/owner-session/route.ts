@@ -8,9 +8,9 @@ import {
   setOwnerSessionCookie,
 } from "./cookies";
 
+import { getOwnerInternalToken } from "@/lib/auth/ownerInternalAuth";
 import {
   asNumber,
-  getServerToken,
   isRecord,
   jsonError,
   strapiFetchJson,
@@ -70,7 +70,7 @@ export async function POST(
     );
   }
 
-  const serverToken = getServerToken();
+  const serverToken = getOwnerInternalToken();
 
   if (!serverToken) {
     return jsonError(
