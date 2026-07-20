@@ -112,8 +112,10 @@ test("Experience publish gates fail closed for boat, owner, boat publication, re
 });
 
 test("Experience moderation writes create safe moderation events without token/session data", () => {
-  assert.ok(eventSchema.includes('"experience"'));
-  assert.ok(cmsService.includes('entityType: "experience"'));
+  assert.doesNotMatch(eventSchema, /"experience"/);
+  assert.ok(cmsService.includes('subjectEntityType: "experience"'));
+  assert.ok(cmsService.includes("subjectDocumentId: documentId"));
+  assert.ok(cmsService.includes('entityType: "boat"'));
   assert.ok(cmsService.includes("createAuditEvent(cms"));
   assert.ok(cmsService.includes("previousStatus: currentStatus"));
   assert.ok(cmsService.includes("newStatus: transition.nextStatus"));

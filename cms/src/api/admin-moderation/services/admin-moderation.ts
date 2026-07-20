@@ -72,6 +72,7 @@ type ModerationEventRow = {
   previous_status: string | null;
   new_status: string | null;
   occurred_at: string | null;
+  metadata: JsonObject | null;
 };
 
 function isRecord(value: unknown): value is JsonObject {
@@ -172,7 +173,18 @@ function shapeModerationEvent(value: unknown): ModerationEventRow | null {
     previous_status: asString(value.previous_status),
     new_status: asString(value.new_status),
     occurred_at: asString(value.occurred_at),
+    metadata: isRecord(value.metadata) ? value.metadata : null,
   };
+}
+
+function isExperienceModerationEvent(
+  event: ModerationEventRow,
+  documentId: string
+): boolean {
+  return (
+    event.metadata?.subjectEntityType === "experience" &&
+    event.metadata?.subjectDocumentId === documentId
+  );
 }
 
 function uniqueLocales(rows: Array<{ locale: string | null }>): Locale[] {
@@ -412,12 +424,14 @@ async function latestExperienceEvent(
   cms: StrapiLike,
   documentId: string
 ): Promise<ModerationEventRow | null> {
+  // Keep Experience audit events compatible with the existing moderation-event
+  // enum by anchoring them to the linked boat and storing the real subject in
+  // metadata.
   const events = await cms.db
     .query("api::moderation-event.moderation-event")
     .findMany({
       where: {
-        entity_type: "experience",
-        entity_document_id: documentId,
+        entity_type: "boat",
       },
       select: [
         "id",
@@ -425,13 +439,17 @@ async function latestExperienceEvent(
         "previous_status",
         "new_status",
         "occurred_at",
+        "metadata",
       ],
       orderBy: { occurred_at: "desc" },
-      limit: 1,
+      limit: 200,
     });
 
-  const event = Array.isArray(events) ? events[0] : null;
-  return shapeModerationEvent(event);
+  return (Array.isArray(events) ? events : [])
+    .map(shapeModerationEvent)
+    .find((event): event is ModerationEventRow =>
+      Boolean(event && isExperienceModerationEvent(event, documentId))
+    ) ?? null;
 }
 
 function maxUpdatedAt(rows: ExperienceRow[]): string | null {
@@ -950,15 +968,18 @@ async function moderateExperience(
     }
 
     await createAuditEvent(cms, {
-      entityType: "experience",
-      entityDocumentId: documentId,
-      entityId: rows[0]?.id ?? null,
+      entityType: "boat",
+      entityDocumentId: linkedBoatDocumentId,
+      entityId: linkedBoat?.id ?? null,
       action: input.action,
       previousStatus: currentStatus,
       newStatus: transition.nextStatus,
       comment,
       actor,
       metadata: {
+        subjectEntityType: "experience",
+        subjectDocumentId: documentId,
+        subjectId: rows[0]?.id ?? null,
         locales,
         boatDocumentId: linkedBoatDocumentId,
         ownerUserId,

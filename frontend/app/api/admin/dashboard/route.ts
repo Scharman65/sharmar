@@ -236,6 +236,7 @@ function moderationEventQuery(): string {
     "fields[6]=comment",
     "fields[7]=actor",
     "fields[8]=occurred_at",
+    "fields[9]=metadata",
   ]);
 }
 
@@ -388,10 +389,12 @@ function latestEventByDocument(events: ReturnType<typeof normalizeModerationEven
   const byDocument = new Map<string, ReturnType<typeof normalizeModerationEvent>>();
 
   for (const event of events) {
-    if (event.entity_type !== entityType || !event.entity_document_id) continue;
-    const current = byDocument.get(event.entity_document_id);
+    const subjectType = moderationEventSubjectType(event);
+    const subjectDocument = moderationEventSubjectDocument(event);
+    if (subjectType !== entityType || !subjectDocument) continue;
+    const current = byDocument.get(subjectDocument);
     if (!current || String(event.occurred_at ?? "") > String(current.occurred_at ?? "")) {
-      byDocument.set(event.entity_document_id, event);
+      byDocument.set(subjectDocument, event);
     }
   }
 
@@ -473,8 +476,19 @@ function normalizeModerationEvent(item: unknown) {
     new_status: asString(row.new_status),
     comment: asString(row.comment),
     actor: asString(row.actor),
+    metadata: isRecord(row.metadata) ? row.metadata : null,
     occurred_at: asString(row.occurred_at),
   };
+}
+
+function moderationEventSubjectDocument(event: ReturnType<typeof normalizeModerationEvent>): string | null {
+  const metadata = isRecord(event.metadata) ? event.metadata : null;
+  return asString(metadata?.subjectDocumentId) ?? event.entity_document_id;
+}
+
+function moderationEventSubjectType(event: ReturnType<typeof normalizeModerationEvent>): string | null {
+  const metadata = isRecord(event.metadata) ? event.metadata : null;
+  return asString(metadata?.subjectEntityType) ?? event.entity_type;
 }
 
 function normalizeOwnerDocuments(item: unknown): unknown {

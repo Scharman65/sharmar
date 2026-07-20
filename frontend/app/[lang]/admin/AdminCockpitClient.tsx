@@ -392,6 +392,12 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function asJsonRecord(value: unknown): JsonRecord | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as JsonRecord
+    : null;
+}
+
 function statusLabel(lang: Lang, value: unknown): string {
   const key = asText(value);
   const statuses: Record<string, string> = copy[lang].statuses;
@@ -437,8 +443,8 @@ function routeNeedsAttention(route: JsonRecord): boolean {
 function routeEvents(route: JsonRecord, events: JsonRecord[]): JsonRecord[] {
   const documentId = asText(route.documentId);
   return events.filter((event) => (
-    asText(event.entity_type) === "experience" &&
-    asText(event.entity_document_id) === documentId
+    asText(asJsonRecord(event.metadata)?.subjectEntityType) === "experience" &&
+    asText(asJsonRecord(event.metadata)?.subjectDocumentId) === documentId
   ));
 }
 

@@ -20,7 +20,6 @@
       "type": "enumeration",
       "enum": [
         "boat",
-        "experience",
         "owner_profile"
       ],
       "required": true
