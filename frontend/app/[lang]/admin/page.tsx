@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { isLang, type Lang } from "@/i18n";
-import AdminDashboardClient from "./AdminDashboardClient";
+import AdminCockpitClient from "./AdminCockpitClient";
 
 export const metadata: Metadata = {
   title: "Admin dashboard | Sharmar",
@@ -24,5 +24,5 @@ export default async function AdminDashboardPage({ params }: Props) {
   const { lang: rawLang } = await params;
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
 
-  return <AdminDashboardClient lang={lang} />;
+  return <AdminCockpitClient lang={lang} />;
 }

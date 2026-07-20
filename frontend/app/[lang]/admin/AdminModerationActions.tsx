@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { Lang } from "@/i18n";
 
 type EntityType = "boat" | "owner_profile";
 
 type Props = {
-  adminToken: string;
+  lang?: Lang;
+  adminToken?: string;
   entityType: EntityType;
   documentId?: string | null;
   profileId?: number | null;
@@ -15,17 +17,15 @@ type Props = {
 
 type ActionDefinition = {
   id: string;
-  label: string;
   needsComment?: boolean;
   dangerous?: boolean;
 };
 
 const BOAT_ACTIONS: Record<string, ActionDefinition[]> = {
   submitted: [
-    { id: "start_review", label: "Start review" },
+    { id: "start_review" },
     {
       id: "reject",
-      label: "Reject",
       needsComment: true,
       dangerous: true,
     },
@@ -33,21 +33,18 @@ const BOAT_ACTIONS: Record<string, ActionDefinition[]> = {
   under_review: [
     {
       id: "request_changes",
-      label: "Request changes",
       needsComment: true,
     },
     {
       id: "reject",
-      label: "Reject",
       needsComment: true,
       dangerous: true,
     },
-    { id: "approve", label: "Approve" },
+    { id: "approve" },
   ],
   needs_changes: [
     {
       id: "reject",
-      label: "Reject",
       needsComment: true,
       dangerous: true,
     },
@@ -55,31 +52,26 @@ const BOAT_ACTIONS: Record<string, ActionDefinition[]> = {
   approved: [
     {
       id: "publish",
-      label: "Publish all locales",
       dangerous: true,
     },
     {
       id: "archive",
-      label: "Archive",
       dangerous: true,
     },
   ],
   published: [
     {
       id: "unpublish",
-      label: "Unpublish all locales",
       dangerous: true,
     },
     {
       id: "archive",
-      label: "Archive",
       dangerous: true,
     },
   ],
   rejected: [
     {
       id: "archive",
-      label: "Archive",
       dangerous: true,
     },
   ],
@@ -87,10 +79,9 @@ const BOAT_ACTIONS: Record<string, ActionDefinition[]> = {
 
 const OWNER_ACTIONS: Record<string, ActionDefinition[]> = {
   documents_uploaded: [
-    { id: "start_review", label: "Start document review" },
+    { id: "start_review" },
     {
       id: "reject",
-      label: "Reject documents",
       needsComment: true,
       dangerous: true,
     },
@@ -98,28 +89,24 @@ const OWNER_ACTIONS: Record<string, ActionDefinition[]> = {
   under_review: [
     {
       id: "request_changes",
-      label: "Request new documents",
       needsComment: true,
     },
     {
       id: "reject",
-      label: "Reject owner",
       needsComment: true,
       dangerous: true,
     },
-    { id: "approve", label: "Approve owner" },
+    { id: "approve" },
     {
       id: "block",
-      label: "Block owner",
       needsComment: true,
       dangerous: true,
     },
   ],
   rejected: [
-    { id: "start_review", label: "Reopen document review" },
+    { id: "start_review" },
     {
       id: "block",
-      label: "Block owner",
       needsComment: true,
       dangerous: true,
     },
@@ -127,57 +114,153 @@ const OWNER_ACTIONS: Record<string, ActionDefinition[]> = {
   approved: [
     {
       id: "block",
-      label: "Block owner",
       needsComment: true,
       dangerous: true,
     },
   ],
 };
 
-function errorMessage(code: string | undefined): string {
-  const messages: Record<string, string> = {
-    unauthorized: "Admin token is invalid.",
-    write_not_enabled:
-      "Moderation writes are disabled on the server.",
-    admin_moderation_token_missing:
-      "Public moderation token is not configured.",
-    admin_moderation_internal_token_missing:
-      "Internal moderation token is not configured.",
-    transition_not_allowed:
-      "This status transition is not allowed.",
-    comment_required:
-      "A moderation comment is required.",
-    owner_not_approved:
-      "The boat owner must be approved before approval or publication.",
-    owner_document_required:
-      "At least one owner document is required.",
-    boat_media_required:
-      "At least one boat image is required before publication.",
-    required_locales_missing:
-      "RU, EN and ME boat versions are required before publication.",
-    required_locales_incomplete:
-      "Each required locale needs a title and slug.",
-    boat_owner_missing:
-      "The boat does not have a linked owner.",
-    boat_not_found:
-      "Boat not found.",
-    owner_profile_not_found:
-      "Owner profile not found.",
-  };
+const copy = {
+  ru: {
+    actions: {
+      start_review: "Начать проверку",
+      reject: "Отклонить",
+      request_changes: "Запросить повторную загрузку",
+      approve: "Подтвердить",
+      publish: "Опубликовать",
+      archive: "Архивировать",
+      unpublish: "Снять с публикации",
+      block: "Заблокировать",
+    },
+    current: "Текущий статус",
+    comment: "Комментарий администратора",
+    commentPlaceholder: "Обязателен для отклонения, блокировки или запроса изменений",
+    enterComment: "Сначала добавьте комментарий.",
+    confirm: "Подтвердить действие",
+    saving: "Сохранение...",
+    saved: "Сохранено. Новый статус",
+    noActions: "Для этого статуса нет доступных действий.",
+    reachError: "Не удалось выполнить действие.",
+    errors: {
+      unauthorized: "Сессия администратора недействительна.",
+      write_not_enabled: "Действия модерации выключены на сервере.",
+      csrf_check_failed: "Проверка безопасности запроса не пройдена.",
+      transition_not_allowed: "Этот переход статуса недоступен.",
+      comment_required: "Нужен комментарий администратора.",
+      owner_not_approved: "Сначала нужно подтвердить владельца.",
+      owner_document_required: "Нужен хотя бы один документ владельца.",
+      boat_media_required: "Перед публикацией нужна хотя бы одна фотография лодки.",
+      required_locales_missing: "Для публикации нужны версии RU, EN и ME.",
+      required_locales_incomplete: "В каждой версии должны быть заголовок и slug.",
+      boat_owner_missing: "У лодки не найден владелец.",
+      boat_not_found: "Лодка не найдена.",
+      owner_profile_not_found: "Профиль владельца не найден.",
+    },
+  },
+  en: {
+    actions: {
+      start_review: "Start review",
+      reject: "Reject",
+      request_changes: "Request changes",
+      approve: "Approve",
+      publish: "Publish",
+      archive: "Archive",
+      unpublish: "Unpublish",
+      block: "Block",
+    },
+    current: "Current status",
+    comment: "Admin comment",
+    commentPlaceholder: "Required for rejection, blocking, or change requests",
+    enterComment: "Enter a comment first.",
+    confirm: "Confirm action",
+    saving: "Saving...",
+    saved: "Saved. New status",
+    noActions: "No action is available for this status.",
+    reachError: "Could not complete the action.",
+    errors: {
+      unauthorized: "Admin session is invalid.",
+      write_not_enabled: "Moderation actions are disabled on the server.",
+      csrf_check_failed: "Request security check failed.",
+      transition_not_allowed: "This status transition is not available.",
+      comment_required: "Admin comment is required.",
+      owner_not_approved: "Approve the owner first.",
+      owner_document_required: "At least one owner document is required.",
+      boat_media_required: "At least one boat photo is required before publication.",
+      required_locales_missing: "RU, EN and ME versions are required before publication.",
+      required_locales_incomplete: "Each version needs a title and slug.",
+      boat_owner_missing: "Boat owner is missing.",
+      boat_not_found: "Boat not found.",
+      owner_profile_not_found: "Owner profile not found.",
+    },
+  },
+  me: {
+    actions: {
+      start_review: "Započni provjeru",
+      reject: "Odbij",
+      request_changes: "Zatraži izmjene",
+      approve: "Potvrdi",
+      publish: "Objavi",
+      archive: "Arhiviraj",
+      unpublish: "Povuci objavu",
+      block: "Blokiraj",
+    },
+    current: "Trenutni status",
+    comment: "Komentar administratora",
+    commentPlaceholder: "Obavezno za odbijanje, blokiranje ili zahtjev za izmjene",
+    enterComment: "Prvo unesite komentar.",
+    confirm: "Potvrdite radnju",
+    saving: "Čuvanje...",
+    saved: "Sačuvano. Novi status",
+    noActions: "Za ovaj status nema dostupnih radnji.",
+    reachError: "Radnja nije izvršena.",
+    errors: {
+      unauthorized: "Administratorska sesija nije važeća.",
+      write_not_enabled: "Moderacijske radnje su isključene na serveru.",
+      csrf_check_failed: "Sigurnosna provjera zahtjeva nije prošla.",
+      transition_not_allowed: "Ova promjena statusa nije dostupna.",
+      comment_required: "Potreban je komentar administratora.",
+      owner_not_approved: "Prvo potvrdite vlasnika.",
+      owner_document_required: "Potreban je bar jedan dokument vlasnika.",
+      boat_media_required: "Prije objave potrebna je bar jedna fotografija plovila.",
+      required_locales_missing: "Za objavu su potrebne RU, EN i ME verzije.",
+      required_locales_incomplete: "Svaka verzija mora imati naslov i slug.",
+      boat_owner_missing: "Vlasnik plovila nije povezan.",
+      boat_not_found: "Plovilo nije pronađeno.",
+      owner_profile_not_found: "Profil vlasnika nije pronađen.",
+    },
+  },
+} satisfies Record<Lang, {
+  actions: Record<string, string>;
+  current: string;
+  comment: string;
+  commentPlaceholder: string;
+  enterComment: string;
+  confirm: string;
+  saving: string;
+  saved: string;
+  noActions: string;
+  reachError: string;
+  errors: Record<string, string>;
+}>;
 
+function errorMessage(lang: Lang, code: string | undefined): string {
+  const ui = copy[lang];
+  const errors: Record<string, string> = ui.errors;
   return code
-    ? messages[code] || `Moderation failed (${code}).`
-    : "Moderation failed.";
+    ? errors[code] || `${ui.reachError} (${code}).`
+    : ui.reachError;
 }
 
 export default function AdminModerationActions({
-  adminToken,
+  lang = "en",
   entityType,
   documentId,
   profileId,
   status,
   onComplete,
 }: Props) {
+  const ui = copy[lang];
+  const actionLabels: Record<string, string> = ui.actions;
   const [comment, setComment] = useState("");
   const [pendingAction, setPendingAction] =
     useState<string | null>(null);
@@ -197,14 +280,14 @@ export default function AdminModerationActions({
     setError(null);
 
     if (action.needsComment && !comment.trim()) {
-      setError("Enter a moderation comment first.");
+      setError(ui.enterComment);
       return;
     }
 
     if (
       action.dangerous &&
       !window.confirm(
-        `Confirm moderation action: ${action.label}?`
+        `${ui.confirm}: ${actionLabels[action.id] ?? action.id}?`
       )
     ) {
       return;
@@ -217,7 +300,6 @@ export default function AdminModerationActions({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": adminToken,
         },
         cache: "no-store",
         body: JSON.stringify({
@@ -243,13 +325,13 @@ export default function AdminModerationActions({
         .catch(() => ({ ok: false, code: "invalid_response" }));
 
       if (!response.ok || json.ok !== true) {
-        setError(errorMessage(json.code));
+        setError(errorMessage(lang, json.code));
         return;
       }
 
       setComment("");
       setMessage(
-        `Saved. New status: ${
+        `${ui.saved}: ${
           json.moderationStatus ||
           json.verificationStatus ||
           "updated"
@@ -258,7 +340,7 @@ export default function AdminModerationActions({
 
       await onComplete?.();
     } catch {
-      setError("Could not reach the moderation API.");
+      setError(ui.reachError);
     } finally {
       setPendingAction(null);
     }
@@ -267,18 +349,18 @@ export default function AdminModerationActions({
   return (
     <div className="admin-moderation-actions">
       <div className="admin-moderation-current">
-        Current status: <strong>{status || "unknown"}</strong>
+        {ui.current}: <strong>{status || "-"}</strong>
       </div>
 
       {actions.some((action) => action.needsComment) ? (
         <label className="admin-moderation-comment">
-          <span>Admin comment</span>
+          <span>{ui.comment}</span>
           <textarea
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             maxLength={4000}
             rows={4}
-            placeholder="Required for request changes, rejection or blocking"
+            placeholder={ui.commentPlaceholder}
           />
         </label>
       ) : null}
@@ -289,26 +371,20 @@ export default function AdminModerationActions({
             <button
               key={action.id}
               type="button"
-              disabled={pendingAction !== null || !adminToken}
+              disabled={pendingAction !== null}
               onClick={() => void runAction(action)}
             >
               {pendingAction === action.id
-                ? "Saving..."
-                : action.label}
+                ? ui.saving
+                : actionLabels[action.id] ?? action.id}
             </button>
           ))}
         </div>
       ) : (
         <p className="admin-moderation-empty">
-          No admin action is available for this status.
+          {ui.noActions}
         </p>
       )}
-
-      {!adminToken ? (
-        <p className="admin-moderation-error">
-          Load the dashboard with an admin token first.
-        </p>
-      ) : null}
 
       {message ? (
         <p className="admin-moderation-success">{message}</p>

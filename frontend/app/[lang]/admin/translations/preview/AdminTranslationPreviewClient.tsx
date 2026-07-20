@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
 
 type StrapiLocale = "ru" | "en" | "sr-Latn-ME";
@@ -91,7 +91,9 @@ type SaveDraftResponse = {
 type Copy = {
   title: string;
   warning: string;
-  adminToken: string;
+  adminPassword: string;
+  signIn: string;
+  signOut: string;
   documentId: string;
   sourceLocale: string;
   targetLocales: string;
@@ -141,23 +143,25 @@ const copy: Record<Lang, Copy> = {
   ru: {
     title: "AI-перевод лодки",
     warning: "Это только предварительный просмотр. Переводы не сохраняются и не публикуются.",
-    adminToken: "Admin token",
-    documentId: "Boat documentId",
+    adminPassword: "Пароль администратора",
+    signIn: "Войти",
+    signOut: "Выйти",
+    documentId: "Технический ID лодки",
     sourceLocale: "Исходный язык",
     targetLocales: "Целевые языки",
     targetLocalesAutomatic: "Определяются автоматически по исходному языку.",
-    sourceOnly: "Preview source only",
-    aiPreview: "Generate AI preview",
+    sourceOnly: "Показать исходные данные",
+    aiPreview: "Создать предпросмотр AI",
     previewButton: "Проверить без AI",
-    generateButton: "Сгенерировать AI preview",
+    generateButton: "Создать предпросмотр AI",
     loading: "Загрузка...",
     sourcePayload: "Исходные данные",
-    aiResult: "AI preview",
-    draftPlan: "План сохранения draft",
-    dryRunButton: "Dry-run сохранения draft",
-    saveDraftButton: "Сохранить draft-переводы",
-    confirmSave: "Подтверждаю, что эта операция должна сохранить только draft-переводы.",
-    draftOnlyNotice: "Save-draft никогда не публикует контент. Он только создаёт или обновляет draft-локализации.",
+    aiResult: "Предпросмотр AI",
+    draftPlan: "План сохранения черновика",
+    dryRunButton: "Проверить сохранение черновика",
+    saveDraftButton: "Сохранить черновик перевода",
+    confirmSave: "Подтверждаю, что эта операция должна сохранить только черновики переводов.",
+    draftOnlyNotice: "Сохранение черновика никогда не публикует контент. Оно только создаёт или обновляет черновые локализации.",
     changedFields: "Поля для записи",
     blockers: "Блокеры",
     saveResult: "Результат сохранения",
@@ -173,9 +177,9 @@ const copy: Record<Lang, Copy> = {
     labels: {
       sourceLocale: "Исходный язык",
       targetLocales: "Целевые языки",
-      boatDocumentId: "Boat documentId",
-      documentId: "documentId",
-      sourceDocumentId: "sourceDocumentId",
+      boatDocumentId: "Технический ID лодки",
+      documentId: "Технический ID",
+      sourceDocumentId: "Технический ID источника",
       title: "Заголовок",
       description: "Описание",
       shortDescription: "Краткое описание",
@@ -185,47 +189,49 @@ const copy: Record<Lang, Copy> = {
     },
     warnings: {
       experience_source_locale_not_found: "Маршрут связан с лодкой, но локализация маршрута для исходного языка не найдена.",
-      experience_source_locale_inferred_from_linked_row: "Маршрут связан с лодкой, но точная локализация маршрута для исходного языка не найдена. Использована связанная строка маршрута для preview.",
+      experience_source_locale_inferred_from_linked_row: "Маршрут связан с лодкой, но точная локализация маршрута для исходного языка не найдена. Использована связанная строка маршрута для предпросмотра.",
       unknown: "Предупреждение.",
     },
     errors: {
-      admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN не настроен на сервере.",
-      unauthorized: "Неверный admin token.",
-      boat_not_found: "Лодка с таким documentId не найдена.",
+      admin_translation_token_missing: "Сервис переводов временно недоступен.",
+      unauthorized: "Сессия администратора недействительна.",
+      boat_not_found: "Лодка с таким техническим ID не найдена.",
       source_locale_not_found: "Локализация лодки для выбранного исходного языка не найдена.",
       target_locales_required: "Нужно выбрать хотя бы один целевой язык, отличный от исходного.",
-      openai_api_key_missing: "OPENAI_API_KEY не настроен на сервере frontend.",
-      openai_request_failed: "Запрос к OpenAI не выполнен.",
+      openai_api_key_missing: "Сервис AI-перевода временно недоступен.",
+      openai_request_failed: "Запрос к сервису AI-перевода не выполнен.",
       ai_translation_invalid_response: "AI вернул некорректный JSON.",
       unknown: "Неизвестная ошибка.",
       invalid_save_mode: "Некорректный режим сохранения.",
-      invalid_dry_run_payload: "Недостаточно данных для dry-run.",
-      write_not_enabled: "Сохранение draft отключено в окружении.",
-      admin_translation_internal_token_missing: "ADMIN_TRANSLATION_INTERNAL_TOKEN не настроен.",
-      strapi_save_draft_failed: "Strapi save-draft не выполнен.",
-      save_draft_failed: "Сохранение draft не выполнено.",
+      invalid_dry_run_payload: "Недостаточно данных для проверки сохранения.",
+      write_not_enabled: "Сохранение черновика отключено на сервере.",
+      admin_translation_internal_token_missing: "Сохранение переводов временно недоступно.",
+      strapi_save_draft_failed: "Сохранение черновика не выполнено.",
+      save_draft_failed: "Сохранение черновика не выполнено.",
     },
   },
   en: {
     title: "Boat AI translation",
     warning: "This is preview only. Translations are not saved or published.",
-    adminToken: "Admin token",
-    documentId: "Boat documentId",
+    adminPassword: "Admin password",
+    signIn: "Sign in",
+    signOut: "Sign out",
+    documentId: "Technical boat ID",
     sourceLocale: "Source locale",
     targetLocales: "Target locales",
     targetLocalesAutomatic: "Selected automatically from the source locale.",
     sourceOnly: "Preview source only",
     aiPreview: "Generate AI preview",
-    previewButton: "Проверить без AI",
-    generateButton: "Сгенерировать AI preview",
+    previewButton: "Preview without AI",
+    generateButton: "Generate AI preview",
     loading: "Loading...",
     sourcePayload: "Source payload",
     aiResult: "AI preview",
     draftPlan: "Draft save plan",
-    dryRunButton: "Dry-run save draft",
+    dryRunButton: "Check draft save",
     saveDraftButton: "Save draft translations",
     confirmSave: "I confirm this write must save draft translations only.",
-    draftOnlyNotice: "Save-draft never publishes content. It only creates or updates draft localizations.",
+    draftOnlyNotice: "Draft saving never publishes content. It only creates or updates draft localizations.",
     changedFields: "Fields to write",
     blockers: "Blockers",
     saveResult: "Save result",
@@ -241,9 +247,9 @@ const copy: Record<Lang, Copy> = {
     labels: {
       sourceLocale: "Source locale",
       targetLocales: "Target locales",
-      boatDocumentId: "Boat documentId",
-      documentId: "documentId",
-      sourceDocumentId: "sourceDocumentId",
+      boatDocumentId: "Technical boat ID",
+      documentId: "Technical ID",
+      sourceDocumentId: "Source technical ID",
       title: "Title",
       description: "Description",
       shortDescription: "Short description",
@@ -257,43 +263,45 @@ const copy: Record<Lang, Copy> = {
       unknown: "Warning.",
     },
     errors: {
-      admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN is not configured on the server.",
-      unauthorized: "Invalid admin token.",
-      boat_not_found: "Boat with this documentId was not found.",
+      admin_translation_token_missing: "Translation service is temporarily unavailable.",
+      unauthorized: "Admin session is invalid.",
+      boat_not_found: "Boat with this technical ID was not found.",
       source_locale_not_found: "Boat localization for the selected source locale was not found.",
       target_locales_required: "Select at least one target locale different from the source locale.",
-      openai_api_key_missing: "OPENAI_API_KEY is not configured in the frontend runtime.",
-      openai_request_failed: "OpenAI request failed.",
+      openai_api_key_missing: "AI translation service is temporarily unavailable.",
+      openai_request_failed: "AI translation service request failed.",
       ai_translation_invalid_response: "AI returned invalid JSON.",
       unknown: "Unknown error.",
       invalid_save_mode: "Invalid save mode.",
-      invalid_dry_run_payload: "Not enough data for dry-run.",
-      write_not_enabled: "Draft saving is disabled in the environment.",
-      admin_translation_internal_token_missing: "ADMIN_TRANSLATION_INTERNAL_TOKEN is not configured.",
-      strapi_save_draft_failed: "Strapi save-draft failed.",
+      invalid_dry_run_payload: "Not enough data to check the draft save.",
+      write_not_enabled: "Draft saving is disabled on the server.",
+      admin_translation_internal_token_missing: "Translation saving is temporarily unavailable.",
+      strapi_save_draft_failed: "Draft saving failed.",
       save_draft_failed: "Draft save failed.",
     },
   },
   me: {
     title: "AI prevod broda",
     warning: "Ovo je samo pregled. Prevodi se ne čuvaju i ne objavljuju.",
-    adminToken: "Admin token",
-    documentId: "Boat documentId",
+    adminPassword: "Administratorska lozinka",
+    signIn: "Prijavi se",
+    signOut: "Odjavi se",
+    documentId: "Tehnički ID plovila",
     sourceLocale: "Izvorni jezik",
     targetLocales: "Ciljni jezici",
     targetLocalesAutomatic: "Određuju se automatski na osnovu izvornog jezika.",
-    sourceOnly: "Preview source only",
-    aiPreview: "Generate AI preview",
-    previewButton: "Проверить без AI",
-    generateButton: "Сгенерировать AI preview",
+    sourceOnly: "Prikaži izvorne podatke",
+    aiPreview: "Napravi AI pregled",
+    previewButton: "Provjeri bez AI",
+    generateButton: "Napravi AI pregled",
     loading: "Učitavanje...",
     sourcePayload: "Izvorni podaci",
-    aiResult: "AI preview",
-    draftPlan: "Plan čuvanja drafta",
-    dryRunButton: "Dry-run čuvanja drafta",
-    saveDraftButton: "Sačuvaj draft prevode",
-    confirmSave: "Potvrđujem da ovaj upis smije sačuvati samo draft prevode.",
-    draftOnlyNotice: "Save-draft nikada ne objavljuje sadržaj. Samo kreira ili ažurira draft lokalizacije.",
+    aiResult: "AI pregled",
+    draftPlan: "Plan čuvanja nacrta",
+    dryRunButton: "Provjeri čuvanje nacrta",
+    saveDraftButton: "Sačuvaj nacrt prevoda",
+    confirmSave: "Potvrđujem da ova radnja smije sačuvati samo nacrte prevoda.",
+    draftOnlyNotice: "Čuvanje nacrta nikada ne objavljuje sadržaj. Samo kreira ili ažurira nacrte lokalizacija.",
     changedFields: "Polja za upis",
     blockers: "Blokade",
     saveResult: "Rezultat čuvanja",
@@ -309,9 +317,9 @@ const copy: Record<Lang, Copy> = {
     labels: {
       sourceLocale: "Izvorni jezik",
       targetLocales: "Ciljni jezici",
-      boatDocumentId: "Boat documentId",
-      documentId: "documentId",
-      sourceDocumentId: "sourceDocumentId",
+      boatDocumentId: "Tehnički ID plovila",
+      documentId: "Tehnički ID",
+      sourceDocumentId: "Tehnički ID izvora",
       title: "Naslov",
       description: "Opis",
       shortDescription: "Kratak opis",
@@ -321,25 +329,25 @@ const copy: Record<Lang, Copy> = {
     },
     warnings: {
       experience_source_locale_not_found: "Ruta je povezana sa brodom, ali lokalizacija rute za izvorni jezik nije pronađena.",
-      experience_source_locale_inferred_from_linked_row: "Ruta je povezana sa brodom, ali tačna lokalizacija rute za izvorni jezik nije pronađena. Povezani red rute je korišćen za preview.",
+      experience_source_locale_inferred_from_linked_row: "Ruta je povezana sa brodom, ali tačna lokalizacija rute za izvorni jezik nije pronađena. Povezani red rute je korišćen za pregled.",
       unknown: "Upozorenje.",
     },
     errors: {
-      admin_translation_token_missing: "ADMIN_TRANSLATION_TOKEN nije podešen na serveru.",
-      unauthorized: "Neispravan admin token.",
-      boat_not_found: "Brod sa ovim documentId nije pronađen.",
+      admin_translation_token_missing: "Servis prevoda je privremeno nedostupan.",
+      unauthorized: "Administratorska sesija nije važeća.",
+      boat_not_found: "Plovilo sa ovim tehničkim ID nije pronađeno.",
       source_locale_not_found: "Lokalizacija broda za izabrani izvorni jezik nije pronađena.",
       target_locales_required: "Izaberite makar jedan ciljni jezik koji nije izvorni.",
-      openai_api_key_missing: "OPENAI_API_KEY nije podešen u frontend runtime okruženju.",
-      openai_request_failed: "OpenAI zahtjev nije uspio.",
+      openai_api_key_missing: "Servis AI prevoda je privremeno nedostupan.",
+      openai_request_failed: "Zahtjev ka servisu AI prevoda nije uspio.",
       ai_translation_invalid_response: "AI je vratio neispravan JSON.",
       unknown: "Nepoznata greška.",
       invalid_save_mode: "Neispravan režim čuvanja.",
-      invalid_dry_run_payload: "Nema dovoljno podataka za dry-run.",
-      write_not_enabled: "Čuvanje drafta je isključeno u okruženju.",
-      admin_translation_internal_token_missing: "ADMIN_TRANSLATION_INTERNAL_TOKEN nije podešen.",
-      strapi_save_draft_failed: "Strapi save-draft nije uspio.",
-      save_draft_failed: "Čuvanje drafta nije uspjelo.",
+      invalid_dry_run_payload: "Nema dovoljno podataka za provjeru čuvanja.",
+      write_not_enabled: "Čuvanje nacrta je isključeno na serveru.",
+      admin_translation_internal_token_missing: "Čuvanje prevoda je privremeno nedostupno.",
+      strapi_save_draft_failed: "Čuvanje nacrta nije uspjelo.",
+      save_draft_failed: "Čuvanje nacrta nije uspjelo.",
     },
   },
 };
@@ -408,7 +416,8 @@ function LocaleTranslation({
 
 export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) {
   const ui = copy[lang];
-  const [adminToken, setAdminToken] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
   const [boatDocumentId, setBoatDocumentId] = useState("");
   const [sourceLocale, setSourceLocale] = useState<StrapiLocale>("ru");
   const [generateAi, setGenerateAi] = useState(false);
@@ -424,6 +433,47 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
     [sourceLocale]
   );
 
+  async function refreshSession() {
+    const res = await fetch("/api/admin/session", { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    setAuthenticated(Boolean(json && typeof json === "object" && (json as { authenticated?: boolean }).authenticated));
+  }
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json || typeof json !== "object" || (json as { ok?: boolean }).ok !== true) {
+        setError(errorMessage(ui, "unauthorized"));
+        return;
+      }
+      setAdminPassword("");
+      await refreshSession();
+    } catch {
+      setError(errorMessage(ui, "unknown"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function signOut() {
+    await fetch("/api/admin/session", { method: "DELETE" });
+    setAuthenticated(false);
+    setResponse(null);
+    setSaveDraftResponse(null);
+  }
+
+  useEffect(() => {
+    void refreshSession();
+  }, []);
+
   async function submit(nextGenerateAi: boolean) {
     setLoading(true);
     setError(null);
@@ -436,7 +486,6 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": adminToken,
         },
         body: JSON.stringify({
           boatDocumentId: boatDocumentId.trim(),
@@ -480,7 +529,6 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": adminToken,
         },
         body: JSON.stringify({
           dryRun,
@@ -517,18 +565,26 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
           <p>{ui.warning}</p>
         </div>
 
-        <form className="admin-translation-form" onSubmit={onSubmit}>
-          <label>
-            <span>{ui.adminToken}</span>
-            <input
-              type="password"
-              value={adminToken}
-              onChange={(event) => setAdminToken(event.target.value)}
-              autoComplete="off"
-              required
-            />
-          </label>
+        {!authenticated ? (
+          <form className="admin-translation-form" onSubmit={signIn}>
+            <label>
+              <span>{ui.adminPassword}</span>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <button type="submit" disabled={loading}>{loading ? ui.loading : ui.signIn}</button>
+          </form>
+        ) : (
+          <button type="button" onClick={() => void signOut()}>{ui.signOut}</button>
+        )}
 
+        {authenticated ? (
+        <form className="admin-translation-form" onSubmit={onSubmit}>
           <label>
             <span>{ui.documentId}</span>
             <input
@@ -589,6 +645,7 @@ export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) 
             </button>
           </div>
         </form>
+        ) : null}
 
         {error ? (
           <div className="admin-translation-error" role="alert">

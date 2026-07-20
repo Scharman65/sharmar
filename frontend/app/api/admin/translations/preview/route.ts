@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminSession, sameOriginRequest } from "@/lib/adminSession";
 
 type JsonObject = Record<string, unknown>;
 type Locale = "ru" | "en" | "sr-Latn-ME";
@@ -36,10 +37,6 @@ function getStrapiBase(): string {
 
 function getServerToken(): string {
   return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
-}
-
-function getAdminTranslationToken(): string {
-  return (process.env.ADMIN_TRANSLATION_TOKEN || "").trim();
 }
 
 function getOpenAiKey(): string {
@@ -1046,18 +1043,18 @@ async function generateAiPreview(
 }
 
 export async function POST(req: NextRequest) {
-  const configuredToken = getAdminTranslationToken();
-  if (!configuredToken) {
-    return NextResponse.json(
-      { ok: false, code: "admin_translation_token_missing" },
-      { status: 503, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  if (req.headers.get("x-admin-token") !== configuredToken) {
+  const session = await requireAdminSession("translation");
+  if (!session) {
     return NextResponse.json(
       { ok: false, code: "unauthorized" },
       { status: 401, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  if (!sameOriginRequest(req)) {
+    return NextResponse.json(
+      { ok: false, code: "csrf_check_failed" },
+      { status: 403, headers: { "cache-control": "no-store" } }
     );
   }
 

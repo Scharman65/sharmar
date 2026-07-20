@@ -1,5 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminSession, sameOriginRequest } from "@/lib/adminSession";
 
 type JsonObject = Record<string, unknown>;
 
@@ -23,30 +23,12 @@ function getStrapiBase(): string {
   return configured.replace(/\/+$/, "");
 }
 
-function publicAdminToken(): string {
-  return String(
-    process.env.ADMIN_MODERATION_TOKEN ||
-      process.env.ADMIN_TRANSLATION_TOKEN ||
-      ""
-  ).trim();
-}
-
 function internalAdminToken(): string {
   return String(
     process.env.ADMIN_MODERATION_INTERNAL_TOKEN ||
       process.env.ADMIN_TRANSLATION_INTERNAL_TOKEN ||
       ""
   ).trim();
-}
-
-function tokensMatch(requestToken: string, configuredToken: string): boolean {
-  const request = Buffer.from(requestToken);
-  const configured = Buffer.from(configuredToken);
-
-  return (
-    request.length === configured.length &&
-    timingSafeEqual(request, configured)
-  );
 }
 
 function json(
@@ -62,24 +44,8 @@ function json(
 }
 
 export async function POST(req: NextRequest) {
-  const configuredToken = publicAdminToken();
-
-  if (!configuredToken) {
-    return json(
-      {
-        ok: false,
-        code: "admin_moderation_token_missing",
-      },
-      503
-    );
-  }
-
-  if (
-    !tokensMatch(
-      req.headers.get("x-admin-token") || "",
-      configuredToken
-    )
-  ) {
+  const session = await requireAdminSession("moderation");
+  if (!session) {
     return json(
       {
         ok: false,
@@ -87,6 +53,10 @@ export async function POST(req: NextRequest) {
       },
       401
     );
+  }
+
+  if (!sameOriginRequest(req)) {
+    return json({ ok: false, code: "csrf_check_failed" }, 403);
   }
 
   if (process.env.ADMIN_MODERATION_WRITE_ENABLED !== "true") {

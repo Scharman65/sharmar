@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
+import { requireAdminSession } from "@/lib/adminSession";
 
 type JsonObject = Record<string, unknown>;
 type RowStatus = "draft" | "published";
@@ -53,10 +54,6 @@ function getStrapiBase(): string {
 
 function getServerToken(): string {
   return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
-}
-
-function getAdminToken(): string {
-  return (process.env.ADMIN_TRANSLATION_TOKEN || "").trim();
 }
 
 function getCmsAdminSummaryToken(): string {
@@ -211,6 +208,23 @@ function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
   ]);
 }
 
+function moderationEventQuery(): string {
+  return withQuery("/api/moderation-events", [
+    "pagination[pageSize]=50",
+    "pagination[page]=1",
+    "sort[0]=occurred_at:desc",
+    "fields[0]=entity_type",
+    "fields[1]=entity_document_id",
+    "fields[2]=entity_id",
+    "fields[3]=action",
+    "fields[4]=previous_status",
+    "fields[5]=new_status",
+    "fields[6]=comment",
+    "fields[7]=actor",
+    "fields[8]=occurred_at",
+  ]);
+}
+
 function normalizeBoat(item: unknown, status: RowStatus) {
   const row = getAttributes(item) ?? {};
   const createdBy = getFirstRelated(row.createdBy);
@@ -342,6 +356,23 @@ function normalizeExperience(item: unknown, status: RowStatus) {
   };
 }
 
+function normalizeModerationEvent(item: unknown) {
+  const row = getAttributes(item) ?? {};
+
+  return {
+    id: asNumber(row.id),
+    entity_type: asString(row.entity_type),
+    entity_document_id: asString(row.entity_document_id),
+    entity_id: asNumber(row.entity_id),
+    action: asString(row.action),
+    previous_status: asString(row.previous_status),
+    new_status: asString(row.new_status),
+    comment: asString(row.comment),
+    actor: asString(row.actor),
+    occurred_at: asString(row.occurred_at),
+  };
+}
+
 function normalizeOwnerDocuments(item: unknown): unknown {
   if (!isRecord(item)) return item;
 
@@ -413,16 +444,9 @@ async function fetchRowsByStatus(
   return { rows, totals };
 }
 
-export async function GET(req: NextRequest) {
-  const configuredToken = getAdminToken();
-  if (!configuredToken) {
-    return NextResponse.json(
-      { ok: false, code: "admin_translation_token_missing" },
-      { status: 500, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  if (req.headers.get("x-admin-token") !== configuredToken) {
+export async function GET() {
+  const session = await requireAdminSession("dashboard");
+  if (!session) {
     return NextResponse.json(
       { ok: false, code: "unauthorized" },
       { status: 401, headers: { "cache-control": "no-store" } }
@@ -439,11 +463,16 @@ export async function GET(req: NextRequest) {
 
   const warnings: string[] = [];
   const cmsAdminToken = getCmsAdminSummaryToken();
-  const [boatResult, experienceResult, cmsSummaryResult] = await Promise.all([
+  const [boatResult, experienceResult, eventResult, cmsSummaryResult] = await Promise.all([
     fetchRowsByStatus(boatQuery, serverToken, warnings),
     fetchRowsByStatus(experienceQuery, serverToken, warnings),
+    strapiGet(moderationEventQuery(), serverToken),
     cmsAdminToken ? cmsAdminSummaryGet(cmsAdminToken) : Promise.resolve(null),
   ]);
+
+  if (!eventResult.ok) {
+    warnings.push(`Could not load moderation events: Strapi ${eventResult.status}`);
+  }
 
   if (!cmsAdminToken) {
     warnings.push("CMS admin summary token missing; booking requests/payments/owners not loaded.");
@@ -510,6 +539,7 @@ export async function GET(req: NextRequest) {
       experiences,
       bookingRequests: Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests : [],
       payments: Array.isArray(cmsSummary?.payments) ? cmsSummary.payments : [],
+      moderationEvents: eventResult.ok ? rowsFromJson(eventResult.json).map(normalizeModerationEvent) : [],
       owners: Array.isArray(cmsSummary?.owners)
         ? cmsSummary.owners.map(normalizeOwnerDocuments)
         : [],
