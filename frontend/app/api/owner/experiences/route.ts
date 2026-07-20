@@ -434,7 +434,7 @@ export async function POST(req: NextRequest) {
       meeting_point: p.meetingPoint,
       max_guests: p.maxGuests,
       sort_order: p.sortOrder,
-      is_active: true,
+      is_active: false,
       boat: p.boatId,
       publishedAt: null,
       locale,
@@ -459,8 +459,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const createdExperience = isRecord(createRes.json) ? createRes.json.data ?? null : null;
+
   return NextResponse.json(
-    { ok: true, experience: isRecord(createRes.json) ? createRes.json.data ?? null : null },
+    {
+      ok: true,
+      experience: createdExperience,
+      boat: {
+        id: p.boatId,
+        documentId: asString(boatRes.boat.documentId),
+      },
+      relation: {
+        boatId: p.boatId,
+        boatDocumentId: asString(boatRes.boat.documentId),
+        confirmed: true,
+      },
+      publicationState: "draft",
+      is_active: false,
+    },
     { status: 201, headers: { "cache-control": "no-store" } }
   );
 }

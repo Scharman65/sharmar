@@ -73,6 +73,55 @@ async function ownerOwnsBoat(req: NextRequest, boatId: string): Promise<boolean>
   return boats.some((boat) => isRecord(boat) && String(boat.id) === String(boatId));
 }
 
+function parseTimeMs(value: unknown): number | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return null;
+  const ms = Date.parse(text);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && bStart < aEnd;
+}
+
+async function existingBlackoutOverlaps(
+  boatId: string,
+  startUtc: unknown,
+  endUtc: unknown
+): Promise<{ ok: true; overlaps: boolean } | { ok: false; status: number; error: string }> {
+  const startMs = parseTimeMs(startUtc);
+  const endMs = parseTimeMs(endUtc);
+
+  if (startMs === null || endMs === null || endMs <= startMs) return { ok: true, overlaps: false };
+
+  const token = getServerToken();
+  const res = await fetch(`${getStrapiBase()}/api/owner/blackouts?boat_id=${encodeURIComponent(boatId)}`, {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) return { ok: false, status: 502, error: "blackout_overlap_check_failed" };
+
+  const json = await res.json().catch(() => null);
+  if (!isRecord(json)) return { ok: false, status: 502, error: "blackout_overlap_check_failed" };
+  const rows = isRecord(json) && Array.isArray(json.blackouts) ? json.blackouts : [];
+
+  const overlaps = rows.some((blackout) => {
+    if (!isRecord(blackout)) return false;
+
+    const blackoutStart = parseTimeMs(blackout.start_utc);
+    const blackoutEnd = parseTimeMs(blackout.end_utc);
+    if (blackoutStart === null || blackoutEnd === null || blackoutEnd <= blackoutStart) return false;
+
+    return rangesOverlap(startMs, endMs, blackoutStart, blackoutEnd);
+  });
+
+  return { ok: true, overlaps };
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const boatId = url.searchParams.get("boat_id") || "";
@@ -109,6 +158,16 @@ export async function POST(req: NextRequest) {
   }
   if (!boatId && !token) {
     return json(400, { ok: false, error: "boat_id_or_token_required" });
+  }
+
+  if (boatId) {
+    const overlapCheck = await existingBlackoutOverlaps(boatId, isRecord(body) ? body.start_utc : null, isRecord(body) ? body.end_utc : null);
+    if (!overlapCheck.ok) {
+      return json(overlapCheck.status, { ok: false, error: overlapCheck.error });
+    }
+    if (overlapCheck.overlaps) {
+      return json(409, { ok: false, error: "blackout_overlap" });
+    }
   }
 
   return proxyJson("/api/owner/blackouts", {

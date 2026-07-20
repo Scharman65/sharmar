@@ -20,6 +20,8 @@ const ownerInternalAuth = read("lib/auth/ownerInternalAuth.ts");
 const ownerRateLimit = read("lib/security/ownerRateLimit.ts");
 const ownerRegisterApi = read("app/api/auth/owner-register/route.ts");
 const ownerInternalProbe = read("app/api/auth/owner-internal-auth-probe/route.ts");
+const ownerExperiencesApi = read("app/api/owner/experiences/route.ts");
+const ownerBlackoutsApi = read("app/api/owner/blackouts/route.ts");
 
 function blockBetween(source: string, start: string, end: string): string {
   const startIndex = source.indexOf(start);
@@ -64,6 +66,20 @@ test("dashboard selects a newly created boat from query", () => {
   assert.ok(dashboard.includes("createdBoatParam"));
   assert.ok(dashboard.includes('new URLSearchParams(window.location.search).get("createdBoat")'));
   assert.ok(dashboard.includes("const selectedBoat = useMemo"));
+  assert.ok(dashboard.includes("setSelectedBoatRef(createdBoat)"));
+});
+
+test("dashboard persists selection and falls back to the first owned boat", () => {
+  assert.ok(dashboard.includes('window.localStorage.getItem("sharmar-owner-selected-boat")'));
+  assert.ok(dashboard.includes('window.localStorage.setItem("sharmar-owner-selected-boat"'));
+  assert.ok(dashboard.includes("return matched ?? boats[0] ?? null"));
+});
+
+test("foreign boat selection cannot be trusted from query alone", () => {
+  assert.ok(dashboard.includes("return matched ?? boats[0] ?? null"));
+  assert.ok(dashboard.includes("data?.boats ?? []"));
+  assert.ok(ownerExperiencesApi.includes("Boat does not belong to owner"));
+  assert.ok(ownerBlackoutsApi.includes("boat_not_found_for_owner"));
 });
 
 test("checklist uses existing dashboard sections", () => {
@@ -87,10 +103,23 @@ test("routes checklist link targets the existing experience section", () => {
   assert.ok(dashboard.includes("/api/owner/experiences"));
 });
 
+test("route form is unavailable until a boat exists", () => {
+  assert.ok(dashboard.includes("copy.noBoatForRoutes"));
+  assert.ok(dashboard.includes("Сначала добавьте лодку. После сохранения вы сможете создать маршруты."));
+  assert.ok(dashboard.includes("Add a boat first. You can create routes after saving it."));
+  assert.ok(dashboard.includes("Prvo dodajte plovilo. Nakon čuvanja možete kreirati rute."));
+});
+
 test("calendar checklist link targets the existing blackout calendar section", () => {
   assert.ok(dashboard.includes('boatSetupAnchor(selectedBoat, "calendar")'));
   assert.ok(dashboard.includes("OwnerAvailabilityCalendar"));
   assert.ok(dashboard.includes("/api/owner/blackouts"));
+});
+
+test("calendar is available for draft boats without admin approval gate", () => {
+  const calendarBlock = blockBetween(dashboard, 'id={boatSetupAnchor(boat, "calendar")}', "<OwnerAvailabilityCalendar");
+  assert.doesNotMatch(calendarBlock, /approved|published|under_review|moderation_status/);
+  assert.ok(dashboard.includes("copy.boatAvailability"));
 });
 
 test("submit-review checklist uses the existing handler and API", () => {
@@ -150,6 +179,92 @@ test("existing document, experience, and blackout APIs are reused without duplic
   assert.ok(dashboard.includes("/api/owner/documents"));
   assert.ok(dashboard.includes("/api/owner/experiences"));
   assert.ok(dashboard.includes("/api/owner/blackouts"));
+});
+
+test("experience creation sets boat relation server-side and ignores owner relation from browser", () => {
+  assert.ok(ownerExperiencesApi.includes("const parsed = parseCreateExperienceBody(body)"));
+  assert.ok(ownerExperiencesApi.includes("await getOwnerBoat(p.boatId, ownerRes.owner.id, serverToken)"));
+  assert.ok(ownerExperiencesApi.includes("boat: p.boatId"));
+  assert.ok(ownerExperiencesApi.includes("confirmed: true"));
+  assert.doesNotMatch(blockBetween(ownerExperiencesApi, "function parseCreateExperienceBody", "function extractNumberId"), /ownerId|owner_user|userId|user_id/i);
+});
+
+test("owner-created experiences stay draft and inactive until moderation", () => {
+  assert.ok(ownerExperiencesApi.includes("publishedAt: null"));
+  assert.ok(ownerExperiencesApi.includes("is_active: false"));
+  assert.ok(ownerExperiencesApi.includes('publicationState: "draft"'));
+  assert.ok(dashboard.includes("copy.routeHiddenUntilReview"));
+});
+
+test("old unassigned route copy exists but is not auto-repaired", () => {
+  assert.ok(dashboard.includes("Boat not assigned"));
+  assert.ok(dashboard.includes("Лодка не указана"));
+  assert.ok(dashboard.includes("Plovilo nije povezano"));
+  assert.doesNotMatch(ownerExperiencesApi, /unassigned|auto.*assign|repair/i);
+});
+
+test("owner blackout creation rejects overlapping existing blackouts before CMS write", () => {
+  assert.ok(ownerBlackoutsApi.includes("existingBlackoutOverlaps"));
+  assert.ok(ownerBlackoutsApi.includes("rangesOverlap"));
+  assert.ok(ownerBlackoutsApi.includes('error: "blackout_overlap"'));
+});
+
+test("owner blackout API enforces ownership before create and delete", () => {
+  assert.ok(ownerBlackoutsApi.includes("ownerOwnsBoat(req, boatId)"));
+  assert.ok(ownerBlackoutsApi.includes("boat_not_found_for_owner"));
+  assert.ok(dashboard.includes("deleteBlackoutForBoat(Number(boat.id), blackout.id)"));
+});
+
+test("technical calendar placeholders are hidden from owner dashboard UI", () => {
+  [
+    "Google Calendar sync not enabled",
+    "iCal export foundation ready",
+    "Export URL placeholder",
+    "[owner-export-token]",
+    "External provider sync disabled",
+  ].forEach((text) => assert.equal(dashboard.includes(text), false, `${text} leaked into dashboard`));
+});
+
+test("booking calendar summary labels are localized", () => {
+  assert.ok(dashboard.includes("copy.upcomingBookings"));
+  assert.ok(dashboard.includes("copy.upcomingHolds"));
+  assert.ok(dashboard.includes("copy.expiredEntries"));
+  assert.ok(dashboard.includes("calendarBadgeLabel(event.displayType, lang)"));
+});
+
+test("document status distinguishes missing documents from awaiting review", () => {
+  assert.ok(dashboard.includes("function documentReviewLabel"));
+  assert.ok(dashboard.includes("documentsNotUploaded"));
+  assert.ok(dashboard.includes("documentsAwaitingReview"));
+  assert.ok(dashboard.includes("documentsVerified"));
+  assert.ok(dashboard.includes("documentsRejected"));
+  assert.ok(dashboard.includes('return isDocumentUploaded(data, "passport") || isDocumentUploaded(data, "identity")'));
+});
+
+test("dashboard RU/ME/EN localization covers selected boat, routes, calendar, and document states", () => {
+  [
+    "Выбранная лодка",
+    "Доступность лодки",
+    "Маршруты владельца",
+    "Документы не загружены",
+    "Документы ожидают проверки",
+    "Документы подтверждены",
+    "Izabrano plovilo",
+    "Dostupnost plovila",
+    "Rute vlasnika",
+    "Dokumenti nisu otpremljeni",
+    "Documents not uploaded",
+    "Documents awaiting review",
+    "Boat availability",
+  ].forEach((text) => assert.ok(dashboard.includes(text), `${text} missing from dashboard translations`));
+});
+
+test("dashboard avoids visible old English calendar strings in runtime JSX", () => {
+  assert.ok(dashboard.includes("{copy.upcomingBookings}"));
+  assert.ok(dashboard.includes("{copy.upcomingHolds}"));
+  assert.ok(dashboard.includes("{copy.expiredEntries}"));
+  assert.ok(dashboard.includes("{copy.paymentIntent}:"));
+  assert.ok(dashboard.includes("{copy.ownerDecision}:"));
 });
 
 test("owner internal token helper is server-only and not referenced by client components", () => {

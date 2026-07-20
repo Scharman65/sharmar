@@ -94,6 +94,52 @@ type DashboardCopy = {
   submitReviewStep: string;
   openStep: string;
   selectedBoat: string;
+  selectBoat: string;
+  boatAvailability: string;
+  noBoatForRoutes: string;
+  boatNotAssigned: string;
+  routeDraft: string;
+  routePublished: string;
+  routeHiddenUntilReview: string;
+  ownerRoutes: string;
+  noRoutesYet: string;
+  routeLimitReached: string;
+  routePhotoUploading: string;
+  routePhotoHelp: string;
+  saveRoute: string;
+  closedDates: string;
+  refresh: string;
+  reason: string;
+  optionalInternalReason: string;
+  addClosedDate: string;
+  noClosedDates: string;
+  delete: string;
+  loadingRoutes: string;
+  loadingCalendar: string;
+  selectStartEndDate: string;
+  upcomingBookings: string;
+  upcomingHolds: string;
+  expiredEntries: string;
+  hold: string;
+  confirmed: string;
+  declined: string;
+  expired: string;
+  unknown: string;
+  booked: string;
+  start: string;
+  end: string;
+  booking: string;
+  ownerDecision: string;
+  paymentIntent: string;
+  yes: string;
+  no: string;
+  documentsNotUploaded: string;
+  documentsAwaitingReview: string;
+  documentsVerified: string;
+  documentsRejected: string;
+  documentRequirementHelp: string;
+  verification: string;
+  newProfile: string;
 };
 
 function pageCopy(lang: string): DashboardCopy {
@@ -175,6 +221,52 @@ function pageCopy(lang: string): DashboardCopy {
       submitReviewStep: "Отправка на проверку",
       openStep: "Открыть",
       selectedBoat: "Выбранная лодка",
+      selectBoat: "Выбрать лодку",
+      boatAvailability: "Доступность лодки",
+      noBoatForRoutes: "Сначала добавьте лодку. После сохранения вы сможете создать маршруты.",
+      boatNotAssigned: "Лодка не указана",
+      routeDraft: "Черновик",
+      routePublished: "Опубликовано",
+      routeHiddenUntilReview: "Маршрут останется скрытым до проверки и публикации администратором.",
+      ownerRoutes: "Маршруты владельца",
+      noRoutesYet: "Маршруты ещё не добавлены",
+      routeLimitReached: "Достигнут лимит 3 маршрута",
+      routePhotoUploading: "Фото загружается...",
+      routePhotoHelp: "Можно добавить одно фото маршрута",
+      saveRoute: "Сохранить маршрут",
+      closedDates: "Закрытые даты",
+      refresh: "Обновить",
+      reason: "Причина",
+      optionalInternalReason: "Необязательная внутренняя причина",
+      addClosedDate: "Добавить закрытую дату",
+      noClosedDates: "Нет закрытых дат",
+      delete: "Удалить",
+      loadingRoutes: "Загрузка маршрутов...",
+      loadingCalendar: "Загрузка...",
+      selectStartEndDate: "Выберите дату начала и окончания.",
+      upcomingBookings: "Предстоящие бронирования",
+      upcomingHolds: "Предстоящие удержания требуют внимания",
+      expiredEntries: "Истёкшие записи",
+      hold: "Удержание",
+      confirmed: "Подтверждено",
+      declined: "Отклонено",
+      expired: "Истекло",
+      unknown: "Неизвестно",
+      booked: "Забронировано",
+      start: "Начало",
+      end: "Окончание",
+      booking: "Бронирование",
+      ownerDecision: "Решение владельца",
+      paymentIntent: "Платёж",
+      yes: "да",
+      no: "нет",
+      documentsNotUploaded: "Документы не загружены",
+      documentsAwaitingReview: "Документы ожидают проверки",
+      documentsVerified: "Документы подтверждены",
+      documentsRejected: "Документы отклонены",
+      documentRequirementHelp: "Загрузите паспорт или документ, удостоверяющий личность. Лицензию можно добавить отдельно, если она применима.",
+      verification: "Проверка",
+      newProfile: "Новый профиль",
     };
   }
 
@@ -256,6 +348,52 @@ function pageCopy(lang: string): DashboardCopy {
       submitReviewStep: "Pošalji na provjeru",
       openStep: "Otvori",
       selectedBoat: "Izabrano plovilo",
+      selectBoat: "Izaberite plovilo",
+      boatAvailability: "Dostupnost plovila",
+      noBoatForRoutes: "Prvo dodajte plovilo. Nakon čuvanja možete kreirati rute.",
+      boatNotAssigned: "Plovilo nije povezano",
+      routeDraft: "Nacrt",
+      routePublished: "Objavljeno",
+      routeHiddenUntilReview: "Ruta ostaje sakrivena dok je administrator ne pregleda i objavi.",
+      ownerRoutes: "Rute vlasnika",
+      noRoutesYet: "Rute još nisu dodate",
+      routeLimitReached: "Dostignut je limit od 3 rute",
+      routePhotoUploading: "Fotografija se učitava...",
+      routePhotoHelp: "Možete dodati jednu fotografiju rute",
+      saveRoute: "Sačuvaj rutu",
+      closedDates: "Zatvoreni datumi",
+      refresh: "Osvježi",
+      reason: "Razlog",
+      optionalInternalReason: "Opcioni interni razlog",
+      addClosedDate: "Dodaj zatvoreni datum",
+      noClosedDates: "Nema zatvorenih datuma",
+      delete: "Obriši",
+      loadingRoutes: "Učitavanje ruta...",
+      loadingCalendar: "Učitavanje...",
+      selectStartEndDate: "Izaberite početni i završni datum.",
+      upcomingBookings: "Predstojeće rezervacije",
+      upcomingHolds: "Predstojeća zadržavanja zahtijevaju pažnju",
+      expiredEntries: "Istekli unosi",
+      hold: "Zadržavanje",
+      confirmed: "Potvrđeno",
+      declined: "Odbijeno",
+      expired: "Isteklo",
+      unknown: "Nepoznato",
+      booked: "Rezervisano",
+      start: "Početak",
+      end: "Kraj",
+      booking: "Rezervacija",
+      ownerDecision: "Odluka vlasnika",
+      paymentIntent: "Plaćanje",
+      yes: "da",
+      no: "ne",
+      documentsNotUploaded: "Dokumenti nisu otpremljeni",
+      documentsAwaitingReview: "Dokumenti čekaju provjeru",
+      documentsVerified: "Dokumenti su potvrđeni",
+      documentsRejected: "Dokumenti su odbijeni",
+      documentRequirementHelp: "Otpremite pasoš ili identifikacioni dokument. Licencu možete dodati posebno ako je primjenjivo.",
+      verification: "Provjera",
+      newProfile: "Novi profil",
     };
   }
 
@@ -336,6 +474,52 @@ function pageCopy(lang: string): DashboardCopy {
     submitReviewStep: "Submit for review",
     openStep: "Open",
     selectedBoat: "Selected boat",
+    selectBoat: "Select boat",
+    boatAvailability: "Boat availability",
+    noBoatForRoutes: "Add a boat first. You can create routes after saving it.",
+    boatNotAssigned: "Boat not assigned",
+    routeDraft: "Draft",
+    routePublished: "Published",
+    routeHiddenUntilReview: "The route stays hidden until an administrator reviews and publishes it.",
+    ownerRoutes: "Owner routes",
+    noRoutesYet: "No routes added yet",
+    routeLimitReached: "Maximum 3 routes reached",
+    routePhotoUploading: "Uploading photo...",
+    routePhotoHelp: "You can add one route photo",
+    saveRoute: "Save route",
+    closedDates: "Closed dates",
+    refresh: "Refresh",
+    reason: "Reason",
+    optionalInternalReason: "Optional internal reason",
+    addClosedDate: "Add closed date",
+    noClosedDates: "No closed dates",
+    delete: "Delete",
+    loadingRoutes: "Loading routes...",
+    loadingCalendar: "Loading...",
+    selectStartEndDate: "Select start and end date.",
+    upcomingBookings: "Upcoming bookings",
+    upcomingHolds: "Upcoming holds requiring attention",
+    expiredEntries: "Expired entries",
+    hold: "Hold",
+    confirmed: "Confirmed",
+    declined: "Declined",
+    expired: "Expired",
+    unknown: "Unknown",
+    booked: "Booked",
+    start: "Start",
+    end: "End",
+    booking: "Booking",
+    ownerDecision: "Owner decision",
+    paymentIntent: "Payment intent",
+    yes: "yes",
+    no: "no",
+    documentsNotUploaded: "Documents not uploaded",
+    documentsAwaitingReview: "Documents awaiting review",
+    documentsVerified: "Documents verified",
+    documentsRejected: "Documents rejected",
+    documentRequirementHelp: "Upload a passport or identity document. Add a license separately when it applies.",
+    verification: "Verification",
+    newProfile: "New profile",
   };
 }
 
@@ -649,7 +833,7 @@ function bookingActionKey(booking: BookingActivity, index: number) {
 function verificationLabel(status?: string | null, lang: string = "en") {
   const labels = {
     ru: {
-      new: "Ожидает проверки",
+      new: "Новый профиль",
       email_verified: "Email подтверждён",
       whatsapp_verified: "WhatsApp подтверждён",
       documents_uploaded: "Документы загружены",
@@ -659,7 +843,7 @@ function verificationLabel(status?: string | null, lang: string = "en") {
       blocked: "Заблокирован",
     },
     me: {
-      new: "Čeka provjeru",
+      new: "Novi profil",
       email_verified: "Email potvrđen",
       whatsapp_verified: "WhatsApp potvrđen",
       documents_uploaded: "Dokumenti učitani",
@@ -669,7 +853,7 @@ function verificationLabel(status?: string | null, lang: string = "en") {
       blocked: "Blokiran",
     },
     en: {
-      new: "Pending review",
+      new: "New profile",
       email_verified: "Email verified",
       whatsapp_verified: "WhatsApp verified",
       documents_uploaded: "Documents uploaded",
@@ -682,6 +866,17 @@ function verificationLabel(status?: string | null, lang: string = "en") {
 
   const safeLang = lang === "ru" || lang === "me" || lang === "en" ? lang : "en";
   return labels[safeLang]?.[status as keyof typeof labels.en] || labels[safeLang].new;
+}
+
+function documentReviewLabel(data: ApiPayload | null, lang: string): string {
+  const copy = pageCopy(lang);
+  const status = data?.ownerProfile?.verification_status || "new";
+  const hasRequiredDocument = isDocumentUploaded(data, "passport") || isDocumentUploaded(data, "identity");
+
+  if (!hasRequiredDocument) return copy.documentsNotUploaded;
+  if (status === "approved") return copy.documentsVerified;
+  if (status === "rejected" || status === "blocked") return copy.documentsRejected;
+  return copy.documentsAwaitingReview;
 }
 
 function getCalendarTimeMs(event: OwnerCalendarEvent): number {
@@ -697,13 +892,15 @@ function getCalendarDateKey(event: OwnerCalendarEvent): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-function formatCalendarDateLabel(dateKey: string): string {
-  if (dateKey === "unscheduled") return pageCopy("en").dateNotSet;
+function formatCalendarDateLabel(dateKey: string, lang: string): string {
+  if (dateKey === "unscheduled") return pageCopy(lang).dateNotSet;
 
   const ms = Date.parse(`${dateKey}T00:00:00.000Z`);
   if (!Number.isFinite(ms)) return dateKey;
 
-  return new Intl.DateTimeFormat("en", {
+  const locale = lang === "ru" ? "ru-RU" : lang === "me" ? "sr-Latn-ME" : "en-US";
+
+  return new Intl.DateTimeFormat(locale, {
     weekday: "short",
     year: "numeric",
     month: "short",
@@ -745,7 +942,7 @@ function normalizeOwnerExperience(experience: OwnerExperience): OwnerExperience 
   };
 }
 
-function groupCalendarEvents(events: OwnerCalendarEvent[]): CalendarEventGroup[] {
+function groupCalendarEvents(events: OwnerCalendarEvent[], lang: string): CalendarEventGroup[] {
   const sorted = [...events].sort((a, b) => getCalendarTimeMs(a) - getCalendarTimeMs(b));
   const groups = new Map<string, OwnerCalendarEvent[]>();
 
@@ -756,17 +953,18 @@ function groupCalendarEvents(events: OwnerCalendarEvent[]): CalendarEventGroup[]
 
   return Array.from(groups.entries()).map(([dateKey, groupEvents]) => ({
     dateKey,
-    label: formatCalendarDateLabel(dateKey),
+    label: formatCalendarDateLabel(dateKey, lang),
     events: groupEvents,
   }));
 }
 
-function calendarBadgeLabel(displayType?: OwnerCalendarDisplayType): string {
-  if (displayType === "hold") return "HOLD";
-  if (displayType === "confirmed") return "CONFIRMED";
-  if (displayType === "declined") return "DECLINED";
-  if (displayType === "expired") return "EXPIRED";
-  return "UNKNOWN";
+function calendarBadgeLabel(displayType: OwnerCalendarDisplayType | undefined, lang: string): string {
+  const copy = pageCopy(lang);
+  if (displayType === "hold") return copy.hold;
+  if (displayType === "confirmed") return copy.confirmed;
+  if (displayType === "declined") return copy.declined;
+  if (displayType === "expired") return copy.expired;
+  return copy.unknown;
 }
 
 function calendarBadgeBackground(displayType?: OwnerCalendarDisplayType): string {
@@ -889,7 +1087,7 @@ function boatHasPhotos(boat: OwnerBoat): boolean {
 }
 
 function ownerHasRequiredDocuments(data: ApiPayload | null): boolean {
-  return isDocumentUploaded(data, "passport") && isDocumentUploaded(data, "identity");
+  return isDocumentUploaded(data, "passport") || isDocumentUploaded(data, "identity");
 }
 
 function boatSubmittedForReview(boat: OwnerBoat): boolean {
@@ -950,6 +1148,7 @@ export default function OwnerDashboardClient() {
   const [reviewMessage, setReviewMessage] = useState<Record<string, string>>({});
   const [reviewError, setReviewError] = useState<Record<string, string>>({});
   const [createdBoatParam, setCreatedBoatParam] = useState<string | null>(null);
+  const [selectedBoatRef, setSelectedBoatRef] = useState<string | null>(null);
 
 
 
@@ -1010,7 +1209,7 @@ export default function OwnerDashboardClient() {
     if (!cleanStartDate || !cleanEndDate) {
       setBlackoutError((prev) => ({
         ...prev,
-        [boatId]: "Select start and end date.",
+        [boatId]: copy.selectStartEndDate,
       }));
       return;
     }
@@ -1591,22 +1790,24 @@ export default function OwnerDashboardClient() {
 
 const boats = useMemo(() => data?.boats ?? [], [data]);
   const selectedBoat = useMemo(() => {
-    const target = createdBoatParam?.trim();
-    if (!target) return null;
+    const target = (selectedBoatRef || createdBoatParam || "").trim();
+    if (!target) return boats[0] ?? null;
 
-    return boats.find((boat) => (
+    const matched = boats.find((boat) => (
       boat.documentId === target ||
       String(boat.id ?? "") === target ||
       boat.slug === target
-    )) ?? null;
-  }, [boats, createdBoatParam]);
+    ));
+
+    return matched ?? boats[0] ?? null;
+  }, [boats, createdBoatParam, selectedBoatRef]);
   const recentActivity = useMemo(() => data?.recentActivity ?? [], [data]);
   const ownerCalendarEvents = useMemo(() => data?.ownerCalendarEvents ?? [], [data]);
   const occupancyItems = useMemo(
     () => [...(data?.activeBookings ?? []), ...(data?.activeHolds ?? [])],
     [data]
   );
-  const calendarGroups = useMemo(() => groupCalendarEvents(ownerCalendarEvents), [ownerCalendarEvents]);
+  const calendarGroups = useMemo(() => groupCalendarEvents(ownerCalendarEvents, lang), [ownerCalendarEvents, lang]);
   const activeBookingsCount = Array.isArray(data?.activeBookings) ? data.activeBookings.length : 0;
   const activeHoldsCount = Array.isArray(data?.activeHolds) ? data.activeHolds.length : 0;
   const recentActivityCount = Array.isArray(data?.recentActivity) ? data.recentActivity.length : 0;
@@ -1621,11 +1822,32 @@ const boats = useMemo(() => data?.boats ?? [], [data]);
   ).length;
 
   useEffect(() => {
-    setCreatedBoatParam(new URLSearchParams(window.location.search).get("createdBoat"));
+    const createdBoat = new URLSearchParams(window.location.search).get("createdBoat");
+    setCreatedBoatParam(createdBoat);
+
+    if (createdBoat) {
+      setSelectedBoatRef(createdBoat);
+      return;
+    }
+
+    try {
+      setSelectedBoatRef(window.localStorage.getItem("sharmar-owner-selected-boat"));
+    } catch {
+      setSelectedBoatRef(null);
+    }
   }, []);
 
   useEffect(() => {
     if (!selectedBoat) return;
+
+    const stableRef = selectedBoat.documentId || String(selectedBoat.id || selectedBoat.slug || "");
+    if (stableRef) {
+      try {
+        window.localStorage.setItem("sharmar-owner-selected-boat", stableRef);
+      } catch {
+        // Selection persistence is a convenience; dashboard ownership checks stay server-side.
+      }
+    }
 
     const documentId = selectedBoat.documentId || null;
     if (documentId) {
@@ -1850,7 +2072,7 @@ useEffect(() => {
                 WhatsApp: {data.ownerProfile.whatsapp_verified ? "✅" : "⏳"} {data.ownerProfile.whatsapp_number || ""}
               </div>
               <div>
-                {lang === "ru" ? "Проверка" : lang === "me" ? "Provjera" : "Verification"}: {verificationLabel(data.ownerProfile.verification_status, lang)}
+                {copy.verification}: {verificationLabel(data.ownerProfile.verification_status, lang)}
               </div>
             </div>
           </div>
@@ -1903,7 +2125,7 @@ useEffect(() => {
         ) : null}
 
         {!isLoading && !error ? (
-          <section id="owner-documents" className="card" style={{ marginTop: 18, padding: 18 }}>
+          <section id="owner-security" className="card" style={{ marginTop: 18, padding: 18 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).security}</h2>
             <p className="kicker" style={{ margin: "6px 0 0" }}>{pageCopy(lang).passwordRequirements}</p>
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 14 }}>
@@ -1938,12 +2160,18 @@ useEffect(() => {
         ) : null}
 
         {!isLoading && !error ? (
-          <section className="card" style={{ marginTop: 18, padding: 18 }}>
+          <section id="owner-documents" className="card" style={{ marginTop: 18, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start" }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).myDocuments}</h2>
                 <p className="kicker" style={{ marginTop: 6 }}>
-                  {lang === "ru" ? "Проверка" : lang === "me" ? "Provjera" : "Verification"}: {verificationLabel(data?.ownerProfile?.verification_status, lang)}
+                  {copy.verification}: {verificationLabel(data?.ownerProfile?.verification_status, lang)}
+                </p>
+                <p className="kicker" style={{ marginTop: 6 }}>
+                  {documentReviewLabel(data, lang)}
+                </p>
+                <p className="kicker" style={{ marginTop: 6 }}>
+                  {copy.documentRequirementHelp}
                 </p>
               </div>
             </div>
@@ -2110,8 +2338,27 @@ useEffect(() => {
                       {copy.listingSetupIntro}
                     </p>
                   </div>
-                  <span className="pill">{selectedBoat.title || `Boat #${selectedBoat.id}`}</span>
+                  <span className="pill">{selectedBoat.title || `${copy.selectedBoat} #${selectedBoat.id}`}</span>
                 </div>
+
+                {boats.length > 1 ? (
+                  <label style={{ display: "grid", gap: 6, marginTop: 14 }}>
+                    <span className="kicker" style={{ margin: 0 }}>{copy.selectBoat}</span>
+                    <select
+                      value={selectedBoat.documentId || String(selectedBoat.id || selectedBoat.slug || "")}
+                      onChange={(event) => setSelectedBoatRef(event.target.value)}
+                    >
+                      {boats.map((boat) => {
+                        const value = boat.documentId || String(boat.id || boat.slug || "");
+                        return (
+                          <option key={value} value={value}>
+                            {boat.title || `${copy.selectedBoat} #${boat.id}`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                ) : null}
 
                 <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
                   {[
@@ -2193,7 +2440,7 @@ useEffect(() => {
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                       <div>
                         <h3 style={{ margin: 0, fontSize: 20 }}>
-                          {boat.title || `Boat #${boat.id}`}
+                          {boat.title || `${copy.selectedBoat} #${boat.id}`}
                         </h3>
                         <p className="kicker" style={{ marginTop: 6 }}>
                           {vesselTypeLabel(boat.vessel_type ?? boat.boat_type, displayLang)} · {propulsionLabel(boat.propulsion, boat.vessel_type ?? boat.boat_type, displayLang)} · {boat.listing_type || "listing"}
@@ -2218,7 +2465,7 @@ useEffect(() => {
                       <span>·</span>
                       <span>{lang === "ru" ? "Минимум" : lang === "me" ? "Minimum" : "Minimum"}: {boat.min_rental_hours ?? 1} h</span>
                       <span>·</span>
-                      <span>Booking: {boat.booking_enabled ? pageCopy(lang).bookingEnabled : pageCopy(lang).bookingDisabled}</span>
+                      <span>{copy.booking}: {boat.booking_enabled ? pageCopy(lang).bookingEnabled : pageCopy(lang).bookingDisabled}</span>
                     </div>
 
                     <div className="meta-row">
@@ -2550,7 +2797,7 @@ useEffect(() => {
                         >
                           <div style={{ display: "grid", gap: 10 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                              <strong>{lang === "ru" ? "Маршруты владельца" : lang === "me" ? "Rute vlasnika" : "Owner routes"}</strong>
+                              <strong>{copy.ownerRoutes}</strong>
                               <span className="kicker" style={{ margin: 0 }}>
                                 {(boatExperiences[getBoatExperienceKey(boat)] || []).length}/3
                               </span>
@@ -2558,7 +2805,7 @@ useEffect(() => {
 
                             {experienceLoading ? (
                               <p className="kicker" style={{ margin: 0 }}>
-                                Loading routes...
+                                {copy.loadingRoutes}
                               </p>
                             ) : null}
 
@@ -2588,7 +2835,7 @@ useEffect(() => {
                                       {coverUrl ? (
                                         <img
                                           src={coverUrl}
-                                          alt={experience.cover?.alternativeText || experience.title || "Route"}
+                                          alt={experience.cover?.alternativeText || experience.title || copy.routes}
                                           style={{
                                             width: "100%",
                                             height: 110,
@@ -2600,11 +2847,16 @@ useEffect(() => {
                                         />
                                       ) : null}
                                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                                        <strong>{experience.title || "Route"}</strong>
+                                        <strong>{experience.title || copy.routes}</strong>
                                         <span className="pill">
-                                          {experience.publishedAt ? "Published" : "Draft"}
+                                          {experience.publishedAt ? copy.routePublished : copy.routeDraft}
                                         </span>
                                       </div>
+                                      {!experience.publishedAt ? (
+                                        <p className="kicker" style={{ margin: "6px 0 0" }}>
+                                          {copy.routeHiddenUntilReview}
+                                        </p>
+                                      ) : null}
                                       <p className="kicker" style={{ margin: "6px 0 0" }}>
                                         {experience.duration_hours ?? "—"}h · {experience.short_description || "—"}
                                       </p>
@@ -2619,7 +2871,7 @@ useEffect(() => {
                               </div>
                             ) : (
                               <p className="kicker" style={{ margin: 0 }}>
-                                {lang === "ru" ? "Маршруты ещё не добавлены" : lang === "me" ? "Rute još nisu dodate" : "No routes added yet"}
+                                {copy.noRoutesYet}
                               </p>
                             )}
 
@@ -2748,8 +3000,8 @@ useEffect(() => {
                                   />
                                   <p className="kicker" style={{ margin: 0 }}>
                                     {experienceUploadBusy[Number(boat.id)]
-                                      ? (lang === "ru" ? "Фото загружается..." : lang === "me" ? "Fotografija se učitava..." : "Uploading photo...")
-                                      : (lang === "ru" ? "Можно добавить одно фото маршрута" : lang === "me" ? "Možete dodati jednu fotografiju rute" : "You can add one route photo")}
+                                      ? copy.routePhotoUploading
+                                      : copy.routePhotoHelp}
                                   </p>
                                 </div>
 
@@ -2759,12 +3011,12 @@ useEffect(() => {
                                   disabled={Boolean(experienceBusy[Number(boat.id)])}
                                   onClick={() => createExperienceForBoat(Number(boat.id))}
                                 >
-                                  {lang === "ru" ? "Сохранить маршрут" : lang === "me" ? "Sačuvaj rutu" : "Save route"}
+                                  {copy.saveRoute}
                                 </button>
                               </div>
                             ) : (
                               <p className="kicker" style={{ margin: 0 }}>
-                                {lang === "ru" ? "Достигнут лимит 3 маршрута" : lang === "me" ? "Dostignut je limit od 3 rute" : "Maximum 3 routes reached"}
+                                {copy.routeLimitReached}
                               </p>
                             )}
                           </div>
@@ -2781,20 +3033,20 @@ useEffect(() => {
                         >
                           <div style={{ display: "grid", gap: 10 }}>
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                              <strong>{lang === "ru" ? "Закрытые даты" : lang === "me" ? "Zatvoreni datumi" : "Closed dates"}</strong>
+                              <strong>{copy.boatAvailability}</strong>
 
                               <button
                                 className="button secondary"
                                 type="button"
                                 onClick={() => loadBlackoutsForBoat(Number(boat.id))}
                               >
-                                Refresh
+                                {copy.refresh}
                               </button>
                             </div>
 
                             {blackoutLoading[Number(boat.id)] ? (
                               <p className="kicker" style={{ margin: 0 }}>
-                                Loading...
+                                {copy.loadingCalendar}
                               </p>
                             ) : null}
 
@@ -2874,7 +3126,7 @@ useEffect(() => {
 
                             <input
                               type="text"
-                              placeholder="Reason"
+                              placeholder={copy.optionalInternalReason}
                               value={blackoutForm[Number(boat.id)]?.reason || ""}
                               onChange={(e) => setBlackoutForm((prev) => ({
                                 ...prev,
@@ -2894,7 +3146,7 @@ useEffect(() => {
                               disabled={Boolean(blackoutBusy[Number(boat.id)])}
                               onClick={() => createBlackoutForBoat(Number(boat.id))}
                             >
-                              {lang === "ru" ? "Добавить закрытую дату" : lang === "me" ? "Dodaj zatvoreni datum" : "Add closed date"}
+                              {copy.addClosedDate}
                             </button>
 
                             <OwnerAvailabilityCalendar
@@ -2929,14 +3181,14 @@ useEffect(() => {
                                       onClick={() => deleteBlackoutForBoat(Number(boat.id), blackout.id)}
                                       style={{ marginTop: 8 }}
                                     >
-                                      Delete
+                                      {copy.delete}
                                     </button>
                                   </div>
                                 ))}
                               </div>
                             ) : (
                               <p className="kicker" style={{ margin: 0 }}>
-                                {lang === "ru" ? "Нет закрытых дат" : lang === "me" ? "Nema zatvorenih datuma" : "No closed dates"}
+                                {copy.noClosedDates}
                               </p>
                             )}
                           </div>
@@ -2955,6 +3207,7 @@ useEffect(() => {
             ) : (
               <div className="card" style={{ padding: 18 }}>
                 <p style={{ margin: 0 }}>{pageCopy(lang).noBoatsYet}</p>
+                <p className="kicker" style={{ margin: "8px 0 0" }}>{copy.noBoatForRoutes}</p>
               </div>
             )}
 
@@ -3001,9 +3254,9 @@ useEffect(() => {
                         </div>
 
                         <div className="meta-row">
-                          <span>Start: {booking.slot_start_utc || "—"}</span>
+                          <span>{copy.start}: {booking.slot_start_utc || "—"}</span>
                           <span>·</span>
-                          <span>End: {booking.slot_end_utc || "—"}</span>
+                          <span>{copy.end}: {booking.slot_end_utc || "—"}</span>
                         </div>
 
                         {booking.status === "hold" ? (
@@ -3071,39 +3324,22 @@ useEffect(() => {
                 }}
               >
                 <div>
-                  <p className="kicker" style={{ margin: 0 }}>Upcoming bookings</p>
+                  <p className="kicker" style={{ margin: 0 }}>{copy.upcomingBookings}</p>
                   <div style={{ marginTop: 8, fontSize: 26, fontWeight: 800 }}>
                     {upcomingBookingsCount}
                   </div>
                 </div>
                 <div>
-                  <p className="kicker" style={{ margin: 0 }}>Upcoming holds requiring attention</p>
+                  <p className="kicker" style={{ margin: 0 }}>{copy.upcomingHolds}</p>
                   <div style={{ marginTop: 8, fontSize: 26, fontWeight: 800 }}>
                     {upcomingHoldsCount}
                   </div>
                 </div>
                 <div>
-                  <p className="kicker" style={{ margin: 0 }}>Expired entries</p>
+                  <p className="kicker" style={{ margin: 0 }}>{copy.expiredEntries}</p>
                   <div style={{ marginTop: 8, fontSize: 26, fontWeight: 800 }}>
                     {expiredCalendarCount}
                   </div>
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 18, marginBottom: 14 }}>
-                <div style={{ display: "grid", gap: 8 }}>
-                  <p className="kicker" style={{ margin: 0 }}>
-                    Google Calendar sync not enabled
-                  </p>
-                  <p className="kicker" style={{ margin: 0 }}>
-                    iCal export foundation ready
-                  </p>
-                  <p className="kicker" style={{ margin: 0 }}>
-                    Export URL placeholder: /api/owner/calendar/[owner-export-token]
-                  </p>
-                  <p className="kicker" style={{ margin: 0 }}>
-                    External provider sync disabled
-                  </p>
                 </div>
               </div>
 
@@ -3126,10 +3362,10 @@ useEffect(() => {
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                               <div>
                                 <h4 style={{ margin: 0, fontSize: 18 }}>
-                                  {event.boatTitle || "Boat"}
+                                  {event.boatTitle || copy.boatNotAssigned}
                                 </h4>
                                 <p className="kicker" style={{ marginTop: 6 }}>
-                                  {event.status || "—"} · Payment intent: {event.hasPaymentIntent ? "yes" : "no"}
+                                  {event.status || "—"} · {copy.paymentIntent}: {event.hasPaymentIntent ? copy.yes : copy.no}
                                 </p>
                               </div>
 
@@ -3140,22 +3376,20 @@ useEffect(() => {
                                   background: calendarBadgeBackground(event.displayType),
                                 }}
                               >
-                                {calendarBadgeLabel(event.displayType)}
+                                {calendarBadgeLabel(event.displayType, lang)}
                               </span>
                             </div>
 
                             <div className="meta-row">
-                              <span>Start: {event.startUtc || "—"}</span>
+                              <span>{copy.start}: {event.startUtc || "—"}</span>
                               <span>·</span>
-                              <span>End: {event.endUtc || "—"}</span>
+                              <span>{copy.end}: {event.endUtc || "—"}</span>
                             </div>
 
                             <div className="meta-row">
-                              <span>Booking: {event.bookingId ?? "—"}</span>
+                              <span>{copy.booking}: {event.bookingId ?? "—"}</span>
                               <span>·</span>
-                              <span>Owner decision: {event.ownerDecision || "—"}</span>
-                              <span>·</span>
-                              <span>Token: {event.publicToken || "—"}</span>
+                              <span>{copy.ownerDecision}: {event.ownerDecision || "—"}</span>
                             </div>
                           </div>
                         ))}
@@ -3218,9 +3452,9 @@ useEffect(() => {
                         </div>
 
                         <div className="meta-row">
-                          <span>Start: {item.slot_start_utc || "—"}</span>
+                          <span>{copy.start}: {item.slot_start_utc || "—"}</span>
                           <span>·</span>
-                          <span>End: {item.slot_end_utc || "—"}</span>
+                          <span>{copy.end}: {item.slot_end_utc || "—"}</span>
                         </div>
                       </div>
                     );
