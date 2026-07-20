@@ -34,6 +34,24 @@ export type OwnerModerationAction =
   | "approve"
   | "block";
 
+export type ExperienceModerationStatus =
+  | "submitted"
+  | "under_review"
+  | "needs_changes"
+  | "approved"
+  | "published"
+  | "rejected"
+  | "archived";
+
+export type ExperienceModerationAction =
+  | "start_review"
+  | "request_changes"
+  | "reject"
+  | "approve"
+  | "publish"
+  | "unpublish"
+  | "archive";
+
 type TransitionResult<TStatus extends string> =
   | {
       ok: true;
@@ -106,6 +124,39 @@ const OWNER_TRANSITIONS: Record<
     under_review: "blocked",
     approved: "blocked",
     rejected: "blocked",
+  },
+};
+
+const EXPERIENCE_TRANSITIONS: Record<
+  ExperienceModerationAction,
+  Partial<Record<ExperienceModerationStatus, ExperienceModerationStatus>>
+> = {
+  start_review: {
+    submitted: "under_review",
+    rejected: "under_review",
+    needs_changes: "under_review",
+  },
+  request_changes: {
+    under_review: "needs_changes",
+  },
+  reject: {
+    submitted: "rejected",
+    under_review: "rejected",
+    needs_changes: "rejected",
+  },
+  approve: {
+    under_review: "approved",
+  },
+  publish: {
+    approved: "published",
+  },
+  unpublish: {
+    published: "approved",
+  },
+  archive: {
+    approved: "archived",
+    published: "archived",
+    rejected: "archived",
   },
 };
 
@@ -189,6 +240,49 @@ export function planOwnerModerationTransition(params: {
   }
 
   const currentStatus = params.currentStatus as OwnerVerificationStatus;
+  const nextStatus = transitions[currentStatus];
+
+  if (!nextStatus) {
+    return { ok: false, code: "transition_not_allowed" };
+  }
+
+  const commentRequired = COMMENT_REQUIRED_ACTIONS.has(action);
+  if (commentRequired && !cleanComment(params.comment)) {
+    return { ok: false, code: "comment_required" };
+  }
+
+  return {
+    ok: true,
+    nextStatus,
+    commentRequired,
+  };
+}
+
+export function planExperienceModerationTransition(params: {
+  currentStatus: string;
+  action: string;
+  comment?: unknown;
+}): TransitionResult<ExperienceModerationStatus> {
+  const action = params.action as ExperienceModerationAction;
+  const transitions = EXPERIENCE_TRANSITIONS[action];
+
+  if (!transitions) {
+    return { ok: false, code: "invalid_action" };
+  }
+
+  if (!(params.currentStatus in {
+    submitted: true,
+    under_review: true,
+    needs_changes: true,
+    approved: true,
+    published: true,
+    rejected: true,
+    archived: true,
+  })) {
+    return { ok: false, code: "invalid_current_status" };
+  }
+
+  const currentStatus = params.currentStatus as ExperienceModerationStatus;
   const nextStatus = transitions[currentStatus];
 
   if (!nextStatus) {

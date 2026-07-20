@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
 
-type EntityType = "boat" | "owner_profile";
+type EntityType = "boat" | "experience" | "owner_profile";
 
 type Props = {
   lang?: Lang;
@@ -77,6 +77,64 @@ const BOAT_ACTIONS: Record<string, ActionDefinition[]> = {
   ],
 };
 
+const EXPERIENCE_ACTIONS: Record<string, ActionDefinition[]> = {
+  submitted: [
+    { id: "start_review" },
+    {
+      id: "reject",
+      needsComment: true,
+      dangerous: true,
+    },
+  ],
+  under_review: [
+    {
+      id: "request_changes",
+      needsComment: true,
+    },
+    {
+      id: "reject",
+      needsComment: true,
+      dangerous: true,
+    },
+    { id: "approve" },
+  ],
+  needs_changes: [
+    { id: "start_review" },
+    {
+      id: "reject",
+      needsComment: true,
+      dangerous: true,
+    },
+  ],
+  approved: [
+    {
+      id: "publish",
+      dangerous: true,
+    },
+    {
+      id: "archive",
+      dangerous: true,
+    },
+  ],
+  published: [
+    {
+      id: "unpublish",
+      dangerous: true,
+    },
+    {
+      id: "archive",
+      dangerous: true,
+    },
+  ],
+  rejected: [
+    { id: "start_review" },
+    {
+      id: "archive",
+      dangerous: true,
+    },
+  ],
+};
+
 const OWNER_ACTIONS: Record<string, ActionDefinition[]> = {
   documents_uploaded: [
     { id: "start_review" },
@@ -132,15 +190,24 @@ const copy = {
       unpublish: "Снять с публикации",
       block: "Заблокировать",
     },
+    experienceActions: {
+      start_review: "Отправить на дополнительную проверку",
+      reject: "Отклонить маршрут",
+      request_changes: "Вернуть на доработку",
+      approve: "Подтвердить маршрут",
+      publish: "Опубликовать маршрут",
+      archive: "Архивировать маршрут",
+      unpublish: "Снять маршрут с публикации",
+    },
     current: "Текущий статус",
     comment: "Комментарий администратора",
     commentPlaceholder: "Обязателен для отклонения, блокировки или запроса изменений",
     enterComment: "Сначала добавьте комментарий.",
     confirm: "Подтвердить действие",
     saving: "Сохранение...",
-    saved: "Сохранено. Новый статус",
+    saved: "Действие выполнено. Новый статус",
     noActions: "Для этого статуса нет доступных действий.",
-    reachError: "Не удалось выполнить действие.",
+    reachError: "Не удалось выполнить действие",
     errors: {
       unauthorized: "Сессия администратора недействительна.",
       write_not_enabled: "Действия модерации выключены на сервере.",
@@ -155,6 +222,10 @@ const copy = {
       boat_owner_missing: "У лодки не найден владелец.",
       boat_not_found: "Лодка не найдена.",
       owner_profile_not_found: "Профиль владельца не найден.",
+      experience_not_found: "Маршрут не найден.",
+      experience_boat_required: "Маршрут не связан с лодкой.",
+      linked_boat_not_published: "Сначала нужно опубликовать связанную лодку.",
+      experience_not_approved: "Сначала нужно подтвердить маршрут.",
     },
   },
   en: {
@@ -167,6 +238,15 @@ const copy = {
       archive: "Archive",
       unpublish: "Unpublish",
       block: "Block",
+    },
+    experienceActions: {
+      start_review: "Send for extra review",
+      reject: "Reject route",
+      request_changes: "Return for changes",
+      approve: "Approve route",
+      publish: "Publish route",
+      archive: "Archive route",
+      unpublish: "Unpublish route",
     },
     current: "Current status",
     comment: "Admin comment",
@@ -191,6 +271,10 @@ const copy = {
       boat_owner_missing: "Boat owner is missing.",
       boat_not_found: "Boat not found.",
       owner_profile_not_found: "Owner profile not found.",
+      experience_not_found: "Route not found.",
+      experience_boat_required: "Route is not linked to a boat.",
+      linked_boat_not_published: "Publish the linked boat first.",
+      experience_not_approved: "Approve the route first.",
     },
   },
   me: {
@@ -203,6 +287,15 @@ const copy = {
       archive: "Arhiviraj",
       unpublish: "Povuci objavu",
       block: "Blokiraj",
+    },
+    experienceActions: {
+      start_review: "Pošalji na dodatnu provjeru",
+      reject: "Odbij rutu",
+      request_changes: "Vrati na doradu",
+      approve: "Potvrdi rutu",
+      publish: "Objavi rutu",
+      archive: "Arhiviraj rutu",
+      unpublish: "Povuci objavu rute",
     },
     current: "Trenutni status",
     comment: "Komentar administratora",
@@ -227,10 +320,15 @@ const copy = {
       boat_owner_missing: "Vlasnik plovila nije povezan.",
       boat_not_found: "Plovilo nije pronađeno.",
       owner_profile_not_found: "Profil vlasnika nije pronađen.",
+      experience_not_found: "Ruta nije pronađena.",
+      experience_boat_required: "Ruta nije povezana sa plovilom.",
+      linked_boat_not_published: "Prvo objavite povezano plovilo.",
+      experience_not_approved: "Prvo potvrdite rutu.",
     },
   },
 } satisfies Record<Lang, {
   actions: Record<string, string>;
+  experienceActions: Record<string, string>;
   current: string;
   comment: string;
   commentPlaceholder: string;
@@ -260,7 +358,8 @@ export default function AdminModerationActions({
   onComplete,
 }: Props) {
   const ui = copy[lang];
-  const actionLabels: Record<string, string> = ui.actions;
+  const actionLabels: Record<string, string> =
+    entityType === "experience" ? ui.experienceActions : ui.actions;
   const [comment, setComment] = useState("");
   const [pendingAction, setPendingAction] =
     useState<string | null>(null);
@@ -270,9 +369,9 @@ export default function AdminModerationActions({
   const actions = useMemo(() => {
     const normalized = status || "";
 
-    return entityType === "boat"
-      ? BOAT_ACTIONS[normalized] || []
-      : OWNER_ACTIONS[normalized] || [];
+    if (entityType === "boat") return BOAT_ACTIONS[normalized] || [];
+    if (entityType === "experience") return EXPERIENCE_ACTIONS[normalized] || [];
+    return OWNER_ACTIONS[normalized] || [];
   }, [entityType, status]);
 
   async function runAction(action: ActionDefinition) {
@@ -305,7 +404,9 @@ export default function AdminModerationActions({
         body: JSON.stringify({
           entityType,
           documentId:
-            entityType === "boat" ? documentId : undefined,
+            entityType === "boat" || entityType === "experience"
+              ? documentId
+              : undefined,
           profileId:
             entityType === "owner_profile"
               ? profileId

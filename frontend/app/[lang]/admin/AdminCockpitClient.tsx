@@ -50,6 +50,11 @@ const copy = {
       documentsPending: "Документы ожидают проверки",
       boatsPending: "Лодки ожидают проверки",
       routesPending: "Маршруты ожидают проверки",
+      routesRejected: "Маршруты отклонены",
+      routesReady: "Маршруты готовы к публикации",
+      routesPublished: "Опубликованные маршруты",
+      routesWithoutBoat: "Маршруты без связи с лодкой",
+      routesIncompleteTranslations: "Маршруты с неполными переводами",
       translationsAttention: "Переводы требуют внимания",
       recentActions: "Недавние действия",
     },
@@ -72,8 +77,10 @@ const copy = {
       passport: "Паспорт",
       identity: "Удостоверение личности",
       uploadedAt: "Дата загрузки",
+      created: "Дата создания",
+      updated: "Дата изменения",
       notes: "Заметки",
-      rejectionReason: "Причина отклонения",
+      rejectionReason: "Причина отказа",
       owner: "Владелец",
       title: "Название",
       locale: "Язык",
@@ -89,16 +96,29 @@ const copy = {
       current: "Текущий статус",
       technical: "Технические сведения",
       identifier: "Технический ID",
+      sourceLanguage: "Исходный язык",
+      availableLocales: "Доступные языки",
+      maxGuests: "Максимум гостей",
+      cover: "Обложка",
+      shortDescription: "Краткое описание",
+      fullDescription: "Полное описание",
+      includedServices: "Включённые услуги",
+      meetingPoint: "Место встречи",
+      boatStatus: "Статус лодки",
+      boatPublication: "Публикация лодки",
+      isActive: "Активен",
+      missingFields: "Не заполнено",
+      moderationHistory: "История модерации",
     },
     statuses: {
       draft: "Черновик",
       submitted: "Ожидает проверки",
       under_review: "На проверке",
-      needs_changes: "Нужны изменения",
+      needs_changes: "Требует доработки",
       documents_uploaded: "Документы ожидают проверки",
-      approved: "Подтверждено",
-      published: "Опубликовано",
-      rejected: "Отклонено",
+      approved: "Готов к публикации",
+      published: "Опубликован",
+      rejected: "Отклонён",
       archived: "В архиве",
       blocked: "Заблокировано",
       new: "Новый",
@@ -109,6 +129,9 @@ const copy = {
     missing: "Не указано",
     routeNotAssigned: "Маршрут не связан с лодкой",
     cannotPublishRoute: "Публикация маршрута без связанной лодки запрещена.",
+    translationIncomplete: "Перевод не завершён",
+    actionDone: "Действие выполнено",
+    actionFailed: "Не удалось выполнить действие",
     documentRuleNeeded: "Нужно продуктово подтвердить: достаточно паспорта или удостоверения личности, либо нужны оба документа.",
     safeErrors: "Ошибки API показываются без секретов и содержимого документов.",
     sessionOnly: "Пароль не сохраняется в браузере. Используется защищённая сессия.",
@@ -137,6 +160,11 @@ const copy = {
       documentsPending: "Documents awaiting review",
       boatsPending: "Boats awaiting review",
       routesPending: "Routes awaiting review",
+      routesRejected: "Rejected routes",
+      routesReady: "Routes ready to publish",
+      routesPublished: "Published routes",
+      routesWithoutBoat: "Routes without a linked boat",
+      routesIncompleteTranslations: "Routes with incomplete translations",
       translationsAttention: "Translations needing attention",
       recentActions: "Recent actions",
     },
@@ -159,6 +187,8 @@ const copy = {
       passport: "Passport document",
       identity: "Identity document",
       uploadedAt: "Upload date",
+      created: "Created",
+      updated: "Updated",
       notes: "Notes",
       rejectionReason: "Rejection reason",
       owner: "Owner",
@@ -176,6 +206,19 @@ const copy = {
       current: "Current status",
       technical: "Technical details",
       identifier: "Technical ID",
+      sourceLanguage: "Source language",
+      availableLocales: "Available locales",
+      maxGuests: "Max guests",
+      cover: "Cover",
+      shortDescription: "Short description",
+      fullDescription: "Full description",
+      includedServices: "Included services",
+      meetingPoint: "Meeting point",
+      boatStatus: "Boat status",
+      boatPublication: "Boat publication",
+      isActive: "Active",
+      missingFields: "Missing fields",
+      moderationHistory: "Moderation history",
     },
     statuses: {
       draft: "Draft",
@@ -183,7 +226,7 @@ const copy = {
       under_review: "Under review",
       needs_changes: "Needs changes",
       documents_uploaded: "Documents awaiting review",
-      approved: "Approved",
+      approved: "Ready to publish",
       published: "Published",
       rejected: "Rejected",
       archived: "Archived",
@@ -196,6 +239,9 @@ const copy = {
     missing: "Missing",
     routeNotAssigned: "Route is not linked to a boat",
     cannotPublishRoute: "Publishing a route without a linked boat is blocked.",
+    translationIncomplete: "Translation is incomplete",
+    actionDone: "Action completed",
+    actionFailed: "Could not complete the action",
     documentRuleNeeded: "Product decision needed: passport or identity document, or both documents.",
     safeErrors: "API errors are shown without secrets or document contents.",
     sessionOnly: "The password is not stored in the browser. A protected session is used.",
@@ -224,6 +270,11 @@ const copy = {
       documentsPending: "Dokumenti čekaju provjeru",
       boatsPending: "Plovila čekaju provjeru",
       routesPending: "Rute čekaju provjeru",
+      routesRejected: "Odbijene rute",
+      routesReady: "Rute spremne za objavu",
+      routesPublished: "Objavljene rute",
+      routesWithoutBoat: "Rute bez povezanog plovila",
+      routesIncompleteTranslations: "Rute sa nepotpunim prevodom",
       translationsAttention: "Prevodi traže pažnju",
       recentActions: "Nedavne radnje",
     },
@@ -246,6 +297,8 @@ const copy = {
       passport: "Pasoš",
       identity: "Lična karta",
       uploadedAt: "Datum slanja",
+      created: "Datum kreiranja",
+      updated: "Datum izmjene",
       notes: "Bilješke",
       rejectionReason: "Razlog odbijanja",
       owner: "Vlasnik",
@@ -263,14 +316,27 @@ const copy = {
       current: "Trenutni status",
       technical: "Tehnički detalji",
       identifier: "Tehnički ID",
+      sourceLanguage: "Izvorni jezik",
+      availableLocales: "Dostupni jezici",
+      maxGuests: "Maksimalno gostiju",
+      cover: "Naslovna slika",
+      shortDescription: "Kratak opis",
+      fullDescription: "Pun opis",
+      includedServices: "Uključene usluge",
+      meetingPoint: "Mjesto susreta",
+      boatStatus: "Status plovila",
+      boatPublication: "Objava plovila",
+      isActive: "Aktivno",
+      missingFields: "Nedostaju polja",
+      moderationHistory: "Istorija moderacije",
     },
     statuses: {
       draft: "Nacrt",
       submitted: "Čeka provjeru",
       under_review: "U provjeri",
-      needs_changes: "Potrebne izmjene",
+      needs_changes: "Potrebna dorada",
       documents_uploaded: "Dokumenti čekaju provjeru",
-      approved: "Potvrđeno",
+      approved: "Spremno za objavu",
       published: "Objavljeno",
       rejected: "Odbijeno",
       archived: "Arhivirano",
@@ -283,6 +349,9 @@ const copy = {
     missing: "Nije navedeno",
     routeNotAssigned: "Ruta nije povezana sa plovilom",
     cannotPublishRoute: "Objava rute bez povezanog plovila je blokirana.",
+    translationIncomplete: "Prevod nije završen",
+    actionDone: "Radnja je izvršena",
+    actionFailed: "Radnja nije izvršena",
     documentRuleNeeded: "Potrebna je odluka: pasoš ili lična karta, ili oba dokumenta.",
     safeErrors: "API greške se prikazuju bez tajni i sadržaja dokumenata.",
     sessionOnly: "Lozinka se ne čuva u pregledaču. Koristi se zaštićena sesija.",
@@ -306,6 +375,9 @@ const copy = {
   missing: string;
   routeNotAssigned: string;
   cannotPublishRoute: string;
+  translationIncomplete: string;
+  actionDone: string;
+  actionFailed: string;
   documentRuleNeeded: string;
   safeErrors: string;
   sessionOnly: string;
@@ -344,6 +416,12 @@ function hasDocument(owner: JsonRecord, field: string): boolean {
   return docList(owner).some((doc) => asText(doc.field) === field);
 }
 
+function textArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map(asText).filter(Boolean)
+    : [];
+}
+
 function awaitingOwner(owner: JsonRecord): boolean {
   return ["documents_uploaded", "under_review"].includes(asText(owner.verification_status));
 }
@@ -353,7 +431,15 @@ function awaitingBoat(boat: JsonRecord): boolean {
 }
 
 function routeNeedsAttention(route: JsonRecord): boolean {
-  return !asText(route.boatDocumentId) || asText(route.state) === "draft";
+  return ["submitted", "under_review"].includes(asText(route.moderation_status)) || !asText(route.boatDocumentId);
+}
+
+function routeEvents(route: JsonRecord, events: JsonRecord[]): JsonRecord[] {
+  const documentId = asText(route.documentId);
+  return events.filter((event) => (
+    asText(event.entity_type) === "experience" &&
+    asText(event.entity_document_id) === documentId
+  ));
 }
 
 function completeness(parts: boolean[]): string {
@@ -379,6 +465,11 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   const documentsPending = owners.filter((owner) => docList(owner).length > 0 && awaitingOwner(owner)).length;
   const boatsPending = boats.filter(awaitingBoat).length;
   const routesPending = routes.filter(routeNeedsAttention).length;
+  const routesRejected = asNumber(data?.summary?.experiencesRejected) ?? routes.filter((route) => asText(route.moderation_status) === "rejected").length;
+  const routesReady = asNumber(data?.summary?.experiencesReadyToPublish) ?? routes.filter((route) => asText(route.moderation_status) === "approved").length;
+  const routesPublished = asNumber(data?.summary?.experiencesPublished) ?? routes.filter((route) => asText(route.moderation_status) === "published").length;
+  const routesWithoutBoat = asNumber(data?.summary?.experiencesWithoutBoat) ?? routes.filter((route) => !asText(route.boatDocumentId)).length;
+  const routesIncompleteTranslations = asNumber(data?.summary?.experiencesWithIncompleteTranslations) ?? routes.filter((route) => !route.translation_complete).length;
   const translationsNeedingAttention = boats.filter((boat) => !asText(boat.title) || !asText(boat.slug)).length;
 
   const nav = useMemo(
@@ -516,6 +607,11 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                     [ui.cards.documentsPending, documentsPending],
                     [ui.cards.boatsPending, boatsPending],
                     [ui.cards.routesPending, routesPending],
+                    [ui.cards.routesRejected, routesRejected],
+                    [ui.cards.routesReady, routesReady],
+                    [ui.cards.routesPublished, routesPublished],
+                    [ui.cards.routesWithoutBoat, routesWithoutBoat],
+                    [ui.cards.routesIncompleteTranslations, routesIncompleteTranslations],
                     [ui.cards.translationsAttention, translationsNeedingAttention],
                     [ui.cards.recentActions, events.length],
                   ].map(([label, value]) => (
@@ -636,6 +732,9 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                 <section className="admin-list">
                   {routes.map((route, index) => {
                     const hasBoat = Boolean(asText(route.boatDocumentId));
+                    const locales = textArray(route.available_locales);
+                    const missingFields = textArray(route.missing_required_fields);
+                    const history = routeEvents(route, events);
                     return (
                       <article className="admin-card" key={`${display(route.documentId ?? route.id, lang)}-${index}`}>
                         <div className="admin-row">
@@ -643,16 +742,63 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                             <h2>{display(route.title, lang)}</h2>
                             <p>{hasBoat ? display(route.boatTitle, lang) : ui.routeNotAssigned}</p>
                           </div>
-                          <strong>{statusLabel(lang, route.state)}</strong>
+                          <strong>{statusLabel(lang, route.moderation_status ?? route.state)}</strong>
                         </div>
                         {!hasBoat ? <p className="admin-warning">{ui.cannotPublishRoute}</p> : null}
+                        {!route.translation_complete ? <p className="admin-warning">{ui.translationIncomplete}</p> : null}
                         <dl className="admin-fields">
+                          <div><dt>{ui.labels.owner}</dt><dd>{display(route.owner_display_name ?? route.owner_email, lang)}</dd></div>
+                          <div><dt>{ui.labels.linkedBoat}</dt><dd>{hasBoat ? display(route.boatTitle, lang) : ui.routeNotAssigned}</dd></div>
+                          <div><dt>{ui.labels.sourceLanguage}</dt><dd>{display(route.locale, lang)}</dd></div>
+                          <div><dt>{ui.labels.availableLocales}</dt><dd>{locales.length ? locales.join(", ") : copy[lang].missing}</dd></div>
                           <div><dt>{ui.labels.locale}</dt><dd>{display(route.locale, lang)}</dd></div>
                           <div><dt>{ui.labels.duration}</dt><dd>{display(route.duration_hours, lang)}</dd></div>
                           <div><dt>{ui.labels.price}</dt><dd>{display(route.price, lang)} {display(route.currency ?? "EUR", lang)}</dd></div>
+                          <div><dt>{ui.labels.maxGuests}</dt><dd>{display(route.max_guests, lang)}</dd></div>
+                          <div><dt>{ui.labels.cover}</dt><dd>{display((asNumber(route.cover_count) ?? 0) > 0, lang)}</dd></div>
                           <div><dt>{ui.labels.gallery}</dt><dd>{display(route.gallery_count ?? route.cover_count, lang)}</dd></div>
-                          <div><dt>{ui.labels.translationCompleteness}</dt><dd>{Boolean(asText(route.title)) ? "✓" : "—"}</dd></div>
+                          <div><dt>{ui.labels.publication}</dt><dd>{statusLabel(lang, route.state)}</dd></div>
+                          <div><dt>{ui.labels.status}</dt><dd>{statusLabel(lang, route.moderation_status)}</dd></div>
+                          <div><dt>{ui.labels.created}</dt><dd>{display(route.created_at, lang)}</dd></div>
+                          <div><dt>{ui.labels.updated}</dt><dd>{display(route.updated_at, lang)}</dd></div>
+                          <div><dt>{ui.labels.isActive}</dt><dd>{display(route.is_active, lang)}</dd></div>
+                          <div><dt>{ui.labels.boatStatus}</dt><dd>{statusLabel(lang, route.boatModerationStatus)}</dd></div>
+                          <div><dt>{ui.labels.boatPublication}</dt><dd>{statusLabel(lang, route.boatState)}</dd></div>
+                          <div><dt>{ui.labels.translationCompleteness}</dt><dd>{route.translation_complete ? "✓" : ui.translationIncomplete}</dd></div>
+                          <div><dt>{ui.labels.missingFields}</dt><dd>{missingFields.length ? missingFields.join(", ") : "✓"}</dd></div>
                         </dl>
+                        <dl className="admin-fields">
+                          <div><dt>{ui.labels.shortDescription}</dt><dd>{display(route.short_description, lang)}</dd></div>
+                          <div><dt>{ui.labels.fullDescription}</dt><dd>{display(route.full_description, lang)}</dd></div>
+                          <div><dt>{ui.labels.includedServices}</dt><dd>{display(route.included_services, lang)}</dd></div>
+                          <div><dt>{ui.labels.meetingPoint}</dt><dd>{display(route.meeting_point, lang)}</dd></div>
+                        </dl>
+                        {asText(route.boatDocumentId) ? (
+                          <a href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(asText(route.boatDocumentId))}`}>
+                            {ui.actions.preview}
+                          </a>
+                        ) : null}
+                        <details>
+                          <summary>{ui.labels.moderationHistory}</summary>
+                          {history.length ? (
+                            <ul>
+                              {history.map((event, eventIndex) => (
+                                <li key={`${display(event.id ?? event.occurred_at, lang)}-${eventIndex}`}>
+                                  {display(event.occurred_at, lang)} · {display(event.action, lang)} · {statusLabel(lang, event.new_status)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="admin-muted">{ui.empty}</p>
+                          )}
+                        </details>
+                        <AdminModerationActions
+                          lang={lang}
+                          entityType="experience"
+                          documentId={asText(route.documentId)}
+                          status={asText(route.moderation_status)}
+                          onComplete={loadDashboard}
+                        />
                       </article>
                     );
                   })}

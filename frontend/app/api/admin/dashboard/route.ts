@@ -196,15 +196,29 @@ function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
     "sort[0]=createdAt:desc",
     "fields[0]=title",
     "fields[1]=documentId",
-    "fields[2]=locale",
-    "fields[3]=price",
-    "fields[4]=duration_hours",
-    "fields[5]=is_active",
-    "fields[6]=publishedAt",
-    "fields[7]=createdAt",
-    "fields[8]=updatedAt",
+    "fields[2]=slug",
+    "fields[3]=locale",
+    "fields[4]=short_description",
+    "fields[5]=full_description",
+    "fields[6]=included_services",
+    "fields[7]=meeting_point",
+    "fields[8]=price",
+    "fields[9]=currency",
+    "fields[10]=duration_hours",
+    "fields[11]=max_guests",
+    "fields[12]=is_active",
+    "fields[13]=publishedAt",
+    "fields[14]=createdAt",
+    "fields[15]=updatedAt",
+    "populate[cover][fields][0]=id",
+    "populate[gallery][fields][0]=id",
     "populate[boat][fields][0]=title",
     "populate[boat][fields][1]=documentId",
+    "populate[boat][fields][2]=locale",
+    "populate[boat][fields][3]=publishedAt",
+    "populate[boat][fields][4]=moderation_status",
+    "populate[boat][fields][5]=owner_user_id",
+    "populate[boat][fields][6]=created_by_id",
   ]);
 }
 
@@ -344,16 +358,106 @@ function normalizeExperience(item: unknown, status: RowStatus) {
     documentId: asString(row.documentId),
     locale: asString(row.locale),
     title: asString(row.title),
+    slug: asString(row.slug),
+    short_description: asString(row.short_description),
+    full_description: asString(row.full_description),
+    included_services: asString(row.included_services),
+    meeting_point: asString(row.meeting_point),
     boatDocumentId: boat ? asString(boat.documentId) : null,
     boatTitle: boat ? asString(boat.title) : null,
+    boatLocale: boat ? asString(boat.locale) : null,
+    boatState: boat && asString(boat.publishedAt) ? "published" : "draft",
+    boatModerationStatus: boat ? asString(boat.moderation_status) : null,
+    owner_user_id: boat ? asNumber(boat.owner_user_id) : null,
+    created_by_id: boat ? asNumber(boat.created_by_id) : null,
     price: asNumber(row.price),
+    currency: asString(row.currency),
     duration_hours: asNumber(row.duration_hours),
+    max_guests: asNumber(row.max_guests),
     is_active: asBoolean(row.is_active),
     state: status === "published" || publishedAt ? "published" : "draft",
     publishedAt,
+    cover_count: getRelatedCount(row.cover),
+    gallery_count: getRelatedCount(row.gallery),
     created_at: asString(row.createdAt ?? row.created_at),
     updated_at: asString(row.updatedAt ?? row.updated_at),
   };
+}
+
+function latestEventByDocument(events: ReturnType<typeof normalizeModerationEvent>[], entityType: string) {
+  const byDocument = new Map<string, ReturnType<typeof normalizeModerationEvent>>();
+
+  for (const event of events) {
+    if (event.entity_type !== entityType || !event.entity_document_id) continue;
+    const current = byDocument.get(event.entity_document_id);
+    if (!current || String(event.occurred_at ?? "") > String(current.occurred_at ?? "")) {
+      byDocument.set(event.entity_document_id, event);
+    }
+  }
+
+  return byDocument;
+}
+
+function enrichExperiences(
+  rows: ReturnType<typeof normalizeExperience>[],
+  eventRows: ReturnType<typeof normalizeModerationEvent>[],
+  boatRows: ReturnType<typeof normalizeBoat>[]
+) {
+  const latestEvents = latestEventByDocument(eventRows, "experience");
+  const boatByDocument = new Map(
+    boatRows
+      .filter((boat) => boat.documentId)
+      .map((boat) => [boat.documentId as string, boat])
+  );
+  const localesByDocument = rows.reduce<Map<string, Set<string>>>((acc, row) => {
+    if (!row.documentId) return acc;
+    const set = acc.get(row.documentId) ?? new Set<string>();
+    if (row.locale) set.add(row.locale);
+    acc.set(row.documentId, set);
+    return acc;
+  }, new Map());
+
+  return rows.map((row) => {
+    const latestEvent = row.documentId ? latestEvents.get(row.documentId) : null;
+    const linkedBoat = row.boatDocumentId ? boatByDocument.get(row.boatDocumentId) : null;
+    const updatedAt = row.updated_at ?? "";
+    const eventAt = latestEvent?.occurred_at ?? "";
+    const staleApproval = latestEvent?.new_status === "approved" && updatedAt && eventAt && updatedAt > eventAt;
+    const moderationStatus = row.state === "published"
+      ? "published"
+      : staleApproval
+        ? "submitted"
+        : latestEvent?.new_status ?? "submitted";
+    const missingRequired = [
+      !row.title ? "title" : null,
+      !row.slug ? "slug" : null,
+      row.duration_hours === null || row.duration_hours <= 0 ? "duration_hours" : null,
+      row.price === null || row.price <= 0 ? "price" : null,
+      row.currency !== "EUR" ? "currency" : null,
+      !row.boatDocumentId ? "boat" : null,
+    ].filter((item): item is string => Boolean(item));
+    const linkedBoatRecord = linkedBoat as JsonObject | undefined;
+
+    return {
+      ...row,
+      moderation_status: moderationStatus,
+      latest_moderation_action: latestEvent?.action ?? null,
+      latest_moderation_at: latestEvent?.occurred_at ?? null,
+      stale_after_approval: staleApproval,
+      available_locales: row.documentId ? Array.from(localesByDocument.get(row.documentId) ?? []) : [],
+      missing_required_fields: missingRequired,
+      translation_complete: row.documentId
+        ? ["ru", "en", "sr-Latn-ME"].every((locale) => localesByDocument.get(row.documentId!)?.has(locale))
+        : false,
+      owner_user_id: row.owner_user_id ?? linkedBoat?.owner_user_id ?? null,
+      created_by_id: row.created_by_id ?? linkedBoat?.created_by_id ?? null,
+      owner_display_name: linkedBoatRecord ? asString(linkedBoatRecord.owner_display_name) : null,
+      owner_email: linkedBoatRecord ? asString(linkedBoatRecord.owner_email) : null,
+      owner_profile_id: linkedBoatRecord ? asNumber(linkedBoatRecord.owner_profile_id) : null,
+      boatState: row.boatState === "published" || linkedBoat?.state === "published" ? "published" : "draft",
+      boatModerationStatus: row.boatModerationStatus ?? linkedBoat?.moderation_status ?? null,
+    };
+  });
 }
 
 function normalizeModerationEvent(item: unknown) {
@@ -494,8 +598,12 @@ export async function GET() {
     boatResult.rows.map(({ item, status }) => normalizeBoat(item, status)),
     cmsSummary?.boatOwnerLinks
   );
-  const experiences = experienceResult.rows
-    .map(({ item, status }) => normalizeExperience(item, status))
+  const moderationEvents = eventResult.ok ? rowsFromJson(eventResult.json).map(normalizeModerationEvent) : [];
+  const experiences = enrichExperiences(
+    experienceResult.rows.map(({ item, status }) => normalizeExperience(item, status)),
+    moderationEvents,
+    boats
+  )
     .slice(0, 50);
 
   const draftBoats = boatResult.totals.draft ?? boats.filter((boat) => boat.state === "draft").length;
@@ -518,6 +626,20 @@ export async function GET() {
   const totalOwners = asNumber(cmsSummary?.summary?.totalOwners) ?? (Array.isArray(cmsSummary?.owners) ? cmsSummary.owners.length : null);
   const totalBookingRequests = asNumber(cmsSummary?.summary?.totalBookingRequests) ?? (Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests.length : null);
   const totalPayments = asNumber(cmsSummary?.summary?.totalPayments) ?? (Array.isArray(cmsSummary?.payments) ? cmsSummary.payments.length : null);
+  const uniqueModerationExperiences = Array.from(
+    new Map(
+      experiences
+        .filter((experience) => experience.documentId)
+        .map((experience) => [experience.documentId, experience])
+    ).values()
+  );
+  const experienceModerationCounts = uniqueModerationExperiences.reduce<Record<string, number>>((counts, experience) => {
+    const moderationStatus = experience.moderation_status || "submitted";
+    counts[moderationStatus] = (counts[moderationStatus] || 0) + 1;
+    return counts;
+  }, {});
+  const experiencesWithoutBoat = uniqueModerationExperiences.filter((experience) => !experience.boatDocumentId).length;
+  const experiencesWithIncompleteTranslations = uniqueModerationExperiences.filter((experience) => !experience.translation_complete).length;
 
   return NextResponse.json(
     {
@@ -531,6 +653,15 @@ export async function GET() {
         totalOwners,
         totalExperiences:
           (experienceResult.totals.draft ?? 0) + (experienceResult.totals.published ?? 0),
+        experienceModerationCounts,
+        experiencesAwaitingReview:
+          (experienceModerationCounts.submitted || 0) +
+          (experienceModerationCounts.under_review || 0),
+        experiencesRejected: experienceModerationCounts.rejected || 0,
+        experiencesReadyToPublish: experienceModerationCounts.approved || 0,
+        experiencesPublished: experienceModerationCounts.published || 0,
+        experiencesWithoutBoat,
+        experiencesWithIncompleteTranslations,
         totalBookingRequests,
         totalPayments,
         defaultMarketplaceFeePercent: MARKETPLACE_FEE_RATE * 100,
@@ -539,7 +670,7 @@ export async function GET() {
       experiences,
       bookingRequests: Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests : [],
       payments: Array.isArray(cmsSummary?.payments) ? cmsSummary.payments : [],
-      moderationEvents: eventResult.ok ? rowsFromJson(eventResult.json).map(normalizeModerationEvent) : [],
+      moderationEvents,
       owners: Array.isArray(cmsSummary?.owners)
         ? cmsSummary.owners.map(normalizeOwnerDocuments)
         : [],

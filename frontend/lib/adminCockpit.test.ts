@@ -157,20 +157,21 @@ test("boat moderation is connected to protected actions and CMS audit events", (
   assert.ok(moderationActions.includes('entityType="boat"') || cockpit.includes('entityType="boat"'));
   assert.ok(moderationApi.includes("/api/admin-moderation/action"));
   assert.ok(dashboardApi.includes("moderationEventQuery"));
-  assert.ok(dashboardApi.includes("moderationEvents: eventResult.ok"));
+  assert.ok(dashboardApi.includes("moderationEvents,"));
   assert.ok(cmsModeration.includes("createAuditEvent"));
   assert.ok(cmsStateMachine.includes("approve"));
   assert.ok(cmsStateMachine.includes("publish"));
   assert.ok(cmsStateMachine.includes("reject"));
 });
 
-test("experience list and translation review are connected, while direct experience approval is not invented", () => {
+test("experience list, translation review, and moderation actions are connected", () => {
   assert.ok(dashboardApi.includes("experienceQuery"));
   assert.ok(cockpit.includes("routeNotAssigned"));
   assert.ok(cockpit.includes("cannotPublishRoute"));
+  assert.ok(cockpit.includes('entityType="experience"'));
   assert.ok(previewApi.includes("populate[experiences]"));
   assert.ok(saveDraftApi.includes('ContentType = "boat" | "experience"'));
-  assert.doesNotMatch(cmsStateMachine, /ExperienceModeration|experience_profile/);
+  assert.ok(cmsStateMachine.includes("planExperienceModerationTransition"));
 });
 
 test("unassigned experience publication is blocked in UI copy", () => {

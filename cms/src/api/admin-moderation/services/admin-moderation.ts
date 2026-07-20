@@ -1,11 +1,12 @@
 import {
   planBoatModerationTransition,
+  planExperienceModerationTransition,
   planOwnerModerationTransition,
 } from "./state-machine";
 
 type JsonObject = Record<string, unknown>;
 type Locale = "ru" | "en" | "sr-Latn-ME";
-type EntityType = "boat" | "owner_profile";
+type EntityType = "boat" | "experience" | "owner_profile";
 
 const REQUIRED_LOCALES: Locale[] = ["ru", "en", "sr-Latn-ME"];
 
@@ -50,6 +51,29 @@ type BoatRow = {
   created_by_id: number | null;
 };
 
+type ExperienceRow = {
+  id: number;
+  documentId: string;
+  locale: string | null;
+  publishedAt: string | null;
+  title: string | null;
+  slug: string | null;
+  duration_hours: number | null;
+  price: number | null;
+  currency: string | null;
+  is_active: boolean | null;
+  updatedAt: string | null;
+  boat: BoatRow | null;
+};
+
+type ModerationEventRow = {
+  id: number | null;
+  action: string | null;
+  previous_status: string | null;
+  new_status: string | null;
+  occurred_at: string | null;
+};
+
 function isRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -67,6 +91,10 @@ function asNumber(value: unknown): number | null {
         : NaN;
 
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function cleanComment(value: unknown): string {
@@ -111,7 +139,43 @@ function shapeBoatRow(value: unknown): BoatRow | null {
   };
 }
 
-function uniqueLocales(rows: BoatRow[]): Locale[] {
+function shapeExperienceRow(value: unknown): ExperienceRow | null {
+  if (!isRecord(value)) return null;
+
+  const id = asNumber(value.id);
+  const documentId = asString(value.documentId ?? value.document_id);
+
+  if (!id || !documentId) return null;
+
+  return {
+    id,
+    documentId,
+    locale: asString(value.locale),
+    publishedAt: asString(value.publishedAt ?? value.published_at),
+    title: asString(value.title),
+    slug: asString(value.slug),
+    duration_hours: asNumber(value.duration_hours),
+    price: asNumber(value.price),
+    currency: asString(value.currency),
+    is_active: asBoolean(value.is_active),
+    updatedAt: asString(value.updatedAt ?? value.updated_at),
+    boat: shapeBoatRow(value.boat),
+  };
+}
+
+function shapeModerationEvent(value: unknown): ModerationEventRow | null {
+  if (!isRecord(value)) return null;
+
+  return {
+    id: asNumber(value.id),
+    action: asString(value.action),
+    previous_status: asString(value.previous_status),
+    new_status: asString(value.new_status),
+    occurred_at: asString(value.occurred_at),
+  };
+}
+
+function uniqueLocales(rows: Array<{ locale: string | null }>): Locale[] {
   return Array.from(
     new Set(
       rows
@@ -126,7 +190,7 @@ function uniqueLocales(rows: BoatRow[]): Locale[] {
   );
 }
 
-function missingPublishLocales(rows: BoatRow[]): Locale[] {
+function missingPublishLocales(rows: Array<{ locale: string | null }>): Locale[] {
   const locales = new Set(uniqueLocales(rows));
 
   return REQUIRED_LOCALES.filter((locale) => !locales.has(locale));
@@ -260,6 +324,23 @@ async function updateBoatSharedFields(
   }
 }
 
+async function updateExperienceSharedFields(
+  cms: StrapiLike,
+  documentId: string,
+  locales: Locale[],
+  data: JsonObject
+) {
+  const targetLocales = locales.length ? locales : ["en"];
+
+  for (const locale of targetLocales) {
+    await cms.documents("api::experience.experience").update({
+      documentId,
+      locale,
+      data,
+    });
+  }
+}
+
 async function loadBoatRows(
   cms: StrapiLike,
   documentId: string
@@ -283,6 +364,158 @@ async function loadBoatRows(
   return (Array.isArray(rows) ? rows : [])
     .map(shapeBoatRow)
     .filter((row): row is BoatRow => Boolean(row));
+}
+
+async function loadExperienceRows(
+  cms: StrapiLike,
+  documentId: string
+): Promise<ExperienceRow[]> {
+  const rows = await cms.db.query("api::experience.experience").findMany({
+    where: { documentId },
+    select: [
+      "id",
+      "documentId",
+      "locale",
+      "publishedAt",
+      "title",
+      "slug",
+      "duration_hours",
+      "price",
+      "currency",
+      "is_active",
+      "updatedAt",
+    ],
+    populate: {
+      boat: {
+        select: [
+          "id",
+          "documentId",
+          "locale",
+          "publishedAt",
+          "title",
+          "slug",
+          "moderation_status",
+          "owner_user_id",
+          "created_by_id",
+        ],
+      },
+    },
+    limit: 100,
+  });
+
+  return (Array.isArray(rows) ? rows : [])
+    .map(shapeExperienceRow)
+    .filter((row): row is ExperienceRow => Boolean(row));
+}
+
+async function latestExperienceEvent(
+  cms: StrapiLike,
+  documentId: string
+): Promise<ModerationEventRow | null> {
+  const events = await cms.db
+    .query("api::moderation-event.moderation-event")
+    .findMany({
+      where: {
+        entity_type: "experience",
+        entity_document_id: documentId,
+      },
+      select: [
+        "id",
+        "action",
+        "previous_status",
+        "new_status",
+        "occurred_at",
+      ],
+      orderBy: { occurred_at: "desc" },
+      limit: 1,
+    });
+
+  const event = Array.isArray(events) ? events[0] : null;
+  return shapeModerationEvent(event);
+}
+
+function maxUpdatedAt(rows: ExperienceRow[]): string | null {
+  return rows
+    .map((row) => row.updatedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
+}
+
+function experienceCurrentStatus(
+  rows: ExperienceRow[],
+  latestEvent: ModerationEventRow | null
+): string {
+  if (rows.some((row) => row.publishedAt)) {
+    return "published";
+  }
+
+  const latestStatus = latestEvent?.new_status || null;
+  if (latestStatus === "approved") {
+    const updatedAt = maxUpdatedAt(rows);
+    if (updatedAt && latestEvent?.occurred_at && updatedAt > latestEvent.occurred_at) {
+      return "submitted";
+    }
+  }
+
+  return latestStatus || "submitted";
+}
+
+function incompleteExperiencePublishLocales(rows: ExperienceRow[]): Locale[] {
+  return REQUIRED_LOCALES.filter((locale) => {
+    const row = rows.find((candidate) => candidate.locale === locale);
+    return (
+      !row?.title ||
+      !row?.slug ||
+      row.duration_hours === null ||
+      row.duration_hours <= 0 ||
+      row.price === null ||
+      row.price <= 0 ||
+      row.currency !== "EUR"
+    );
+  });
+}
+
+async function linkedBoatReadyForExperiencePublish(
+  cms: StrapiLike,
+  boatDocumentId: string
+): Promise<{ ok: true; ownerUserId: number } | { ok: false; code: string; metadata?: JsonObject }> {
+  const rows = await loadBoatRows(cms, boatDocumentId);
+
+  if (!rows.length) {
+    return { ok: false, code: "boat_not_found" };
+  }
+
+  const ownerUserId =
+    rows[0]?.owner_user_id ??
+    rows[0]?.created_by_id ??
+    null;
+
+  if (!ownerUserId) {
+    return { ok: false, code: "boat_owner_missing" };
+  }
+
+  const ownerProfile = await ownerProfileForUser(cms, ownerUserId);
+  if (!ownerProfile || ownerProfile.verificationStatus !== "approved") {
+    return {
+      ok: false,
+      code: "owner_not_approved",
+      metadata: {
+        ownerProfileId: ownerProfile?.id ?? null,
+        ownerVerificationStatus: ownerProfile?.verificationStatus ?? null,
+      },
+    };
+  }
+
+  const boatPublished = rows.some(
+    (row) => row.publishedAt && row.moderation_status === "published"
+  );
+
+  if (!boatPublished) {
+    return { ok: false, code: "linked_boat_not_published" };
+  }
+
+  return { ok: true, ownerUserId };
 }
 
 async function moderateBoat(
@@ -510,6 +743,247 @@ async function moderateBoat(
   };
 }
 
+async function moderateExperience(
+  cms: StrapiLike,
+  input: ModerationInput
+) {
+  const documentId = asString(input.documentId);
+
+  if (!documentId) {
+    return {
+      ok: false,
+      status: 400,
+      body: { ok: false, code: "document_id_required" },
+    };
+  }
+
+  const rows = await loadExperienceRows(cms, documentId);
+
+  if (!rows.length) {
+    return {
+      ok: false,
+      status: 404,
+      body: { ok: false, code: "experience_not_found" },
+    };
+  }
+
+  const latestEvent = await latestExperienceEvent(cms, documentId);
+  const currentStatus = experienceCurrentStatus(rows, latestEvent);
+  const comment = cleanComment(input.comment);
+  const actor = cleanActor(input.actor);
+  const transition = planExperienceModerationTransition({
+    currentStatus,
+    action: input.action,
+    comment,
+  });
+
+  if (transition.ok !== true) {
+    return {
+      ok: false,
+      status:
+        transition.code === "comment_required"
+          ? 400
+          : transition.code === "transition_not_allowed"
+            ? 409
+            : 400,
+      body: {
+        ok: false,
+        code: transition.code,
+        currentStatus,
+        action: input.action,
+      },
+    };
+  }
+
+  const locales = uniqueLocales(rows);
+  const linkedBoat = rows.find((row) => row.boat)?.boat ?? null;
+  const linkedBoatDocumentId = linkedBoat?.documentId ?? null;
+
+  if (
+    (input.action === "approve" ||
+      input.action === "publish") &&
+    !linkedBoatDocumentId
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      body: { ok: false, code: "experience_boat_required" },
+    };
+  }
+
+  let ownerUserId: number | null =
+    linkedBoat?.owner_user_id ??
+    linkedBoat?.created_by_id ??
+    null;
+
+  if (
+    (input.action === "approve" ||
+      input.action === "publish") &&
+    linkedBoatDocumentId
+  ) {
+    const boatReady = await linkedBoatReadyForExperiencePublish(
+      cms,
+      linkedBoatDocumentId
+    );
+
+    if (boatReady.ok === false && input.action === "publish") {
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ok: false,
+          code: boatReady.code,
+          ...(boatReady.metadata ?? {}),
+        },
+      };
+    }
+
+    if (boatReady.ok === false && input.action === "approve") {
+      if (boatReady.code === "boat_not_found" || boatReady.code === "boat_owner_missing") {
+        return {
+          ok: false,
+          status: 409,
+          body: { ok: false, code: boatReady.code },
+        };
+      }
+    }
+
+    if (boatReady.ok === true) {
+      ownerUserId = boatReady.ownerUserId;
+    } else if (ownerUserId) {
+      const ownerProfile = await ownerProfileForUser(cms, ownerUserId);
+      if (!ownerProfile || ownerProfile.verificationStatus !== "approved") {
+        return {
+          ok: false,
+          status: 409,
+          body: {
+            ok: false,
+            code: "owner_not_approved",
+            ownerProfileId: ownerProfile?.id ?? null,
+            ownerVerificationStatus:
+              ownerProfile?.verificationStatus ?? null,
+          },
+        };
+      }
+    }
+  }
+
+  if (input.action === "publish") {
+    const missingLocales = missingPublishLocales(rows);
+    const incompleteLocales = incompleteExperiencePublishLocales(rows);
+
+    if (currentStatus !== "approved") {
+      return {
+        ok: false,
+        status: 409,
+        body: { ok: false, code: "experience_not_approved" },
+      };
+    }
+
+    if (missingLocales.length) {
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ok: false,
+          code: "required_locales_missing",
+          missingLocales,
+        },
+      };
+    }
+
+    if (incompleteLocales.length) {
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ok: false,
+          code: "required_locales_incomplete",
+          incompleteLocales,
+        },
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const updateData: JsonObject = {
+    is_active: input.action === "publish",
+  };
+
+  if (
+    input.action === "reject" ||
+    input.action === "request_changes" ||
+    input.action === "archive" ||
+    input.action === "unpublish"
+  ) {
+    updateData.is_active = false;
+  }
+
+  await cms.db.transaction(async () => {
+    if (
+      input.action === "unpublish" ||
+      (input.action === "archive" &&
+        currentStatus === "published")
+    ) {
+      for (const locale of locales) {
+        await cms.documents("api::experience.experience").unpublish({
+          documentId,
+          locale,
+        });
+      }
+    }
+
+    await updateExperienceSharedFields(
+      cms,
+      documentId,
+      locales,
+      updateData
+    );
+
+    if (input.action === "publish") {
+      for (const locale of REQUIRED_LOCALES) {
+        await cms.documents("api::experience.experience").publish({
+          documentId,
+          locale,
+        });
+      }
+    }
+
+    await createAuditEvent(cms, {
+      entityType: "experience",
+      entityDocumentId: documentId,
+      entityId: rows[0]?.id ?? null,
+      action: input.action,
+      previousStatus: currentStatus,
+      newStatus: transition.nextStatus,
+      comment,
+      actor,
+      metadata: {
+        locales,
+        boatDocumentId: linkedBoatDocumentId,
+        ownerUserId,
+      },
+    });
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    body: {
+      ok: true,
+      entityType: "experience",
+      documentId,
+      action: input.action,
+      previousStatus: currentStatus,
+      moderationStatus: transition.nextStatus,
+      comment: comment || null,
+      reviewedAt: now,
+      reviewedBy: actor,
+      boatDocumentId: linkedBoatDocumentId,
+    },
+  };
+}
+
 async function moderateOwner(
   cms: StrapiLike,
   input: ModerationInput
@@ -669,6 +1143,10 @@ export function createAdminModerationService(cms: StrapiLike) {
 
       if (input.entityType === "boat") {
         return moderateBoat(cms, input);
+      }
+
+      if (input.entityType === "experience") {
+        return moderateExperience(cms, input);
       }
 
       if (input.entityType === "owner_profile") {
