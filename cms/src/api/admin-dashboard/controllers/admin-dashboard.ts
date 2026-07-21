@@ -239,10 +239,10 @@ async function loadOwners(warnings: string[]) {
       select
         op.id as profile_id,
         l.user_id,
-        u.email,
-        u.username,
-        u.confirmed,
-        u.blocked,
+        nullif(to_jsonb(u) ->> 'email', '') as email,
+        nullif(to_jsonb(u) ->> 'username', '') as username,
+        nullif(to_jsonb(u) ->> 'confirmed', '')::boolean as confirmed,
+        nullif(to_jsonb(u) ->> 'blocked', '')::boolean as blocked,
         nullif(trim(concat(coalesce(op.first_name, ''), ' ', coalesce(op.last_name, ''))), '') as display_name,
         op.phone,
         op.verification_status,
@@ -330,12 +330,12 @@ async function loadBoatOwnerLinks(warnings: string[]) {
         b.owner_user_id,
         b.created_by_id,
         op.id as owner_profile_id,
-        u.email as owner_email,
-        u.username as owner_username,
+        nullif(to_jsonb(u) ->> 'email', '') as owner_email,
+        nullif(to_jsonb(u) ->> 'username', '') as owner_username,
         nullif(trim(concat(coalesce(op.first_name, ''), ' ', coalesce(op.last_name, ''))), '') as owner_display_name,
         op.phone as owner_phone,
-        u.confirmed as owner_confirmed,
-        u.blocked as owner_blocked
+        nullif(to_jsonb(u) ->> 'confirmed', '')::boolean as owner_confirmed,
+        nullif(to_jsonb(u) ->> 'blocked', '')::boolean as owner_blocked
       from public.boats b
       left join public.up_users u
         on u.id = coalesce(b.owner_user_id, b.created_by_id)
