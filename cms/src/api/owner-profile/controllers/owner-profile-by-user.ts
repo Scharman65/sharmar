@@ -40,14 +40,18 @@ export default {
           op.verified_at,
           op.rejected_at,
           op.rejection_reason,
+          op.archived_at,
           op.password_changed_at,
           coalesce(op.session_version, 0) as session_version,
+          coalesce(u.must_change_password, false) as must_change_password,
           op.created_at,
           op.updated_at,
           l.user_id
         from public.owner_profiles op
         join public.owner_profiles_user_lnk l
           on l.owner_profile_id = op.id
+        join public.up_users u
+          on u.id = l.user_id
         where l.user_id = ?
         order by op.id desc
         limit 1

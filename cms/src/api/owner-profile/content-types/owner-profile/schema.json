@@ -82,6 +82,10 @@
       "type": "datetime",
       "required": false
     },
+    "archived_at": {
+      "type": "datetime",
+      "required": false
+    },
     "verified_at": {
       "type": "datetime",
       "required": false

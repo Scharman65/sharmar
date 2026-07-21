@@ -207,7 +207,10 @@ export default {
         const userUpdate = await trx.raw(
           `
           update public.up_users
-          set password = ?, updated_at = now()
+          set
+            password = ?,
+            must_change_password = false,
+            updated_at = now()
           where id = ?
           returning id
           `,
@@ -278,7 +281,10 @@ export default {
         await trx.raw(
           `
           update public.up_users
-          set password = ?, updated_at = now()
+          set
+            password = ?,
+            must_change_password = false,
+            updated_at = now()
           where id = ?
           `,
           [hashedPassword, userId]

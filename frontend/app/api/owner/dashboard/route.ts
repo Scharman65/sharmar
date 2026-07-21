@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
+import {
+  getAuthenticatedOwner as getFreshOwnerAuth,
+  ownerMustChangePassword,
+  ownerProfileArchived,
+} from "@/lib/auth/ownerApi";
 
 type JsonObject = Record<string, unknown>;
 
@@ -393,6 +397,20 @@ export async function GET(req: NextRequest) {
   }
 
   const ownerId = ownerAuth.auth.owner.id;
+
+  if (ownerProfileArchived(ownerAuth.auth.ownerProfile)) {
+    return NextResponse.json(
+      { ok: false, error: "owner_account_archived" },
+      { status: 403, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  if (ownerMustChangePassword(ownerAuth.auth.ownerProfile)) {
+    return NextResponse.json(
+      { ok: false, error: "owner_password_change_required", must_change_password: true },
+      { status: 403, headers: { "cache-control": "no-store" } }
+    );
+  }
 
   const serverToken = getServerToken();
 

@@ -153,6 +153,14 @@ function sessionVersionIsFresh(req: NextRequest, ownerProfile: JsonObject): bool
   return cookieVersion === currentVersion;
 }
 
+export function ownerMustChangePassword(ownerProfile: JsonObject | null): boolean {
+  return ownerProfile?.must_change_password === true;
+}
+
+export function ownerProfileArchived(ownerProfile: JsonObject | null): boolean {
+  return Boolean(asString(ownerProfile?.archived_at));
+}
+
 export async function getAuthenticatedOwner(req: NextRequest): Promise<
   | { ok: true; auth: OwnerAuth }
   | { ok: false; status: number; code: string }

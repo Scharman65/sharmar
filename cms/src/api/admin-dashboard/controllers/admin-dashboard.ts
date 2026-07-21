@@ -229,6 +229,8 @@ async function loadOwners(warnings: string[]) {
         op.verified_at,
         op.rejected_at,
         op.rejection_reason,
+        op.archived_at,
+        coalesce(u.must_change_password, false) as must_change_password,
         coalesce(
           (
             select jsonb_agg(
@@ -283,6 +285,8 @@ async function loadOwners(warnings: string[]) {
       verified_at: nullableString(row.verified_at),
       rejected_at: nullableString(row.rejected_at),
       rejection_reason: nullableString(row.rejection_reason),
+      archived_at: nullableString(row.archived_at),
+      must_change_password: nullableBoolean(row.must_change_password),
       documents: jsonArray(row.documents),
       document_count: jsonArray(row.documents).length,
       created_at: nullableString(row.created_at),

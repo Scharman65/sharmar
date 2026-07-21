@@ -243,6 +243,7 @@ async function countBoatExperiences(
   const documentId = asString(boat.documentId);
   const qs = new URLSearchParams();
   qs.set("pagination[pageSize]", "100");
+  qs.set("filters[archived_at][$null]", "true");
 
   if (documentId) {
     qs.set("filters[boat][documentId][$eq]", documentId);
@@ -311,6 +312,7 @@ export async function GET(req: NextRequest) {
 
   const qs = new URLSearchParams();
   qs.set("pagination[pageSize]", "100");
+  qs.set("filters[archived_at][$null]", "true");
   qs.append("sort[0]", "sort_order:asc");
   qs.append("sort[1]", "createdAt:desc");
 

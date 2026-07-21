@@ -72,6 +72,20 @@ type CrudCopyShape = {
   stale: string;
   ownerDecision: string;
   archiveDecision: string;
+  temporaryPassword: string;
+  showPassword: string;
+  copyPassword: string;
+  ownerCreated: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPhone: string;
+  ownerLanguage: string;
+  adminNote: string;
+  documentType: string;
+  passport: string;
+  identity: string;
+  chooseFile: string;
+  upload: string;
   noRawJson: string;
   mediaPrivacy: string;
   fields: Record<string, string>;
@@ -122,6 +136,20 @@ const copy = {
     stale: "Запись изменилась. Обновите данные и повторите действие.",
     ownerDecision: "Для безопасного создания владельца нужен утверждённый процесс приглашения или обязательная смена временного пароля.",
     archiveDecision: "Для архивации этой сущности нужно отдельное продуктовое правило. Скрытое удаление или переиспользование статуса не выполняется.",
+    temporaryPassword: "Временный пароль",
+    showPassword: "Показать",
+    copyPassword: "Скопировать пароль",
+    ownerCreated: "Владелец создан. Пароль показан один раз.",
+    ownerName: "Имя владельца",
+    ownerEmail: "Email",
+    ownerPhone: "Телефон / WhatsApp",
+    ownerLanguage: "Язык",
+    adminNote: "Заметка администратора",
+    documentType: "Тип документа",
+    passport: "Паспорт",
+    identity: "Удостоверение личности",
+    chooseFile: "Выберите файл",
+    upload: "Загрузить",
     noRawJson: "Технические сведения скрыты",
     mediaPrivacy: "Документы владельцев доступны только в разделе «Документы».",
     filters: {
@@ -199,6 +227,20 @@ const copy = {
     stale: "The record changed. Refresh data and try again.",
     ownerDecision: "Safe owner creation needs an approved invite flow or mandatory temporary password change.",
     archiveDecision: "Archiving this entity needs a dedicated product contract. Hidden deletion or status reuse is not performed.",
+    temporaryPassword: "Temporary password",
+    showPassword: "Show",
+    copyPassword: "Copy password",
+    ownerCreated: "Owner created. The password is shown once.",
+    ownerName: "Owner name",
+    ownerEmail: "Email",
+    ownerPhone: "Phone / WhatsApp",
+    ownerLanguage: "Language",
+    adminNote: "Admin note",
+    documentType: "Document type",
+    passport: "Passport",
+    identity: "Identity document",
+    chooseFile: "Choose file",
+    upload: "Upload",
     noRawJson: "Technical details are hidden",
     mediaPrivacy: "Owner documents are available only in the Documents section.",
     filters: {
@@ -276,6 +318,20 @@ const copy = {
     stale: "Zapis je promijenjen. Osvježite podatke i pokušajte ponovo.",
     ownerDecision: "Za sigurno kreiranje vlasnika potreban je odobren invite-flow ili obavezna promjena privremene lozinke.",
     archiveDecision: "Arhiviranje ove stavke traži poseban proizvodni contract. Skriveno brisanje ili ponovno korišćenje statusa se ne radi.",
+    temporaryPassword: "Privremena lozinka",
+    showPassword: "Prikaži",
+    copyPassword: "Kopiraj lozinku",
+    ownerCreated: "Vlasnik je kreiran. Lozinka se prikazuje samo jednom.",
+    ownerName: "Ime vlasnika",
+    ownerEmail: "Email",
+    ownerPhone: "Telefon / WhatsApp",
+    ownerLanguage: "Jezik",
+    adminNote: "Administratorska napomena",
+    documentType: "Tip dokumenta",
+    passport: "Pasoš",
+    identity: "Lična karta",
+    chooseFile: "Izaberite fajl",
+    upload: "Otpremi",
     noRawJson: "Tehnički detalji su sakriveni",
     mediaPrivacy: "Dokumenti vlasnika dostupni su samo u odjeljku Dokumenti.",
     filters: {
@@ -396,6 +452,14 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [ownerForm, setOwnerForm] = useState({ name: "", email: "", phone: "", preferred_language: lang, notes: "" });
+  const [oneTimePassword, setOneTimePassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [uploadType, setUploadType] = useState<"passport" | "identity">("passport");
+  const [uploadTarget, setUploadTarget] = useState("");
+  const [uploadRelationField, setUploadRelationField] = useState("cover");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (entity !== "media") return;
@@ -478,6 +542,89 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
     }
   }
 
+  async function runCreateOwner() {
+    setSaving(true);
+    setMessage(null);
+    setOneTimePassword("");
+    try {
+      const response = await fetch(ADMIN_CRUD_ROUTES.owner, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          fields: {
+            name: ownerForm.name,
+            email: ownerForm.email,
+            phone: ownerForm.phone,
+            whatsapp_number: ownerForm.phone,
+            preferred_language: ownerForm.preferred_language,
+            notes: ownerForm.notes,
+          },
+          idempotencyKey: `owner:create:${ownerForm.email.trim().toLowerCase()}`,
+        }),
+      });
+      const json = await response.json().catch(() => null) as { temporaryPassword?: string; code?: string } | null;
+      if (!response.ok || !json?.temporaryPassword) {
+        setMessage(json?.code ?? ui.failed);
+        return;
+      }
+      setOneTimePassword(json.temporaryPassword);
+      setPasswordVisible(false);
+      setMessage(ui.ownerCreated);
+      await onRefresh();
+    } catch {
+      setMessage(ui.failed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function closeCreateOwner() {
+    setCreateOpen(false);
+    setOneTimePassword("");
+    setPasswordVisible(false);
+  }
+
+  async function copyOneTimePassword() {
+    if (!oneTimePassword) return;
+    await navigator.clipboard.writeText(oneTimePassword);
+  }
+
+  async function runUpload() {
+    if (!uploadFile) return;
+    setSaving(true);
+    setMessage(null);
+    const formData = new FormData();
+    formData.set("file", uploadFile);
+    formData.set("idempotencyKey", `${entity}:upload:${Date.now()}`);
+    if (entity === "document") {
+      formData.set("ownerProfileId", uploadTarget);
+      formData.set("documentType", uploadType);
+      formData.set("field", uploadType === "passport" ? "passport_document" : "identity_document");
+      formData.set("replaceExisting", "true");
+    }
+    if (entity === "media") {
+      formData.set("entityType", uploadType === "passport" ? "boat" : "experience");
+      formData.set("entityDocumentId", uploadTarget);
+      formData.set("relationField", uploadRelationField);
+    }
+    try {
+      const response = await fetch(ADMIN_CRUD_ROUTES[entity], { method: "POST", body: formData });
+      const json = await response.json().catch(() => null) as { code?: string } | null;
+      if (!response.ok) {
+        setMessage(json?.code ?? ui.failed);
+        return;
+      }
+      setUploadFile(null);
+      setMessage(ui.saved);
+      await onRefresh();
+    } catch {
+      setMessage(ui.failed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const deletePhrase = pending ? REQUIRED_CONFIRMATION_PHRASES[pending.entity] : "";
   const canConfirm = !pending || pending.action !== "delete" || confirmation === deletePhrase;
   const filters = ui.filters as Record<string, string>;
@@ -515,7 +662,39 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       {entity === "media" ? <p className="admin-muted">{ui.mediaPrivacy}</p> : null}
 
       <div className="crud-actions-row">
-        <button type="button" disabled={entity === "owner"}>{actionLabel(ui, entity, "create")}</button>
+        {entity === "owner" ? (
+          <button type="button" onClick={() => setCreateOpen(true)}>{ui.createOwner}</button>
+        ) : entity === "document" || entity === "media" ? (
+          <>
+            <label>
+              <span>{entity === "document" ? ui.documentType : ui.fields.status}</span>
+              <select value={uploadType} onChange={(event) => setUploadType(event.target.value === "identity" ? "identity" : "passport")}>
+                <option value="passport">{entity === "document" ? ui.passport : "Boat"}</option>
+                <option value="identity">{entity === "document" ? ui.identity : "Experience"}</option>
+              </select>
+            </label>
+            <label>
+              <span>{entity === "document" ? ui.fields.owner : ui.fields.status}</span>
+              <input value={uploadTarget} onChange={(event) => setUploadTarget(event.target.value)} />
+            </label>
+            {entity === "media" ? (
+              <label>
+                <span>{ui.replaceMedia}</span>
+                <select value={uploadRelationField} onChange={(event) => setUploadRelationField(event.target.value)}>
+                  <option value="cover">cover</option>
+                  <option value="images">gallery/images</option>
+                </select>
+              </label>
+            ) : null}
+            <label>
+              <span>{ui.chooseFile}</span>
+              <input type="file" accept={entity === "document" ? "application/pdf,image/jpeg,image/png,image/webp" : "image/jpeg,image/png,image/webp"} onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
+            </label>
+            <button type="button" disabled={!uploadFile || !uploadTarget || saving} onClick={() => void runUpload()}>{saving ? ui.loading : ui.upload}</button>
+          </>
+        ) : (
+          <button type="button">{actionLabel(ui, entity, "create")}</button>
+        )}
       </div>
 
       <div className="admin-list">
@@ -548,6 +727,13 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
                   <>
                     <button type="button" onClick={() => openAction(row, "unpublish")}>{ui.unpublish}</button>
                     <button type="button" onClick={() => openAction(row, "archive")}>{ui.archive}</button>
+                    <button type="button" onClick={() => openAction(row, "restore")}>{ui.restore}</button>
+                  </>
+                ) : null}
+                {entity === "owner" ? (
+                  <>
+                    <button type="button" onClick={() => openAction(row, "archive")}>{ui.archive}</button>
+                    <button type="button" onClick={() => openAction(row, "restore")}>{ui.restore}</button>
                   </>
                 ) : null}
                 {entity === "document" ? (
@@ -585,6 +771,48 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
             <button type="button" onClick={() => setPending(null)}>{ui.previous}</button>
             <button type="button" disabled={!canConfirm || saving} onClick={() => void runPendingAction()}>
               {saving ? ui.loading : actionLabel(ui, pending.entity, pending.action)}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {createOpen && entity === "owner" ? (
+        <div className="crud-dialog" role="dialog" aria-modal="true" aria-label={ui.createOwner}>
+          <h2>{ui.createOwner}</h2>
+          <label><span>{ui.ownerName}</span><input value={ownerForm.name} onChange={(event) => setOwnerForm((value) => ({ ...value, name: event.target.value }))} /></label>
+          <label><span>{ui.ownerEmail}</span><input value={ownerForm.email} onChange={(event) => setOwnerForm((value) => ({ ...value, email: event.target.value }))} /></label>
+          <label><span>{ui.ownerPhone}</span><input value={ownerForm.phone} onChange={(event) => setOwnerForm((value) => ({ ...value, phone: event.target.value }))} /></label>
+          <label>
+            <span>{ui.ownerLanguage}</span>
+            <select
+              value={ownerForm.preferred_language}
+              onChange={(event) =>
+                setOwnerForm((value) => ({
+                  ...value,
+                  preferred_language: event.target.value as "ru" | "en" | "me",
+                }))
+              }
+            >
+              <option value="ru">RU</option>
+              <option value="en">EN</option>
+              <option value="me">ME</option>
+            </select>
+          </label>
+          <label><span>{ui.adminNote}</span><input value={ownerForm.notes} onChange={(event) => setOwnerForm((value) => ({ ...value, notes: event.target.value }))} /></label>
+          {oneTimePassword ? (
+            <div className="admin-card">
+              <strong>{ui.temporaryPassword}</strong>
+              <input readOnly type={passwordVisible ? "text" : "password"} value={oneTimePassword} />
+              <div className="crud-row-actions">
+                <button type="button" onClick={() => setPasswordVisible((value) => !value)}>{ui.showPassword}</button>
+                <button type="button" onClick={() => void copyOneTimePassword()}>{ui.copyPassword}</button>
+              </div>
+            </div>
+          ) : null}
+          <div className="crud-row-actions">
+            <button type="button" onClick={closeCreateOwner}>{ui.previous}</button>
+            <button type="button" disabled={saving || !ownerForm.name || !ownerForm.email || !ownerForm.phone} onClick={() => void runCreateOwner()}>
+              {saving ? ui.loading : ui.createOwner}
             </button>
           </div>
         </div>

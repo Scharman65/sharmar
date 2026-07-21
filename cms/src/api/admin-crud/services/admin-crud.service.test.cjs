@@ -17,11 +17,15 @@ test("admin CRUD service is entity-whitelisted and not a universal Strapi writer
   assert.doesNotMatch(source + routes, /write-anything|arbitrary|collectionUID|uidFromBrowser/i);
 });
 
-test("admin CRUD service fails closed for owner create and unsupported restore/archive", () => {
-  assert.ok(source.includes("owner_account_creation_decision_required"));
-  assert.ok(source.includes("archive_schema_decision_required"));
-  assert.ok(source.includes("ARCHIVE_SCHEMA_DECISION_REQUIRED"));
-  assert.ok(source.includes("OWNER_ACCOUNT_CREATION_DECISION_REQUIRED"));
+test("admin CRUD service creates owners with forced password change and supports true archive/restore", () => {
+  assert.ok(source.includes("createOwner"));
+  assert.ok(source.includes("generateTemporaryPassword"));
+  assert.ok(source.includes("must_change_password"));
+  assert.ok(source.includes("oneTimeSecret"));
+  assert.ok(source.includes("data.archived_at = new Date().toISOString()"));
+  assert.ok(source.includes("data.archived_at = null"));
+  assert.ok(source.includes("archive_blocked_by_dependencies"));
+  assert.doesNotMatch(source, /temporaryPassword.*metadata|password.*metadata/i);
 });
 
 test("admin CRUD controller requires internal token and write flag", () => {
@@ -38,6 +42,17 @@ test("delete safety protects bookings, payments, provider events, and shared med
   assert.ok(source.includes("dodoEvents"));
   assert.ok(source.includes("shared_media_present"));
   assert.ok(source.includes("mediaUsageCount"));
+});
+
+test("document and media uploads are attached through whitelisted relation fields", () => {
+  assert.ok(source.includes("attachDocument"));
+  assert.ok(source.includes("attachMedia"));
+  assert.ok(source.includes("documentField"));
+  assert.ok(source.includes("mediaRelationField"));
+  assert.ok(source.includes("passport_document"));
+  assert.ok(source.includes("identity_document"));
+  assert.ok(source.includes("api::owner-profile.owner-profile"));
+  assert.doesNotMatch(source, /fieldNameFromBrowser|filesystem path|wildcard/i);
 });
 
 test("audit events are created without storing secret values", () => {

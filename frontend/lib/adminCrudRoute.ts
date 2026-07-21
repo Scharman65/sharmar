@@ -7,6 +7,9 @@ import {
 } from "@/lib/adminCrudContracts";
 
 const MAX_BODY_BYTES = 48 * 1024;
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const DOCUMENT_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+const MEDIA_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 type RouteParams = Promise<Record<string, string>> | Record<string, string>;
 
@@ -25,6 +28,15 @@ function internalAdminToken(): string {
   return String(
     process.env.ADMIN_MODERATION_INTERNAL_TOKEN ||
       process.env.ADMIN_TRANSLATION_INTERNAL_TOKEN ||
+      ""
+  ).trim();
+}
+
+function strapiUploadToken(): string {
+  return String(
+    process.env.STRAPI_WRITE_TOKEN ||
+      process.env.STRAPI_TOKEN ||
+      process.env.ADMIN_MODERATION_INTERNAL_TOKEN ||
       ""
   ).trim();
 }
@@ -82,6 +94,52 @@ async function forwardToCms(path: string, init: RequestInit = {}) {
   }
 }
 
+function formString(formData: FormData, key: string): string | null {
+  const value = formData.get(key);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function validateUploadFile(file: File, allowedMimeTypes: Set<string>): { ok: true } | { ok: false; code: string } {
+  if (file.size <= 0) return { ok: false, code: "upload_empty_file" };
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, code: "upload_file_too_large" };
+  if (!allowedMimeTypes.has(file.type)) return { ok: false, code: "upload_mime_not_allowed" };
+  if (/\.svg$/i.test(file.name)) return { ok: false, code: "upload_svg_not_allowed" };
+  return { ok: true };
+}
+
+async function uploadFileToStrapi(file: File): Promise<{ ok: true; file: Record<string, unknown> } | { ok: false; response: NextResponse }> {
+  const token = strapiUploadToken();
+  if (!token) return { ok: false, response: json({ ok: false, code: "admin_upload_token_missing" }, 503) };
+
+  const upload = new FormData();
+  upload.append("files", file, file.name);
+
+  try {
+    const response = await fetch(`${getStrapiBase()}/api/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: upload,
+      cache: "no-store",
+    });
+    const text = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = null;
+    }
+    const uploadedFile = Array.isArray(parsed) && typeof parsed[0] === "object" && parsed[0] !== null
+      ? parsed[0] as Record<string, unknown>
+      : null;
+    if (!response.ok || !uploadedFile) {
+      return { ok: false, response: json({ ok: false, code: "admin_upload_failed" }, response.ok ? 502 : response.status) };
+    }
+    return { ok: true, file: uploadedFile };
+  } catch {
+    return { ok: false, response: json({ ok: false, code: "admin_upload_unreachable" }, 502) };
+  }
+}
+
 function actor() {
   return String(process.env.ADMIN_MODERATION_ACTOR || "").trim().slice(0, 160) || "sharmar-admin";
 }
@@ -106,6 +164,64 @@ export async function handleAdminCrudList(req: NextRequest, entity: AdminCrudEnt
   }
 
   const parsed = validateAdminCrudPayload(entity, body as Record<string, unknown>, "create");
+  if (!parsed.ok) return json({ ok: false, code: parsed.code, fields: parsed.fields }, 400);
+
+  return forwardToCms(`/api/admin-crud/${entity}`, {
+    method: "POST",
+    body: JSON.stringify({ ...parsed, actor: actor() }),
+  });
+}
+
+export async function handleAdminCrudUpload(req: NextRequest, entity: "document" | "media") {
+  const session = await requireAdminSession("moderation");
+  if (!session) return json({ ok: false, code: "unauthorized" }, 401);
+  if (!sameOriginRequest(req)) return json({ ok: false, code: "csrf_check_failed" }, 403);
+  if (process.env.ADMIN_MODERATION_WRITE_ENABLED !== "true") {
+    return json({ ok: false, code: "write_not_enabled" }, 403);
+  }
+
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return json({ ok: false, code: "invalid_multipart" }, 400);
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) return json({ ok: false, code: "upload_file_required" }, 400);
+
+  const validation = validateUploadFile(file, entity === "document" ? DOCUMENT_MIME_TYPES : MEDIA_MIME_TYPES);
+  if (!validation.ok) return json({ ok: false, code: validation.code }, 400);
+
+  const uploaded = await uploadFileToStrapi(file);
+  if (!uploaded.ok) return uploaded.response;
+
+  const uploadedId = uploaded.file.id;
+  const fields = entity === "document"
+    ? {
+        ownerProfileId: formString(formData, "ownerProfileId"),
+        documentType: formString(formData, "documentType"),
+        field: formString(formData, "field"),
+        replaceExisting: formData.get("replaceExisting") === "true",
+        mediaId: uploadedId,
+      }
+    : {
+        entityType: formString(formData, "entityType"),
+        entityDocumentId: formString(formData, "entityDocumentId"),
+        relationField: formString(formData, "relationField"),
+        mediaId: uploadedId,
+      };
+
+  const parsed = validateAdminCrudPayload(
+    entity,
+    {
+      action: entity === "document" ? "attach_document" : "attach_document",
+      fields,
+      expectedUpdatedAt: formString(formData, "expectedUpdatedAt"),
+      idempotencyKey: formString(formData, "idempotencyKey"),
+    },
+    "create"
+  );
   if (!parsed.ok) return json({ ok: false, code: parsed.code, fields: parsed.fields }, 400);
 
   return forwardToCms(`/api/admin-crud/${entity}`, {

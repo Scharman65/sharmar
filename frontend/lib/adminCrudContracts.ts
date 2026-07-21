@@ -38,7 +38,6 @@ export type AdminCrudValidationResult =
         | "field_not_allowed"
         | "confirmation_phrase_required"
         | "archive_schema_decision_required"
-        | "owner_account_creation_decision_required"
         | "stale_version_required";
       fields?: string[];
       expectedPhrase?: string;
@@ -52,8 +51,9 @@ export const ADMIN_CRUD_ENTITIES: AdminCrudEntity[] = [
   "media",
 ];
 
-export const ARCHIVE_SCHEMA_DECISION_REQUIRED = true;
-export const OWNER_ACCOUNT_CREATION_DECISION_REQUIRED = true;
+export const ARCHIVE_SCHEMA_DECISION_REQUIRED = false;
+export const OWNER_ACCOUNT_CREATION_DECISION_REQUIRED = false;
+export const DOCUMENT_REQUIREMENT_DECISION = "PASSPORT_OR_ID";
 
 export const ADMIN_CRUD_ROUTES = {
   owner: "/api/admin/owners",
@@ -73,6 +73,8 @@ export const REQUIRED_CONFIRMATION_PHRASES = {
 
 export const ALLOWED_ADMIN_FIELDS = {
   owner: [
+    "name",
+    "email",
     "first_name",
     "last_name",
     "phone",
@@ -81,6 +83,7 @@ export const ALLOWED_ADMIN_FIELDS = {
     "preferred_language",
     "company_name",
     "notes",
+    "moderation_notes",
   ],
   document: [
     "ownerProfileId",
@@ -88,6 +91,7 @@ export const ALLOWED_ADMIN_FIELDS = {
     "documentType",
     "field",
     "notes",
+    "replaceExisting",
   ],
   boat: [
     "title",
@@ -120,6 +124,7 @@ export const ALLOWED_ADMIN_FIELDS = {
     "owner_user_id",
     "owner_profile_id",
     "moderation_comment",
+    "archived_at",
   ],
   experience: [
     "title",
@@ -138,12 +143,17 @@ export const ALLOWED_ADMIN_FIELDS = {
     "gallery",
     "boat",
     "boatDocumentId",
+    "archived_at",
   ],
   media: [
     "name",
     "alternativeText",
     "caption",
     "folder",
+    "entityType",
+    "entityDocumentId",
+    "relationField",
+    "mediaId",
   ],
 } satisfies Record<AdminCrudEntity, string[]>;
 
@@ -194,11 +204,11 @@ export function isDestructiveAction(action: AdminCrudAction): boolean {
 }
 
 export function archiveSupported(entity: AdminCrudEntity): boolean {
-  return entity === "boat" || entity === "experience";
+  return entity === "owner" || entity === "boat" || entity === "experience";
 }
 
-export function restoreSupported(): boolean {
-  return false;
+export function restoreSupported(entity: AdminCrudEntity): boolean {
+  return archiveSupported(entity);
 }
 
 export function allowedFieldsForEntity(entity: AdminCrudEntity): string[] {
@@ -239,12 +249,8 @@ export function validateAdminCrudPayload(
     return { ok: false, code: "archive_schema_decision_required" };
   }
 
-  if (action === "restore" && !restoreSupported()) {
+  if (action === "restore" && !restoreSupported(entity)) {
     return { ok: false, code: "archive_schema_decision_required" };
-  }
-
-  if (entity === "owner" && action === "create") {
-    return { ok: false, code: "owner_account_creation_decision_required" };
   }
 
   const fields = raw.fields === undefined ? {} : raw.fields;
@@ -255,7 +261,7 @@ export function validateAdminCrudPayload(
   if (denied.length) return { ok: false, code: "field_not_allowed", fields: denied.sort() };
 
   const expectedUpdatedAt = cleanString(raw.expectedUpdatedAt, 80);
-  if ((action === "update" || action === "delete") && !expectedUpdatedAt) {
+  if ((action === "update" || action === "delete" || action === "archive" || action === "restore") && !expectedUpdatedAt) {
     return { ok: false, code: "stale_version_required" };
   }
 

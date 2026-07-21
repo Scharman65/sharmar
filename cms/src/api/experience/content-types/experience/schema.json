@@ -94,6 +94,10 @@
       "type": "boolean",
       "default": true
     },
+    "archived_at": {
+      "type": "datetime",
+      "required": false
+    },
     "cover": {
       "type": "media",
       "multiple": false,

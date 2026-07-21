@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
 
   if (!currentPassword) return jsonError("current_password_required", 400);
   if (password !== confirmPassword) return jsonError("password_mismatch", 400);
+  if (password === currentPassword) return jsonError("password_reuse_rejected", 400);
 
   const passwordValidation = validateOwnerPassword(password);
   if (!passwordValidation.ok) return jsonError(passwordValidation.code, 400);

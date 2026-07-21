@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 type AdminCrudEntity = "owner" | "document" | "boat" | "experience" | "media";
 type AdminCrudAction =
   | "create"
@@ -22,8 +24,10 @@ type CrudInput = {
   confirmationPhrase?: string | null;
 };
 
-const ARCHIVE_SCHEMA_DECISION_REQUIRED = true;
-const OWNER_ACCOUNT_CREATION_DECISION_REQUIRED = true;
+const ARCHIVE_SCHEMA_DECISION_REQUIRED = false;
+const OWNER_ACCOUNT_CREATION_DECISION_REQUIRED = false;
+const DOCUMENT_REQUIREMENT_DECISION = "PASSPORT_OR_ID";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const ENTITY_CONFIG = {
   owner: {
@@ -31,6 +35,8 @@ const ENTITY_CONFIG = {
     idKind: "numeric",
     confirmationPhrase: "УДАЛИТЬ ВЛАДЕЛЬЦА",
     fields: [
+      "name",
+      "email",
       "first_name",
       "last_name",
       "phone",
@@ -39,13 +45,14 @@ const ENTITY_CONFIG = {
       "preferred_language",
       "company_name",
       "notes",
+      "moderation_notes",
     ],
   },
   document: {
     uid: "plugin::upload.file",
     idKind: "numeric",
     confirmationPhrase: "УДАЛИТЬ ДОКУМЕНТ",
-    fields: ["ownerProfileId", "mediaId", "documentType", "field", "notes"],
+    fields: ["ownerProfileId", "mediaId", "documentType", "field", "notes", "replaceExisting"],
   },
   boat: {
     uid: "api::boat.boat",
@@ -82,6 +89,7 @@ const ENTITY_CONFIG = {
       "owner_user_id",
       "owner_profile_id",
       "moderation_comment",
+      "archived_at",
     ],
   },
   experience: {
@@ -105,13 +113,14 @@ const ENTITY_CONFIG = {
       "gallery",
       "boat",
       "boatDocumentId",
+      "archived_at",
     ],
   },
   media: {
     uid: "plugin::upload.file",
     idKind: "numeric",
     confirmationPhrase: "УДАЛИТЬ ФАЙЛ",
-    fields: ["name", "alternativeText", "caption", "folder"],
+    fields: ["name", "alternativeText", "caption", "folder", "entityType", "entityDocumentId", "relationField", "mediaId"],
   },
 } satisfies Record<AdminCrudEntity, {
   uid: string;
@@ -191,13 +200,100 @@ function staleVersionMatches(row: JsonObject | null, expectedUpdatedAt: string |
 
 function buildModerationUpdate(entity: AdminCrudEntity, action: AdminCrudAction, fields: JsonObject): JsonObject {
   const data = { ...fields };
-  if (entity === "boat" && action === "archive") {
-    data.moderation_status = "archived";
+  if ((entity === "owner" || entity === "boat" || entity === "experience") && action === "archive") {
+    data.archived_at = new Date().toISOString();
   }
-  if (entity === "experience" && (action === "archive" || action === "unpublish")) {
+  if ((entity === "owner" || entity === "boat" || entity === "experience") && action === "restore") {
+    data.archived_at = null;
+  }
+  if (entity === "experience" && action === "unpublish") {
     data.is_active = false;
   }
   return data;
+}
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return EMAIL_RE.test(email) ? email : null;
+}
+
+function ownerNameParts(fields: JsonObject): { firstName: string; lastName: string } | null {
+  const explicitFirst = asString(fields.first_name);
+  const explicitLast = asString(fields.last_name);
+  if (explicitFirst && explicitLast) return { firstName: explicitFirst, lastName: explicitLast };
+  const name = asString(fields.name);
+  if (!name) return null;
+  const parts = name.split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? name,
+    lastName: parts.slice(1).join(" ") || "Owner",
+  };
+}
+
+function preferredLanguage(value: unknown): "en" | "ru" | "me" {
+  return value === "ru" || value === "me" || value === "en" ? value : "en";
+}
+
+function generateTemporaryPassword(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const userService = strapi.plugin("users-permissions").service("user");
+  const values = await userService.ensureHashedPasswords({ password });
+  return values.password;
+}
+
+function documentField(value: unknown): "passport_document" | "identity_document" | null {
+  if (value === "passport_document" || value === "passport") return "passport_document";
+  if (value === "identity_document" || value === "identity") return "identity_document";
+  return null;
+}
+
+function mediaRelationField(entityType: unknown, field: unknown): string | null {
+  if (entityType === "boat" && (field === "cover" || field === "images")) return field;
+  if (entityType === "experience" && (field === "cover" || field === "gallery")) return field;
+  return null;
+}
+
+async function unlinkMediaRelation(trx: any, fileId: number, relatedId: number, relatedType: string, field: string) {
+  await trx.raw(
+    `
+    delete from public.files_related_mph
+    where file_id = ?
+      and related_id = ?
+      and related_type = ?
+      and field = ?
+    `,
+    [fileId, relatedId, relatedType, field]
+  );
+}
+
+async function attachMediaRelation(trx: any, fileId: number, relatedId: number, relatedType: string, field: string) {
+  await trx.raw(
+    `
+    delete from public.files_related_mph
+    where related_id = ?
+      and related_type = ?
+      and field = ?
+      and field in ('passport_document', 'identity_document', 'cover')
+    `,
+    [relatedId, relatedType, field]
+  );
+  await trx.raw(
+    `
+    insert into public.files_related_mph (
+      file_id,
+      related_id,
+      related_type,
+      field,
+      "order"
+    )
+    values (?, ?, ?, ?, 1)
+    `,
+    [fileId, relatedId, relatedType, field]
+  );
 }
 
 async function safeCount(sql: string, bindings: unknown[] = []): Promise<number | null> {
@@ -259,12 +355,54 @@ async function findOne(entity: AdminCrudEntity, id: string) {
 
 async function findMany(entity: AdminCrudEntity) {
   const config = ENTITY_CONFIG[entity];
-  if (entity === "media" || entity === "document") {
-    return strapi.db.query("plugin::upload.file").findMany({
-      select: ["id", "name", "url", "mime", "size", "createdAt", "updatedAt"],
-      orderBy: { updatedAt: "desc" },
-      limit: 100,
-    });
+  if (entity === "document") {
+    const result = await strapi.db.connection.raw(
+      `
+      select distinct
+        f.id,
+        f.name,
+        f.url,
+        f.mime,
+        f.size,
+        f.created_at as "createdAt",
+        f.updated_at as "updatedAt",
+        frm.field,
+        frm.related_id as "ownerProfileId"
+      from public.files f
+      join public.files_related_mph frm
+        on frm.file_id = f.id
+      where frm.related_type = 'api::owner-profile.owner-profile'
+        and frm.field in ('passport_document', 'identity_document')
+      order by f.updated_at desc nulls last, f.id desc
+      limit 100
+      `
+    );
+    return rawRows(result);
+  }
+  if (entity === "media") {
+    const result = await strapi.db.connection.raw(
+      `
+      select distinct
+        f.id,
+        f.name,
+        f.url,
+        f.mime,
+        f.size,
+        f.created_at as "createdAt",
+        f.updated_at as "updatedAt"
+      from public.files f
+      where not exists (
+        select 1
+        from public.files_related_mph frm
+        where frm.file_id = f.id
+          and frm.related_type = 'api::owner-profile.owner-profile'
+          and frm.field in ('passport_document', 'identity_document', 'license_document')
+      )
+      order by f.updated_at desc nulls last, f.id desc
+      limit 100
+      `
+    );
+    return rawRows(result);
   }
   return strapi.db.query(config.uid).findMany({
     orderBy: { updatedAt: "desc" },
@@ -331,7 +469,7 @@ async function evaluateDependencies(entity: AdminCrudEntity, id: string) {
   if (sharedMediaCount > 0) blockingReasons.push("shared_media_present");
 
   const canDelete = blockingReasons.length === 0;
-  const canArchive = entity === "boat" || entity === "experience";
+  const canArchive = entity === "owner" || entity === "boat" || entity === "experience";
 
   return {
     canDelete,
@@ -359,6 +497,215 @@ async function validateExperienceBoat(fields: JsonObject) {
   return { ok: true };
 }
 
+async function createOwner(fields: JsonObject, input: CrudInput & { action: AdminCrudAction; fields: JsonObject; actor: string }) {
+  const email = normalizeEmail(fields.email);
+  const names = ownerNameParts(fields);
+  const whatsappNumber = asString(fields.whatsapp_number ?? fields.phone);
+  if (!email || !names || !whatsappNumber) {
+    return { status: 400, body: { ok: false, code: "invalid_owner_create_fields" } };
+  }
+
+  const existing = await strapi.db.connection.raw(
+    "select id from public.up_users where lower(email) = lower(?) or lower(username) = lower(?) limit 1",
+    [email, email]
+  );
+  if (existing?.rows?.length) return { status: 409, body: { ok: false, code: "duplicate_email" } };
+
+  const temporaryPassword = generateTemporaryPassword();
+  const hashedPassword = await hashPassword(temporaryPassword);
+  const now = new Date().toISOString();
+
+  const result = await strapi.db.connection.transaction(async (trx) => {
+    const userRows = await trx.raw(
+      `
+      insert into public.up_users (
+        document_id,
+        username,
+        email,
+        provider,
+        password,
+        confirmed,
+        blocked,
+        must_change_password,
+        created_at,
+        updated_at,
+        published_at
+      )
+      values (?, ?, ?, 'local', ?, true, false, true, ?::timestamptz, ?::timestamptz, ?::timestamptz)
+      returning id, document_id as "documentId", email, username, must_change_password
+      `,
+      [`owner-user-${randomBytes(10).toString("hex")}`, email, email, hashedPassword, now, now, now]
+    );
+    const user = userRows?.rows?.[0];
+    if (!user?.id) throw Object.assign(new Error("owner_user_create_failed"), { status: 500 });
+
+    const profileRows = await trx.raw(
+      `
+      insert into public.owner_profiles (
+        document_id,
+        first_name,
+        last_name,
+        phone,
+        whatsapp_number,
+        country,
+        preferred_language,
+        email_verified,
+        whatsapp_verified,
+        verification_status,
+        notes,
+        session_version,
+        created_at,
+        updated_at,
+        published_at
+      )
+      values (?, ?, ?, nullif(?, ''), ?, nullif(?, ''), ?, false, false, 'new', nullif(?, ''), 0, ?::timestamptz, ?::timestamptz, ?::timestamptz)
+      returning id, document_id as "documentId", first_name, last_name, preferred_language, verification_status, created_at, updated_at
+      `,
+      [
+        `owner-profile-user-${user.id}`,
+        names.firstName,
+        names.lastName,
+        asString(fields.phone) ?? "",
+        whatsappNumber,
+        asString(fields.country) ?? "",
+        preferredLanguage(fields.preferred_language),
+        asString(fields.notes ?? fields.moderation_notes) ?? "",
+        now,
+        now,
+        now,
+      ]
+    );
+    const profile = profileRows?.rows?.[0];
+    if (!profile?.id) throw Object.assign(new Error("owner_profile_create_failed"), { status: 500 });
+
+    await trx.raw(
+      "insert into public.owner_profiles_user_lnk (owner_profile_id, user_id) values (?, ?)",
+      [profile.id, user.id]
+    );
+
+    return { user, profile };
+  });
+
+  await createAuditEvent({
+    entity: "owner",
+    identifier: Number(result.profile.id),
+    action: "owner_created",
+    previousStatus: "missing",
+    newStatus: "new",
+    actor: input.actor,
+    changedFieldNames: ["first_name", "last_name", "preferred_language"],
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  return {
+    status: 201,
+    body: {
+      ok: true,
+      entity: "owner",
+      row: result.profile,
+      oneTimeSecret: true,
+      temporaryPassword,
+    },
+  };
+}
+
+async function attachDocument(fields: JsonObject, input: CrudInput & { action: AdminCrudAction; fields: JsonObject; actor: string }) {
+  const ownerProfileId = asNumber(fields.ownerProfileId);
+  const mediaId = asNumber(fields.mediaId);
+  const field = documentField(fields.field ?? fields.documentType);
+  if (!ownerProfileId || !mediaId || !field) {
+    return { status: 400, body: { ok: false, code: "invalid_document_attach_fields" } };
+  }
+
+  const owner = await strapi.db.query("api::owner-profile.owner-profile").findOne({ where: { id: ownerProfileId } });
+  if (!owner) return { status: 404, body: { ok: false, code: "owner_profile_not_found" } };
+  if (asString((owner as JsonObject).archived_at)) return { status: 409, body: { ok: false, code: "owner_archived" } };
+
+  const previousRows = await strapi.db.connection.raw(
+    `
+    select file_id
+    from public.files_related_mph
+    where related_type = 'api::owner-profile.owner-profile'
+      and related_id = ?
+      and field = ?
+    order by "order" asc, id asc
+    `,
+    [ownerProfileId, field]
+  );
+  const previousIds = rawRows(previousRows).map((row) => asNumber(row.file_id)).filter((id): id is number => id !== null);
+
+  await strapi.db.connection.transaction(async (trx) => {
+    await attachMediaRelation(trx, mediaId, ownerProfileId, "api::owner-profile.owner-profile", field);
+    await trx.raw(
+      `
+      update public.owner_profiles
+      set
+        documents_uploaded_at = coalesce(documents_uploaded_at, now()),
+        verification_status = case
+          when verification_status in ('approved', 'blocked') then verification_status
+          else 'documents_uploaded'
+        end,
+        updated_at = now()
+      where id = ?
+      `,
+      [ownerProfileId]
+    );
+  });
+
+  for (const oldId of previousIds.filter((id) => id !== mediaId)) {
+    const usage = await mediaUsageCount(oldId);
+    if (usage === 0) {
+      const oldFile = await strapi.db.query("plugin::upload.file").findOne({ where: { id: oldId } });
+      if (oldFile) await strapi.plugin("upload").service("upload").remove(oldFile);
+    }
+  }
+
+  await createAuditEvent({
+    entity: "document",
+    identifier: mediaId,
+    action: previousIds.length ? "document_replaced" : "document_added",
+    previousStatus: previousIds.length ? "existing" : "missing",
+    newStatus: "documents_uploaded",
+    actor: input.actor,
+    changedFieldNames: [field],
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  return { status: 200, body: { ok: true, entity: "document", attached: true, ownerProfileId, field } };
+}
+
+async function attachMedia(fields: JsonObject, input: CrudInput & { action: AdminCrudAction; fields: JsonObject; actor: string }) {
+  const mediaId = asNumber(fields.mediaId);
+  const entityType = asEntity(fields.entityType);
+  const documentId = asString(fields.entityDocumentId);
+  const relationField = mediaRelationField(fields.entityType, fields.relationField);
+  if (!mediaId) return { status: 400, body: { ok: false, code: "invalid_media_id" } };
+  if (!entityType || !(entityType === "boat" || entityType === "experience") || !documentId || !relationField) {
+    return { status: 400, body: { ok: false, code: "invalid_media_relation" } };
+  }
+  const row = await strapi.db.query(ENTITY_CONFIG[entityType].uid).findOne({ where: { documentId } });
+  if (!row) return { status: 404, body: { ok: false, code: "entity_not_found" } };
+  const relatedId = asNumber((row as JsonObject).id);
+  if (!relatedId) return { status: 409, body: { ok: false, code: "entity_id_missing" } };
+
+  await strapi.db.connection.transaction(async (trx) => {
+    await attachMediaRelation(trx, mediaId, relatedId, ENTITY_CONFIG[entityType].uid, relationField);
+  });
+
+  await createAuditEvent({
+    entity: "media",
+    identifier: mediaId,
+    action: "media_attached",
+    previousStatus: "missing",
+    newStatus: "attached",
+    actor: input.actor,
+    changedFieldNames: [relationField],
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  return { status: 200, body: { ok: true, entity: "media", attached: true } };
+}
+
 export default {
   async list(entityValue: unknown) {
     const entity = asEntity(entityValue);
@@ -384,13 +731,13 @@ export default {
   async create(entityValue: unknown, rawInput: unknown) {
     const entity = asEntity(entityValue);
     if (!entity) return { status: 400, body: { ok: false, code: "invalid_entity_type" } };
-    if (entity === "owner") {
-      return { status: 409, body: { ok: false, code: "owner_account_creation_decision_required", OWNER_ACCOUNT_CREATION_DECISION_REQUIRED } };
-    }
     const normalized = normalizeInput(rawInput, "create");
     if (!normalized.ok) return normalized;
     const picked = pickAllowed(entity, normalized.input.fields);
     if (picked.ok !== true) return { status: 400, body: { ok: false, code: picked.code, fields: picked.fields } };
+    if (entity === "owner") return createOwner(picked.data, normalized.input);
+    if (entity === "document") return attachDocument(picked.data, normalized.input);
+    if (entity === "media" && asNumber(picked.data.mediaId)) return attachMedia(picked.data, normalized.input);
     if (entity === "experience") {
       const boatCheck = await validateExperienceBoat(picked.data);
       if (!boatCheck.ok) return { status: 409, body: { ok: false, code: boatCheck.code } };
@@ -418,11 +765,18 @@ export default {
     if (!entity) return { status: 400, body: { ok: false, code: "invalid_entity_type" } };
     const normalized = normalizeInput(rawInput, "update");
     if (!normalized.ok) return normalized;
-    if (normalized.input.action === "archive" && !(entity === "boat" || entity === "experience")) {
+    if (normalized.input.action === "archive" && !(entity === "owner" || entity === "boat" || entity === "experience")) {
       return { status: 409, body: { ok: false, code: "archive_schema_decision_required", ARCHIVE_SCHEMA_DECISION_REQUIRED } };
     }
-    if (normalized.input.action === "restore") {
+    if (normalized.input.action === "restore" && !(entity === "owner" || entity === "boat" || entity === "experience")) {
       return { status: 409, body: { ok: false, code: "archive_schema_decision_required", ARCHIVE_SCHEMA_DECISION_REQUIRED } };
+    }
+    if (normalized.input.action === "archive" && entity === "owner") {
+      const dependencies = await evaluateDependencies(entity, id);
+      const boats = Number(dependencies.dependentCounts.boats ?? 0);
+      if (boats > 0 || dependencies.financialDependency) {
+        return { status: 409, body: { ok: false, code: "archive_blocked_by_dependencies", dependencies } };
+      }
     }
     const before = await findOne(entity, id);
     if (!before) return { status: 404, body: { ok: false, code: "entity_not_found" } };
@@ -440,19 +794,19 @@ export default {
     const row = config.idKind === "numeric"
       ? await strapi.db.query(config.uid).update({ where: { id: Number(id) }, data: updateData })
       : await strapi.documents(config.uid as never).update({ documentId: id, data: updateData });
-    if ((entity === "boat" || entity === "experience") && normalized.input.action === "unpublish") {
+    if ((entity === "boat" || entity === "experience") && (normalized.input.action === "unpublish" || normalized.input.action === "archive")) {
       await (strapi.documents(config.uid as never) as unknown as { unpublish: (params: { documentId: string }) => Promise<unknown> }).unpublish({ documentId: id });
     }
     await createAuditEvent({
       entity,
       identifier: config.idKind === "numeric" ? Number(id) : id,
-      action: normalized.input.action === "unpublish" ? "unpublished" : normalized.input.action === "archive" ? "archived" : "updated",
+      action: normalized.input.action === "restore" ? "restored" : normalized.input.action === "unpublish" ? "unpublished" : normalized.input.action === "archive" ? "archived" : "updated",
       previousStatus: asString((before as JsonObject).moderation_status ?? (before as JsonObject).verification_status ?? (before as JsonObject).publishedAt) ?? "existing",
-      newStatus: normalized.input.action === "unpublish" ? "unpublished" : normalized.input.action === "archive" ? "archived" : "updated",
+      newStatus: normalized.input.action === "restore" ? "restored" : normalized.input.action === "unpublish" ? "unpublished" : normalized.input.action === "archive" ? "archived" : "updated",
       actor: normalized.input.actor,
-      changedFieldNames: normalized.input.action === "archive" && entity === "boat"
-        ? [...picked.changedFieldNames, "moderation_status"]
-        : (normalized.input.action === "archive" || normalized.input.action === "unpublish") && entity === "experience"
+      changedFieldNames: (normalized.input.action === "archive" || normalized.input.action === "restore")
+        ? [...picked.changedFieldNames, "archived_at"]
+        : normalized.input.action === "unpublish" && entity === "experience"
           ? [...picked.changedFieldNames, "is_active"]
           : picked.changedFieldNames,
       idempotencyKey: normalized.input.idempotencyKey,

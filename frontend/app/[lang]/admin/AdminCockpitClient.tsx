@@ -24,7 +24,7 @@ type DashboardData = {
   warnings?: string[];
 };
 
-const DOCUMENT_REQUIREMENT_DECISION_REQUIRED = true;
+const DOCUMENT_REQUIREMENT_DECISION_REQUIRED = false;
 
 const copy = {
   ru: {
@@ -134,7 +134,7 @@ const copy = {
     translationIncomplete: "Перевод не завершён",
     actionDone: "Действие выполнено",
     actionFailed: "Не удалось выполнить действие",
-    documentRuleNeeded: "Нужно продуктово подтвердить: достаточно паспорта или удостоверения личности, либо нужны оба документа.",
+    documentRuleNeeded: "Для проверки достаточно паспорта или удостоверения личности.",
     safeErrors: "Ошибки API показываются без секретов и содержимого документов.",
     sessionOnly: "Пароль не сохраняется в браузере. Используется защищённая сессия.",
   },
@@ -245,7 +245,7 @@ const copy = {
     translationIncomplete: "Translation is incomplete",
     actionDone: "Action completed",
     actionFailed: "Could not complete the action",
-    documentRuleNeeded: "Product decision needed: passport or identity document, or both documents.",
+    documentRuleNeeded: "A passport or an identity document is enough for review.",
     safeErrors: "API errors are shown without secrets or document contents.",
     sessionOnly: "The password is not stored in the browser. A protected session is used.",
   },
@@ -356,7 +356,7 @@ const copy = {
     translationIncomplete: "Prevod nije završen",
     actionDone: "Radnja je izvršena",
     actionFailed: "Radnja nije izvršena",
-    documentRuleNeeded: "Potrebna je odluka: pasoš ili lična karta, ili oba dokumenta.",
+    documentRuleNeeded: "Za provjeru je dovoljan pasoš ili lična karta.",
     safeErrors: "API greške se prikazuju bez tajni i sadržaja dokumenata.",
     sessionOnly: "Lozinka se ne čuva u pregledaču. Koristi se zaštićena sesija.",
   },

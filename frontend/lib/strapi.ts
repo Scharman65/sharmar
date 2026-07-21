@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 const STRAPI_URL = (process.env.STRAPI_URL ?? process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://127.0.0.1:1337").replace(/\/+$/, "");
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN ?? "";
 
@@ -276,6 +278,7 @@ function addExperiencePopulate(qs: string[]) {
   qs.push("populate[experiences][populate][gallery][fields][1]=alternativeText");
   qs.push("populate[experiences][populate][gallery][fields][2]=formats");
   qs.push("populate[experiences][filters][is_active][$eq]=true");
+  qs.push("populate[experiences][filters][archived_at][$null]=true");
   qs.push("populate[experiences][sort][0]=sort_order:asc");
 }
 
@@ -295,6 +298,7 @@ function addDirectExperiencePopulate(qs: string[]) {
   qs.push("populate[gallery][fields][1]=alternativeText");
   qs.push("populate[gallery][fields][2]=formats");
   qs.push("filters[is_active][$eq]=true");
+  qs.push("filters[archived_at][$null]=true");
   qs.push("sort[0]=sort_order:asc");
   qs.push("sort[1]=createdAt:desc");
   qs.push("pagination[pageSize]=20");
@@ -306,6 +310,7 @@ async function fetchExperiencesForBoatDocumentId(
 ): Promise<NonNullable<Boat["experiences"]>> {
   const qs: string[] = [
     `filters[boat][documentId][$eq]=${encodeURIComponent(documentId)}`,
+    "filters[archived_at][$null]=true",
     "locale=all",
     "status=published",
   ];
@@ -321,6 +326,7 @@ async function fetchExperiencesForBoatDocumentId(
 
   const boatQs: string[] = [
     "status=published",
+    "filters[archived_at][$null]=true",
     "pagination[pageSize]=100",
     "sort=documentId:asc",
   ];
@@ -370,6 +376,7 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
     "populate[images][fields][2]=formats",
   ];
   addExperiencePopulate(qs);
+  qs.push("filters[archived_at][$null]=true");
   qs.push("sort=documentId:asc");
   if (filters?.listingType) qs.push(`filters[listing_type][$eq]=${encodeURIComponent(filters.listingType)}`);
   if (filters?.homeMarinaSlug) qs.push(`filters[home_marina][slug][$eq]=${encodeURIComponent(filters.homeMarinaSlug)}`);
@@ -383,6 +390,7 @@ export async function fetchBoats(locale?: string, filters?: BoatFilters): Promis
 export async function fetchBoatBySlug(slug: string, locale?: string): Promise<Boat | null> {
   const qs: string[] = [
     `filters[slug][$eq]=${encodeURIComponent(slug)}`,
+    "filters[archived_at][$null]=true",
     "populate[cover][fields][0]=url",
     "populate[cover][fields][1]=alternativeText",
     "populate[cover][fields][2]=formats",
@@ -428,6 +436,7 @@ export async function fetchBoatsAdvanced(
 ): Promise<Boat[]> {
   const qs: string[] = ["populate[0]=cover", "populate[1]=rate_plans"];
   addExperiencePopulate(qs);
+  qs.push("filters[archived_at][$null]=true");
 
   qs.push("sort=documentId:asc");
 
@@ -474,6 +483,7 @@ export async function fetchFeaturedBoats(
     "populate=*",
     "pagination[pageSize]=" + String(limit),
     "filters[featured_listing][$eq]=true",
+    "filters[archived_at][$null]=true",
     "sort=documentId:asc"
   ];
 

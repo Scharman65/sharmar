@@ -20,7 +20,13 @@ const cmsService = read("../cms/src/api/admin-crud/services/admin-crud.ts");
 const ownerSchema = read("../cms/src/api/owner-profile/content-types/owner-profile/schema.json");
 const boatSchema = read("../cms/src/api/boat/content-types/boat/schema.json");
 const experienceSchema = read("../cms/src/api/experience/content-types/experience/schema.json");
+const userExtensionSchema = read("../cms/src/extensions/users-permissions/content-types/user/schema.json");
+const archiveMigration = read("../cms/database/migrations/20260721054428-admin-crud-archive-owner-password.js");
 const moderationEventSchema = read("../cms/src/api/moderation-event/content-types/moderation-event/schema.json");
+const ownerApi = read("lib/auth/ownerApi.ts");
+const ownerDashboard = read("app/api/owner/dashboard/route.ts");
+const ownerChangePassword = read("app/api/auth/owner-change-password/route.ts");
+const strapiClient = read("lib/strapi.ts");
 
 function blockBetween(source: string, start: string, end: string): string {
   const startIndex = source.indexOf(start);
@@ -96,17 +102,50 @@ test("optimistic concurrency and idempotency are part of write payloads", () => 
   assert.ok(cmsService.includes("idempotencyKeyDigest"));
 });
 
-test("owner account creation and archive remain explicit product decisions when schema or invite contract is missing", () => {
-  assert.ok(contracts.includes("OWNER_ACCOUNT_CREATION_DECISION_REQUIRED = true"));
-  assert.ok(contracts.includes("ARCHIVE_SCHEMA_DECISION_REQUIRED = true"));
-  assert.ok(manager.includes("OWNER_ACCOUNT_CREATION_DECISION_REQUIRED"));
-  assert.ok(manager.includes("ARCHIVE_SCHEMA_DECISION_REQUIRED"));
-  assert.doesNotMatch(ownerSchema, /must_change_password|archived_at|archived_by/);
+test("schema and migration add true archive and forced-password fields additively", () => {
+  assert.ok(ownerSchema.includes('"archived_at"'));
+  assert.ok(boatSchema.includes('"archived_at"'));
+  assert.ok(experienceSchema.includes('"archived_at"'));
+  assert.ok(userExtensionSchema.includes('"must_change_password"'));
+  assert.ok(archiveMigration.includes("add column if not exists archived_at"));
+  assert.ok(archiveMigration.includes("add column if not exists must_change_password boolean not null default false"));
+  assert.doesNotMatch(archiveMigration, /drop column|drop table|alter type/i);
+});
+
+test("owner account creation returns a one-time temporary password and requires first login change", () => {
+  assert.ok(contracts.includes("OWNER_ACCOUNT_CREATION_DECISION_REQUIRED = false"));
+  assert.ok(cmsService.includes("createOwner"));
+  assert.ok(cmsService.includes("generateTemporaryPassword"));
+  assert.ok(cmsService.includes("must_change_password"));
+  assert.ok(cmsService.includes("oneTimeSecret"));
+  assert.ok(manager.includes("oneTimePassword"));
+  assert.ok(manager.includes("navigator.clipboard.writeText"));
+  assert.ok(ownerApi.includes("ownerMustChangePassword"));
+  assert.ok(ownerDashboard.includes("owner_password_change_required"));
+  assert.ok(ownerChangePassword.includes("password_reuse_rejected"));
+  assert.doesNotMatch(cmsService, /password.*metadata|temporaryPassword.*metadata/i);
+});
+
+test("archive and restore use archived_at instead of publication or activity fields", () => {
+  assert.ok(contracts.includes("ARCHIVE_SCHEMA_DECISION_REQUIRED = false"));
+  assert.ok(contracts.includes("restoreSupported(entity"));
+  assert.ok(cmsService.includes("data.archived_at = new Date().toISOString()"));
+  assert.ok(cmsService.includes("data.archived_at = null"));
+  assert.ok(cmsService.includes("archive_blocked_by_dependencies"));
+  assert.ok(strapiClient.includes("filters[archived_at][$null]=true"));
+  assert.ok(ownerDashboard.includes("owner_account_archived"));
+  assert.doesNotMatch(blockBetween(cmsService, "function buildModerationUpdate", "function normalizeEmail"), /moderation_status = \"archived\"|publishedAt|published_at/);
 });
 
 test("documents and media use upload service and shared media usage checks", () => {
   assert.ok(cmsService.includes("files_related_mph"));
   assert.ok(cmsService.includes("mediaUsageCount"));
+  assert.ok(routeHelper.includes("handleAdminCrudUpload"));
+  assert.ok(routeHelper.includes("validateUploadFile"));
+  assert.ok(routeHelper.includes("image/jpeg"));
+  assert.ok(routeHelper.includes("application/pdf"));
+  assert.ok(cmsService.includes("attachDocument"));
+  assert.ok(cmsService.includes("attachMedia"));
   assert.ok(cmsService.includes('strapi.plugin("upload").service("upload").remove'));
   assert.ok(manager.includes("Документы владельцев доступны только в разделе"));
   assert.doesNotMatch(manager, /server path|filesystem path|wildcard/i);
@@ -116,6 +155,7 @@ test("boats and experiences preserve moderation and publication contracts", () =
   assert.ok(boatSchema.includes('"moderation_status"'));
   assert.ok(experienceSchema.includes('"boat"'));
   assert.ok(cmsService.includes("validateExperienceBoat"));
+  assert.ok(cmsService.includes("archived_at"));
   assert.ok(cockpit.includes('entity="boat"'));
   assert.ok(cockpit.includes('entity="experience"'));
   assert.ok(manager.includes("Снять с публикации"));

@@ -59,6 +59,7 @@ export default factories.createCoreController("api::boat.boat", ({ strapi }) => 
         on op.id = opul.owner_profile_id
       where b.slug = ?
         and b.published_at is not null
+        and b.archived_at is null
       order by b.id desc
       limit 1
       `,

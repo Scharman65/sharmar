@@ -72,6 +72,7 @@ export default {
             b.owner_user_id = ?
             or b.created_by_id = ?
           )
+            and b.archived_at is null
         ) boats
         left join public.boats_home_marina_lnk bhml
           on bhml.boat_id = boats.id

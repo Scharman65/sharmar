@@ -408,6 +408,7 @@ async function getExperiencePricingForBoat(
   qs.set("filters[id][$eq]", String(experienceId));
   qs.set("filters[boat][id][$eq]", String(boatId));
   qs.set("filters[is_active][$eq]", "true");
+  qs.set("filters[archived_at][$null]", "true");
   qs.append("fields[0]", "id");
   qs.append("fields[1]", "title");
   qs.append("fields[2]", "duration_hours");

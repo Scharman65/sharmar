@@ -442,6 +442,15 @@
           "localized": false
         }
       }
+    },
+    "archived_at": {
+      "type": "datetime",
+      "required": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
     }
   }
 }

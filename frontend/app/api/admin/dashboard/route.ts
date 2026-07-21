@@ -181,6 +181,7 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[20]=submitted_for_review_at",
     "fields[21]=reviewed_at",
     "fields[22]=reviewed_by",
+    "fields[23]=archived_at",
     "populate[cover][fields][0]=id",
     "populate[images][fields][0]=id",
     "populate[experiences][fields][0]=id",
@@ -210,6 +211,7 @@ function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[13]=publishedAt",
     "fields[14]=createdAt",
     "fields[15]=updatedAt",
+    "fields[16]=archived_at",
     "populate[cover][fields][0]=id",
     "populate[gallery][fields][0]=id",
     "populate[boat][fields][0]=title",
@@ -277,6 +279,7 @@ function normalizeBoat(item: unknown, status: RowStatus) {
     submitted_for_review_at: asString(row.submitted_for_review_at),
     reviewed_at: asString(row.reviewed_at),
     reviewed_by: asString(row.reviewed_by),
+    archived_at: asString(row.archived_at),
   };
 }
 
@@ -378,6 +381,7 @@ function normalizeExperience(item: unknown, status: RowStatus) {
     is_active: asBoolean(row.is_active),
     state: status === "published" || publishedAt ? "published" : "draft",
     publishedAt,
+    archived_at: asString(row.archived_at),
     cover_count: getRelatedCount(row.cover),
     gallery_count: getRelatedCount(row.gallery),
     created_at: asString(row.createdAt ?? row.created_at),
