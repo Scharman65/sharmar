@@ -180,7 +180,6 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[19]=moderation_comment",
     "fields[20]=submitted_for_review_at",
     "fields[21]=reviewed_at",
-    "fields[22]=reviewed_by",
     "fields[23]=archived_at",
     "populate[cover][fields][0]=id",
     "populate[images][fields][0]=id",
@@ -219,8 +218,6 @@ function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
     "populate[boat][fields][2]=locale",
     "populate[boat][fields][3]=publishedAt",
     "populate[boat][fields][4]=moderation_status",
-    "populate[boat][fields][5]=owner_user_id",
-    "populate[boat][fields][6]=created_by_id",
   ]);
 }
 

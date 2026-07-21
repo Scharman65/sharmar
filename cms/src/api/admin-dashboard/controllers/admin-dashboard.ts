@@ -1,8 +1,29 @@
+import { timingSafeEqual } from "node:crypto";
+
 const ROW_LIMIT = 100;
 
-function adminToken() {
+function adminTokens() {
   const paymentsConfig = strapi.config.get("payments") as { adminToken?: string } | undefined;
-  return String(paymentsConfig?.adminToken || process.env.PAYMENTS_ADMIN_TOKEN || "").trim();
+
+  return Array.from(
+    new Set(
+      [
+        String(paymentsConfig?.adminToken || "").trim(),
+        String(process.env.PAYMENTS_ADMIN_TOKEN || "").trim(),
+        String(process.env.SHARMAR_OWNER_ACTION_TOKEN || "").trim(),
+      ].filter(Boolean)
+    )
+  );
+}
+
+function tokenMatches(providedToken: string, expectedToken: string) {
+  const provided = Buffer.from(providedToken);
+  const expected = Buffer.from(expectedToken);
+
+  return (
+    provided.length === expected.length &&
+    timingSafeEqual(provided, expected)
+  );
 }
 
 function requestToken(ctx) {
@@ -350,9 +371,9 @@ async function loadBoatOwnerLinks(warnings: string[]) {
 
 export default {
   async summary(ctx) {
-    const expectedToken = adminToken();
+    const expectedTokens = adminTokens();
 
-    if (!expectedToken) {
+    if (!expectedTokens.length) {
       ctx.status = 503;
       ctx.body = {
         ok: false,
@@ -361,7 +382,14 @@ export default {
       return;
     }
 
-    if (requestToken(ctx) !== expectedToken) {
+    const providedToken = requestToken(ctx);
+
+    if (
+      !providedToken ||
+      !expectedTokens.some((expectedToken) =>
+        tokenMatches(providedToken, expectedToken)
+      )
+    ) {
       ctx.status = 401;
       ctx.body = {
         ok: false,
