@@ -54,6 +54,7 @@ function editableBoat(overrides: Record<string, unknown> = {}) {
     documentId,
     slug: "owner-boat",
     title: "Owner Boat",
+    locale: "en",
     moderation_status: "draft",
     cover_file_id: 101,
     image_file_ids: [101, 102],
@@ -231,8 +232,13 @@ test("PATCH accepts minRentalHours=8, preserves ownership, and updates Strapi pa
   const ownershipCall = calls.find((call) => call.path === `/api/owner/boats-by-user?user_id=${ownerId}`);
   assert.equal(ownershipCall?.authorization, "Bearer write-token");
 
-  const updateCall = calls.find((call) => call.path === `/api/boats/${documentId}?locale=sr-Latn-ME&status=draft`);
+  const updateCall = calls.find((call) => call.path === `/api/boats/${documentId}?locale=en&status=draft`);
   assert.ok(updateCall, "Strapi update was not reached");
+  assert.equal(
+    updateCall.path,
+    `/api/boats/${documentId}?locale=en&status=draft`,
+    "Existing boat locale must win over the current dashboard UI locale"
+  );
   assert.equal(updateCall.method, "PUT");
   assert.equal(updateCall.authorization, "Bearer write-token");
   assert.deepEqual(updateCall.body, {

@@ -710,7 +710,12 @@ export async function PATCH(req: NextRequest) {
     },
   };
 
-  const locale = p.locale || "en";
+  const locale =
+    isRecord(ownedBoat) &&
+    typeof ownedBoat.locale === "string" &&
+    ownedBoat.locale.trim()
+      ? ownedBoat.locale.trim()
+      : p.locale || "en";
 
   const updateRes = await strapiFetchJson(
     `/api/boats/${encodeURIComponent(documentId)}?locale=${encodeURIComponent(locale)}&status=draft`,
