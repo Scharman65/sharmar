@@ -247,7 +247,7 @@ test("PATCH accepts minRentalHours=8, preserves ownership, and updates Strapi pa
       slug: "owner-boat",
       description: "Updated local description",
       listing_type: "rent",
-      vessel_type: "motorboat",
+      vesselType: "motorboat",
       propulsion: "motor",
       boat_type: "Motorboat",
       capacity: 6,

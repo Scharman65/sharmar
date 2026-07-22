@@ -495,7 +495,7 @@ export async function POST(req: NextRequest) {
       slug: slugify(p.title),
       description: p.description ?? "",
       listing_type: p.listingType,
-      vessel_type: p.vesselType,
+      vesselType: p.vesselType,
       propulsion: p.propulsion,
       boat_type: boatTypeFromVesselType(p.vesselType),
       capacity: p.capacity,
@@ -688,7 +688,7 @@ export async function PATCH(req: NextRequest) {
       slug: isRecord(ownedBoat) && typeof ownedBoat.slug === "string" ? ownedBoat.slug : undefined,
       description: p.description ?? "",
       listing_type: p.listingType,
-      vessel_type: p.vesselType,
+      vesselType: p.vesselType,
       propulsion: p.propulsion,
       boat_type: boatTypeFromVesselType(p.vesselType),
       capacity: p.capacity,
@@ -727,6 +727,42 @@ export async function PATCH(req: NextRequest) {
   );
 
   if (!updateRes.ok) {
+    const upstreamError =
+      isRecord(updateRes.json) && isRecord(updateRes.json.error)
+        ? updateRes.json.error
+        : null;
+
+    const safeErrorName =
+      upstreamError && typeof upstreamError.name === "string"
+        ? upstreamError.name
+        : null;
+
+    const safeErrorMessage =
+      upstreamError && typeof upstreamError.message === "string"
+        ? upstreamError.message
+        : null;
+
+    const safeErrorPath =
+      upstreamError &&
+      isRecord(upstreamError.details) &&
+      Array.isArray(upstreamError.details.path)
+        ? upstreamError.details.path
+            .filter((part): part is string | number =>
+              typeof part === "string" || typeof part === "number"
+            )
+            .map(String)
+            .join(".")
+        : null;
+
+    console.error("OWNER_BOAT_STRAPI_UPDATE_FAILED", {
+      upstreamStatus: updateRes.status,
+      errorName: safeErrorName,
+      errorMessage: safeErrorMessage,
+      errorPath: safeErrorPath,
+      documentIdSuffix: documentId.slice(-6),
+      locale,
+    });
+
     return NextResponse.json(
       {
         ok: false,
