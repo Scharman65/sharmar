@@ -4,7 +4,7 @@
  * Extend the standard Strapi Users & Permissions user model without replacing
  * its built-in attributes or relations.
  */
-module.exports = (plugin) => {
+export default (plugin: any) => {
   const userContentType = plugin?.contentTypes?.user;
   const attributes = userContentType?.schema?.attributes;
 
