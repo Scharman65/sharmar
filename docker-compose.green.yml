@@ -27,6 +27,9 @@ services:
       - type: bind
         source: /opt/sharmar/app/cms_green
         target: /app
+      - type: bind
+        source: /opt/sharmar/app/shared/uploads
+        target: /app/public/uploads
       - type: volume
         source: sharmar_cms_node_modules_green
         target: /app/node_modules
