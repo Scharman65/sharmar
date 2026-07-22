@@ -194,6 +194,9 @@ test("CRUD UI has daily-work controls, delete dialog, and no browser storage tok
     "Обновить данные",
   ].forEach((text) => assert.ok(manager.includes(text) || cockpit.includes(text), `${text} missing`));
   assert.ok(manager.includes('role="dialog"'));
+  assert.ok(manager.includes('onClick={() => setCreateOpen(true)}'));
+  assert.ok(manager.includes('async function runCreateBoat()'));
+  assert.ok(manager.includes('ADMIN_CRUD_ROUTES.boat'));
   assert.doesNotMatch(manager + cockpit, /localStorage|sessionStorage|document\.cookie|x-admin-token/);
 });
 

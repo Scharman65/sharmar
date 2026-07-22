@@ -453,6 +453,7 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [boatForm, setBoatForm] = useState({ title: "", slug: "", capacity: "2" });
   const [ownerForm, setOwnerForm] = useState({ name: "", email: "", phone: "", preferred_language: lang, notes: "" });
   const [oneTimePassword, setOneTimePassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -534,6 +535,44 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       }
       setMessage(pending.action === "delete" ? ui.deleted : ui.saved);
       setPending(null);
+      await onRefresh();
+    } catch {
+      setMessage(ui.failed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runCreateBoat() {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(ADMIN_CRUD_ROUTES.boat, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          fields: {
+            title: boatForm.title.trim(),
+            slug: boatForm.slug.trim(),
+            capacity: Number(boatForm.capacity),
+            boat_type: "Motorboat",
+            listing_type: "rent",
+            currency: "EUR",
+            contacts_visible: false,
+            instant_booking: false,
+          },
+          idempotencyKey: `boat:create:${boatForm.slug.trim().toLowerCase()}`,
+        }),
+      });
+      const json = await response.json().catch(() => null) as { code?: string } | null;
+      if (!response.ok) {
+        setMessage(json?.code ?? ui.failed);
+        return;
+      }
+      setBoatForm({ title: "", slug: "", capacity: "2" });
+      setCreateOpen(false);
+      setMessage(ui.saved);
       await onRefresh();
     } catch {
       setMessage(ui.failed);
@@ -693,7 +732,7 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
             <button type="button" disabled={!uploadFile || !uploadTarget || saving} onClick={() => void runUpload()}>{saving ? ui.loading : ui.upload}</button>
           </>
         ) : (
-          <button type="button">{actionLabel(ui, entity, "create")}</button>
+          <button type="button" onClick={() => setCreateOpen(true)}>{actionLabel(ui, entity, "create")}</button>
         )}
       </div>
 
@@ -771,6 +810,65 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
             <button type="button" onClick={() => setPending(null)}>{ui.previous}</button>
             <button type="button" disabled={!canConfirm || saving} onClick={() => void runPendingAction()}>
               {saving ? ui.loading : actionLabel(ui, pending.entity, pending.action)}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {createOpen && entity === "boat" ? (
+        <div className="crud-dialog" role="dialog" aria-modal="true" aria-label={ui.createBoat}>
+          <h2>{ui.createBoat}</h2>
+          <label>
+            <span>{lang === "ru" ? "Название" : lang === "me" ? "Naziv" : "Title"}</span>
+            <input
+              value={boatForm.title}
+              onChange={(event) =>
+                setBoatForm((value) => ({ ...value, title: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>Slug</span>
+            <input
+              value={boatForm.slug}
+              onChange={(event) =>
+                setBoatForm((value) => ({ ...value, slug: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>{lang === "ru" ? "Вместимость" : lang === "me" ? "Kapacitet" : "Capacity"}</span>
+            <input
+              type="number"
+              min="1"
+              value={boatForm.capacity}
+              onChange={(event) =>
+                setBoatForm((value) => ({ ...value, capacity: event.target.value }))
+              }
+            />
+          </label>
+          <div className="crud-row-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setCreateOpen(false);
+                setBoatForm({ title: "", slug: "", capacity: "2" });
+              }}
+            >
+              {ui.previous}
+            </button>
+            <button
+              type="button"
+              disabled={
+                saving ||
+                !boatForm.title.trim() ||
+                !boatForm.slug.trim() ||
+                !Number.isFinite(Number(boatForm.capacity)) ||
+                Number(boatForm.capacity) < 1
+              }
+              onClick={() => void runCreateBoat()}
+            >
+              {saving ? ui.loading : ui.createBoat}
             </button>
           </div>
         </div>
