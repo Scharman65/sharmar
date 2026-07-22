@@ -1125,6 +1125,8 @@ export default function OwnerDashboardClient() {
   const [experienceBusy, setExperienceBusy] = useState<Record<number, boolean>>({});
   const [experienceUploadBusy, setExperienceUploadBusy] = useState<Record<number, boolean>>({});
   const [experienceForm, setExperienceForm] = useState<Record<number, ExperienceFormState>>({});
+  const [experienceEditForm, setExperienceEditForm] = useState<Record<string, ExperienceFormState>>({});
+  const [experienceDeletePending, setExperienceDeletePending] = useState<Record<string, boolean>>({});
   const [experienceFieldErrors, setExperienceFieldErrors] = useState<Record<number, FieldErrors>>({});
   const [editingBoatDocumentId, setEditingBoatDocumentId] = useState<string | null>(null);
   const [boatEditForm, setBoatEditForm] = useState<Record<string, BoatEditFormState>>({});
@@ -1309,6 +1311,17 @@ export default function OwnerDashboardClient() {
       shortDescription: "",
       coverId: null,
       coverUrl: null,
+    };
+  }
+
+  function experienceToForm(experience: OwnerExperience): ExperienceFormState {
+    return {
+      title: experience.title ?? "",
+      durationHours: experience.duration_hours == null ? "" : String(experience.duration_hours),
+      price: experience.price == null ? "" : String(experience.price),
+      shortDescription: experience.short_description ?? "",
+      coverId: experience.cover?.id == null ? null : Number(experience.cover.id),
+      coverUrl: normalizeMediaUrl(experience.cover?.url),
     };
   }
 
@@ -1785,6 +1798,69 @@ export default function OwnerDashboardClient() {
         ...prev,
         [boatId]: false,
       }));
+    }
+  }
+
+  async function updateExperienceForOwner(experience: OwnerExperience): Promise<void> {
+    const documentId = String(experience.documentId || "").trim();
+    if (!documentId) throw new Error("experience_document_id_missing");
+    const key = getExperienceStableKey(experience);
+    const form = experienceEditForm[key] || experienceToForm(experience);
+    const res = await fetch("/api/owner/experiences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        documentId,
+        title: form.title,
+        durationHours: Number(form.durationHours),
+        price: Number(form.price),
+        shortDescription: form.shortDescription,
+        coverId: form.coverId,
+        locale: sourceLocale,
+      }),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) throw new Error(json?.error || "experience_update_failed");
+  }
+
+  async function deleteExperienceForOwner(experience: OwnerExperience): Promise<void> {
+    const documentId = String(experience.documentId || "").trim();
+    if (!documentId) throw new Error("experience_document_id_missing");
+    const key = getExperienceStableKey(experience);
+    const confirmed = window.confirm(
+      lang === "ru" ? `Удалить маршрут «${experience.title || copy.routes}»?` :
+      lang === "me" ? `Obrisati rutu „${experience.title || copy.routes}“?` :
+      `Delete route “${experience.title || copy.routes}”?`
+    );
+    if (!confirmed) return;
+    setExperienceDeletePending((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch(`/api/owner/experiences?documentId=${encodeURIComponent(documentId)}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "experience_delete_failed");
+      await loadOwnerExperiences();
+    } finally {
+      setExperienceDeletePending((prev) => ({ ...prev, [key]: false }));
+    }
+  }
+
+  async function saveAllBoatChanges(boat: OwnerBoat) {
+    const documentId = boat.documentId;
+    if (!documentId) return;
+    try {
+      setBoatEditSaving((prev) => ({ ...prev, [documentId]: true }));
+      setExperienceError(null);
+      const experiences = boatExperiences[getBoatExperienceKey(boat)] || [];
+      for (const experience of experiences) await updateExperienceForOwner(experience);
+      await saveBoatEdit(boat);
+      await loadOwnerExperiences();
+    } catch (err) {
+      setExperienceError(err instanceof Error ? err.message : "save_all_failed");
+      setBoatEditSaving((prev) => ({ ...prev, [documentId]: false }));
     }
   }
 
@@ -2559,6 +2635,13 @@ useEffect(() => {
                                     ...prev,
                                     [documentId]: boatToEditForm(boat),
                                   }));
+                                  setExperienceEditForm((prev) => {
+                                    const next = { ...prev };
+                                    (boatExperiences[getBoatExperienceKey(boat)] || []).forEach((experience) => {
+                                      next[getExperienceStableKey(experience)] = experienceToForm(experience);
+                                    });
+                                    return next;
+                                  });
                                   setBoatEditError((prev) => {
                                     const next = { ...prev };
                                     delete next[documentId];
@@ -2766,11 +2849,11 @@ useEffect(() => {
                                   type="button"
                                   className="button primary"
                                   disabled={boatEditSaving[boat.documentId] === true}
-                                  onClick={() => saveBoatEdit(boat)}
+                                  onClick={() => saveAllBoatChanges(boat)}
                                 >
                                   {boatEditSaving[boat.documentId] === true
                                     ? (lang === "ru" ? "Сохранение..." : lang === "me" ? "Čuvanje..." : "Saving...")
-                                    : (lang === "ru" ? "Сохранить изменения" : lang === "me" ? "Sačuvaj izmjene" : "Save changes")}
+                                    : (lang === "ru" ? "Сохранить всё" : lang === "me" ? "Sačuvaj sve" : "Save all")}
                                 </button>
 
                                 <button
@@ -2832,39 +2915,42 @@ useEffect(() => {
                                         border: "1px solid rgba(255,255,255,0.08)",
                                       }}
                                     >
-                                      {coverUrl ? (
-                                        <img
-                                          src={coverUrl}
-                                          alt={experience.cover?.alternativeText || experience.title || copy.routes}
-                                          style={{
-                                            width: "100%",
-                                            height: 110,
-                                            objectFit: "cover",
-                                            borderRadius: 10,
-                                            marginBottom: 8,
-                                            background: "rgba(255,255,255,0.06)",
-                                          }}
-                                        />
-                                      ) : null}
-                                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                                        <strong>{experience.title || copy.routes}</strong>
-                                        <span className="pill">
-                                          {experience.publishedAt ? copy.routePublished : copy.routeDraft}
-                                        </span>
-                                      </div>
-                                      {!experience.publishedAt ? (
-                                        <p className="kicker" style={{ margin: "6px 0 0" }}>
-                                          {copy.routeHiddenUntilReview}
-                                        </p>
-                                      ) : null}
-                                      <p className="kicker" style={{ margin: "6px 0 0" }}>
-                                        {experience.duration_hours ?? "—"}h · {experience.short_description || "—"}
-                                      </p>
-                                      <p className="kicker" style={{ margin: "6px 0 0" }}>
-                                        {lang === "ru" ? "Цена owner" : lang === "me" ? "Cijena vlasnika" : "Owner price"}: {formatOwnerExperiencePrice(ownerPrice)}
-                                        {" · "}
-                                        {lang === "ru" ? "Цена клиента" : lang === "me" ? "Cijena za klijenta" : "Client price"} (+{Math.round(MARKETPLACE_FEE_RATE * 100)}%): {formatOwnerExperiencePrice(customerPrice)}
-                                      </p>
+                                      {editingBoatDocumentId === boat.documentId ? (
+                                        <div style={{ display: "grid", gap: 8 }}>
+                                          {coverUrl ? (
+                                            <img src={coverUrl} alt={experience.title || copy.routes} style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 10 }} />
+                                          ) : null}
+                                          <input
+                                            value={(experienceEditForm[getExperienceStableKey(experience)] || experienceToForm(experience)).title}
+                                            onChange={(e) => setExperienceEditForm((prev) => ({ ...prev, [getExperienceStableKey(experience)]: { ...(prev[getExperienceStableKey(experience)] || experienceToForm(experience)), title: e.target.value } }))}
+                                            placeholder={lang === "ru" ? "Название маршрута" : lang === "me" ? "Naziv rute" : "Route title"}
+                                          />
+                                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
+                                            <input type="number" min="0.5" max="24" step="0.5" value={(experienceEditForm[getExperienceStableKey(experience)] || experienceToForm(experience)).durationHours} onChange={(e) => setExperienceEditForm((prev) => ({ ...prev, [getExperienceStableKey(experience)]: { ...(prev[getExperienceStableKey(experience)] || experienceToForm(experience)), durationHours: e.target.value } }))} />
+                                            <input type="number" min="1" step="1" value={(experienceEditForm[getExperienceStableKey(experience)] || experienceToForm(experience)).price} onChange={(e) => setExperienceEditForm((prev) => ({ ...prev, [getExperienceStableKey(experience)]: { ...(prev[getExperienceStableKey(experience)] || experienceToForm(experience)), price: e.target.value } }))} />
+                                          </div>
+                                          <input value={(experienceEditForm[getExperienceStableKey(experience)] || experienceToForm(experience)).shortDescription} onChange={(e) => setExperienceEditForm((prev) => ({ ...prev, [getExperienceStableKey(experience)]: { ...(prev[getExperienceStableKey(experience)] || experienceToForm(experience)), shortDescription: e.target.value } }))} placeholder={lang === "ru" ? "Краткое описание" : lang === "me" ? "Kratak opis" : "Short description"} />
+                                          <button type="button" className="button secondary" disabled={experienceDeletePending[getExperienceStableKey(experience)] === true} onClick={() => deleteExperienceForOwner(experience)}>
+                                            {lang === "ru" ? "Удалить маршрут" : lang === "me" ? "Obriši rutu" : "Delete route"}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          {coverUrl ? (
+                                            <img src={coverUrl} alt={experience.cover?.alternativeText || experience.title || copy.routes} style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 10, marginBottom: 8, background: "rgba(255,255,255,0.06)" }} />
+                                          ) : null}
+                                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                                            <strong>{experience.title || copy.routes}</strong>
+                                            <span className="pill">{experience.publishedAt ? copy.routePublished : copy.routeDraft}</span>
+                                          </div>
+                                          {!experience.publishedAt ? <p className="kicker" style={{ margin: "6px 0 0" }}>{copy.routeHiddenUntilReview}</p> : null}
+                                          <p className="kicker" style={{ margin: "6px 0 0" }}>{experience.duration_hours ?? "—"}h · {experience.short_description || "—"}</p>
+                                          <p className="kicker" style={{ margin: "6px 0 0" }}>
+                                            {lang === "ru" ? "Цена owner" : lang === "me" ? "Cijena vlasnika" : "Owner price"}: {formatOwnerExperiencePrice(ownerPrice)}{" · "}
+                                            {lang === "ru" ? "Цена клиента" : lang === "me" ? "Cijena za klijenta" : "Client price"} (+{Math.round(MARKETPLACE_FEE_RATE * 100)}%): {formatOwnerExperiencePrice(customerPrice)}
+                                          </p>
+                                        </>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -2875,7 +2961,7 @@ useEffect(() => {
                               </p>
                             )}
 
-                            {(boatExperiences[getBoatExperienceKey(boat)] || []).length < 3 ? (
+                            {editingBoatDocumentId === boat.documentId && (boatExperiences[getBoatExperienceKey(boat)] || []).length < 3 ? (
                               <div style={{ display: "grid", gap: 10 }}>
                                 <input
                                   type="text"
@@ -3014,11 +3100,11 @@ useEffect(() => {
                                   {copy.saveRoute}
                                 </button>
                               </div>
-                            ) : (
+                            ) : editingBoatDocumentId === boat.documentId ? (
                               <p className="kicker" style={{ margin: 0 }}>
                                 {copy.routeLimitReached}
                               </p>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 

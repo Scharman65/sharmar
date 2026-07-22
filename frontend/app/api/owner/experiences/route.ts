@@ -352,6 +352,67 @@ export async function GET(req: NextRequest) {
   );
 }
 
+
+async function loadOwnedExperience(documentId: string, ownerId: number, serverToken: string) {
+  const qs = new URLSearchParams();
+  qs.set("status", "draft");
+  qs.append("populate[boat][fields][0]", "id");
+  qs.append("populate[boat][fields][1]", "documentId");
+  const res = await strapiJson(`/api/experiences/${encodeURIComponent(documentId)}?${qs.toString()}`, { method: "GET" }, serverToken);
+  if (!res.ok || !isRecord(res.json) || !isRecord(res.json.data)) return { ok: false as const, status: 404, error: "Experience not found" };
+  const row = res.json.data;
+  const boat = isRecord(row.boat) ? row.boat : null;
+  const boatId = boat ? extractNumberId(boat.id) : null;
+  if (boatId === null) return { ok: false as const, status: 409, error: "Experience boat relation is missing" };
+  const ownerBoat = await getOwnerBoat(boatId, ownerId, serverToken);
+  if (!ownerBoat.ok) return { ok: false as const, status: ownerBoat.status, error: ownerBoat.error };
+  return { ok: true as const, row, boatId };
+}
+
+export async function PATCH(req: NextRequest) {
+  const freshAuth = await getFreshOwnerAuth(req);
+  if (!freshAuth.ok) return NextResponse.json({ ok: false, error: freshAuth.code }, { status: freshAuth.status, headers: { "cache-control": "no-store" } });
+  const serverToken = getServerToken();
+  if (!serverToken) return NextResponse.json({ ok: false, error: "Server STRAPI_TOKEN is not configured" }, { status: 500 });
+  const body = await req.json().catch(() => null);
+  if (!isRecord(body)) return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+  const documentId = asString(body.documentId);
+  const title = asString(body.title);
+  const durationHours = asNumber(body.durationHours);
+  const price = asNumber(body.price);
+  if (!documentId || !title || durationHours === null || durationHours <= 0 || durationHours > 24 || price === null || price <= 0) {
+    return NextResponse.json({ ok: false, error: "Invalid experience fields" }, { status: 400, headers: { "cache-control": "no-store" } });
+  }
+  const owned = await loadOwnedExperience(documentId, freshAuth.auth.owner.id, serverToken);
+  if (!owned.ok) return NextResponse.json({ ok: false, error: owned.error }, { status: owned.status, headers: { "cache-control": "no-store" } });
+  const coverId = extractNumberId(body.coverId);
+  if (coverId) {
+    const allowed = await verifyOwnerMedia(freshAuth.auth.owner.id, [coverId]);
+    if (!allowed) return NextResponse.json({ ok: false, error: "Media files are not available for this owner" }, { status: 403 });
+  }
+  const payload = { data: { title, slug: slugify(title), duration_hours: durationHours, price, short_description: asString(body.shortDescription), is_active: false, publishedAt: null, ...(coverId ? { cover: coverId } : {}) } };
+  const updated = await strapiJson(`/api/experiences/${encodeURIComponent(documentId)}?status=draft`, { method: "PUT", body: JSON.stringify(payload) }, serverToken);
+  if (!updated.ok) return NextResponse.json({ ok: false, error: "Strapi update experience failed", status: updated.status, details: updated.json }, { status: 502 });
+  return NextResponse.json({ ok: true, experience: isRecord(updated.json) ? updated.json.data ?? null : null }, { status: 200, headers: { "cache-control": "no-store" } });
+}
+
+export async function DELETE(req: NextRequest) {
+  const freshAuth = await getFreshOwnerAuth(req);
+  if (!freshAuth.ok) return NextResponse.json({ ok: false, error: freshAuth.code }, { status: freshAuth.status, headers: { "cache-control": "no-store" } });
+  const serverToken = getServerToken();
+  if (!serverToken) return NextResponse.json({ ok: false, error: "Server STRAPI_TOKEN is not configured" }, { status: 500 });
+  const documentId = asString(req.nextUrl.searchParams.get("documentId"));
+  if (!documentId) return NextResponse.json({ ok: false, error: "documentId is required" }, { status: 400 });
+  const owned = await loadOwnedExperience(documentId, freshAuth.auth.owner.id, serverToken);
+  if (!owned.ok) return NextResponse.json({ ok: false, error: owned.error }, { status: owned.status, headers: { "cache-control": "no-store" } });
+  const deps = await strapiJson(`/api/booking-requests?pagination[pageSize]=1&filters[experience][documentId][$eq]=${encodeURIComponent(documentId)}`, { method: "GET" }, serverToken);
+  const rows = deps.ok && isRecord(deps.json) && Array.isArray(deps.json.data) ? deps.json.data : [];
+  if (rows.length) return NextResponse.json({ ok: false, error: "Experience has booking dependencies" }, { status: 409 });
+  const deleted = await strapiJson(`/api/experiences/${encodeURIComponent(documentId)}?status=draft`, { method: "DELETE" }, serverToken);
+  if (!deleted.ok) return NextResponse.json({ ok: false, error: "Strapi delete experience failed", status: deleted.status, details: deleted.json }, { status: 502 });
+  return NextResponse.json({ ok: true, deleted: documentId }, { status: 200, headers: { "cache-control": "no-store" } });
+}
+
 export async function POST(req: NextRequest) {
   const freshAuth = await getFreshOwnerAuth(req);
   if (!freshAuth.ok) {
