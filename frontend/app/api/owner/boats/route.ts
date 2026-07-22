@@ -505,6 +505,7 @@ export async function POST(req: NextRequest) {
       price_per_hour: p.rentPriceHour ?? null,
       price_per_day: p.rentPriceDay ?? null,
       price_per_week: p.rentPriceWeek ?? null,
+      min_rental_hours: p.minRentalHours ?? 1,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
       ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
@@ -697,6 +698,7 @@ export async function PATCH(req: NextRequest) {
       price_per_hour: p.rentPriceHour ?? null,
       price_per_day: p.rentPriceDay ?? null,
       price_per_week: p.rentPriceWeek ?? null,
+      min_rental_hours: p.minRentalHours ?? 1,
       sale_price: p.salePrice ?? null,
       owner_phone: p.ownerPhone ?? "",
       ...(p.homeMarinaId ? { home_marina: p.homeMarinaId } : {}),
@@ -711,7 +713,7 @@ export async function PATCH(req: NextRequest) {
   const locale = p.locale || "en";
 
   const updateRes = await strapiFetchJson(
-    `/api/boats/${documentId}?locale=${encodeURIComponent(locale)}&status=draft`,
+    `/api/boats/${encodeURIComponent(documentId)}?locale=${encodeURIComponent(locale)}&status=draft`,
     {
       method: "PUT",
       body: JSON.stringify(updatePayload),
@@ -723,7 +725,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
+        code: "strapi_update_failed",
         error: "Strapi update failed",
+        upstreamStatus: updateRes.status,
         details: updateRes.json,
       },
       { status: 502, headers: { "cache-control": "no-store" } }
