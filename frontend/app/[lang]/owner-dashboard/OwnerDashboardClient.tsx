@@ -1547,9 +1547,9 @@ export default function OwnerDashboardClient() {
     }
   }
 
-  async function saveBoatEdit(boat: OwnerBoat) {
+  async function saveBoatEdit(boat: OwnerBoat): Promise<boolean> {
     const documentId = boat.documentId;
-    if (!documentId) return;
+    if (!documentId) return false;
 
     const form = boatEditForm[documentId] || defaultBoatEditForm();
     const numberOrNull = (value: string, fieldName: keyof BoatEditFormState): number | null => {
@@ -1625,8 +1625,15 @@ export default function OwnerDashboardClient() {
             : "Changes saved. Submit the boat for review when ready.",
       }));
 
-      await refreshDashboard();
+      try {
+        await refreshDashboard();
+      } catch {
+        // The PATCH response already confirmed persistence. A transient refresh
+        // failure must not be presented to the owner as a failed save.
+      }
+
       setEditingBoatDocumentId(null);
+      return true;
     } catch (e) {
       const message = e instanceof Error ? e.message : "boat_update_failed";
       const field = boatFieldFromError(message);
@@ -1639,6 +1646,7 @@ export default function OwnerDashboardClient() {
         ...prev,
         [documentId]: field ? { [field]: message } : {},
       }));
+      return false;
     } finally {
       setBoatEditSaving((prev) => ({
         ...prev,
@@ -1856,7 +1864,12 @@ export default function OwnerDashboardClient() {
       setExperienceError(null);
       const experiences = boatExperiences[getBoatExperienceKey(boat)] || [];
       for (const experience of experiences) await updateExperienceForOwner(experience);
-      await saveBoatEdit(boat);
+
+      const boatSaved = await saveBoatEdit(boat);
+      if (!boatSaved) return;
+
+      // Reloading route cards is a post-save synchronization step. The PATCH
+      // requests above are the persistence result and must remain authoritative.
       await loadOwnerExperiences();
     } catch (err) {
       setExperienceError(err instanceof Error ? err.message : "save_all_failed");
