@@ -26,6 +26,12 @@ export default {
       config: { auth: false },
     },
     {
+      method: "POST",
+      path: "/admin-crud/:entity/:id/delete",
+      handler: "admin-crud.destroy",
+      config: { auth: false },
+    },
+    {
       method: "DELETE",
       path: "/admin-crud/:entity/:id",
       handler: "admin-crud.destroy",

@@ -267,8 +267,12 @@ export async function handleAdminCrudItem(
     );
   }
 
-  return forwardToCms(`/api/admin-crud/${entity}/${encodedId}`, {
-    method: req.method,
+  const cmsPath = req.method === "DELETE"
+    ? `/api/admin-crud/${entity}/${encodedId}/delete`
+    : `/api/admin-crud/${entity}/${encodedId}`;
+
+  return forwardToCms(cmsPath, {
+    method: req.method === "DELETE" ? "POST" : req.method,
     body: JSON.stringify({ ...parsed, actor: actor() }),
   });
 }
