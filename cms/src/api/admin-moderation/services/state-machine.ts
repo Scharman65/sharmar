@@ -32,6 +32,7 @@ export type OwnerModerationAction =
   | "request_changes"
   | "reject"
   | "approve"
+  | "verify"
   | "block";
 
 export type ExperienceModerationStatus =
@@ -115,6 +116,9 @@ const OWNER_TRANSITIONS: Record<
   },
   approve: {
     under_review: "approved",
+  },
+  verify: {
+    documents_uploaded: "approved",
   },
   block: {
     new: "blocked",

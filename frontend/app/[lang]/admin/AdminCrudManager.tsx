@@ -42,6 +42,7 @@ type CrudCopyShape = {
   refresh: string;
   createOwner: string;
   editOwner: string;
+  verifyOwner: string;
   createBoat: string;
   editBoat: string;
   createRoute: string;
@@ -106,6 +107,7 @@ const copy = {
     refresh: "Обновить данные",
     createOwner: "Создать владельца",
     editOwner: "Редактировать владельца",
+    verifyOwner: "Подтвердить владельца",
     createBoat: "Создать лодку",
     editBoat: "Редактировать лодку",
     createRoute: "Создать маршрут",
@@ -197,6 +199,7 @@ const copy = {
     refresh: "Refresh data",
     createOwner: "Create owner",
     editOwner: "Edit owner",
+    verifyOwner: "Approve owner",
     createBoat: "Create boat",
     editBoat: "Edit boat",
     createRoute: "Create route",
@@ -288,6 +291,7 @@ const copy = {
     refresh: "Osvježi podatke",
     createOwner: "Kreiraj vlasnika",
     editOwner: "Uredi vlasnika",
+    verifyOwner: "Potvrdi vlasnika",
     createBoat: "Kreiraj plovilo",
     editBoat: "Uredi plovilo",
     createRoute: "Kreiraj rutu",
@@ -555,6 +559,60 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
     }
   }
 
+  async function runVerifyOwner(row: JsonRecord) {
+    const profileId = asNumber(row.id);
+    const currentStatus = asText(row.verification_status);
+
+    if (!profileId || currentStatus !== "documents_uploaded") {
+      setMessage(ui.failed);
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/moderation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: "owner_profile",
+          profileId,
+          action: "verify",
+          comment: "",
+        }),
+      });
+
+      const json = await response.json().catch(() => null) as {
+        code?: string;
+        verificationStatus?: string;
+      } | null;
+
+      if (!response.ok || json?.verificationStatus !== "approved") {
+        setMessage(json?.code ?? ui.failed);
+        return;
+      }
+
+      setMessage(ui.saved);
+      setRemoteRows((rows) =>
+        rows?.map((item) =>
+          asNumber(item.id) === profileId
+            ? {
+                ...item,
+                verification_status: "approved",
+                verified_at: new Date().toISOString(),
+              }
+            : item
+        ) ?? rows
+      );
+      await onRefresh();
+    } catch {
+      setMessage(ui.failed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function runCreateBoat() {
     setSaving(true);
     setMessage(null);
@@ -783,6 +841,15 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
                 ) : null}
                 {entity === "owner" ? (
                   <>
+                    {asText(row.verification_status) === "documents_uploaded" ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void runVerifyOwner(row)}
+                      >
+                        {saving ? ui.loading : ui.verifyOwner}
+                      </button>
+                    ) : null}
                     <button type="button" onClick={() => openAction(row, "archive")}>{ui.archive}</button>
                     <button type="button" onClick={() => openAction(row, "restore")}>{ui.restore}</button>
                   </>

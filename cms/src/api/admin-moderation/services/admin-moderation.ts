@@ -1073,7 +1073,8 @@ async function moderateOwner(
 
   if (
     input.action === "start_review" ||
-    input.action === "approve"
+    input.action === "approve" ||
+    input.action === "verify"
   ) {
     const documents = await ownerDocumentCount(cms, profileId);
 
@@ -1094,7 +1095,9 @@ async function moderateOwner(
     verification_status: transition.nextStatus,
   };
 
-  if (input.action === "approve") {
+  if (input.action === "verify") {
+    data.verified_at = now;
+  } else if (input.action === "approve") {
     data.verified_at = now;
     data.rejected_at = null;
     data.rejection_reason = null;
