@@ -463,26 +463,38 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   useEffect(() => {
-    if (entity !== "media") return;
     let cancelled = false;
-    void fetch(ADMIN_CRUD_ROUTES.media, { cache: "no-store" })
-      .then((response) => response.json())
+    setRemoteRows(null);
+
+    void fetch(ADMIN_CRUD_ROUTES[entity], { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`admin_crud_list_failed:${response.status}`);
+        }
+        return response.json();
+      })
       .then((json) => {
         if (!cancelled && json && typeof json === "object" && Array.isArray(json.rows)) {
-          setRemoteRows(json.rows.filter((item: unknown): item is JsonRecord => typeof item === "object" && item !== null));
+          setRemoteRows(
+            json.rows.filter(
+              (item: unknown): item is JsonRecord =>
+                typeof item === "object" && item !== null
+            )
+          );
         }
       })
       .catch(() => {
-        if (!cancelled) setRemoteRows([]);
+        if (!cancelled) setRemoteRows(dashboardRows);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [entity]);
+  }, [dashboardRows, entity]);
 
   const rows = useMemo(
-    () => (entity === "media" ? remoteRows ?? [] : dashboardRows),
-    [dashboardRows, entity, remoteRows]
+    () => remoteRows ?? dashboardRows,
+    [dashboardRows, remoteRows]
   );
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
