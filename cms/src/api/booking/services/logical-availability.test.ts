@@ -122,16 +122,35 @@ test(
 );
 
 test(
-  "CMS blackout routes require authentication",
+  "CMS blackout routes use controller token protection",
   () => {
     assert.equal(
-      (routes.match(/auth: true/g) || []).length,
+      (routes.match(/auth: false/g) || []).length,
       3
     );
 
     assert.doesNotMatch(
       routes,
-      /auth: false/
+      /auth: true/
+    );
+
+    assert.match(
+      controller,
+      /process\.env\.OWNER_API_TOKEN/
+    );
+
+    assert.equal(
+      (
+        controller.match(
+          /requireOwnerApiToken\(ctx\)/g
+        ) || []
+      ).length,
+      3
+    );
+
+    assert.match(
+      controller,
+      /owner_api_token_required/
     );
   }
 );

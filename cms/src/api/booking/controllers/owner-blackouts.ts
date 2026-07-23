@@ -12,6 +12,35 @@ function isValidIsoDate(value: string): boolean {
   return Number.isFinite(t);
 }
 
+function getBearerToken(ctx: any): string {
+  const authorization = cleanString(
+    ctx.request?.headers?.authorization ||
+    ctx.headers?.authorization
+  );
+
+  if (!authorization.toLowerCase().startsWith("bearer ")) {
+    return "";
+  }
+
+  return authorization.slice(7).trim();
+}
+
+function requireOwnerApiToken(ctx: any): boolean {
+  const expected = cleanString(process.env.OWNER_API_TOKEN);
+  const received = getBearerToken(ctx);
+
+  if (!expected || !received || received !== expected) {
+    ctx.status = 401;
+    ctx.body = {
+      ok: false,
+      error: "owner_api_token_required",
+    };
+    return false;
+  }
+
+  return true;
+}
+
 async function resolveBoatIdByOwnerToken(strapi: any, token: string): Promise<number> {
   const row = await strapi.db.connection.raw(
     `
@@ -61,6 +90,8 @@ async function resolveLogicalBoat(strapi: any, boatId: number) {
 
 export default {
   async list(ctx) {
+    if (!requireOwnerApiToken(ctx)) return;
+
     const token = cleanString(ctx.query?.token);
     const boatIdFromQuery = toNumber(ctx.query?.boat_id);
     const boatId = boatIdFromQuery || (token ? await resolveBoatIdByOwnerToken(strapi, token) : 0);
@@ -104,6 +135,8 @@ export default {
   },
 
   async create(ctx) {
+    if (!requireOwnerApiToken(ctx)) return;
+
     const body = ctx.request?.body || {};
 
     const token = cleanString(body.token || ctx.query?.token);
@@ -176,6 +209,8 @@ export default {
   },
 
   async remove(ctx) {
+    if (!requireOwnerApiToken(ctx)) return;
+
     const id = toNumber(ctx.params?.id);
     const token = cleanString(ctx.query?.token);
     const boatIdFromQuery = toNumber(ctx.query?.boat_id);

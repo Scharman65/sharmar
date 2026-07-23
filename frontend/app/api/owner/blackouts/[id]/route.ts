@@ -27,7 +27,12 @@ function getStrapiBase(): string {
 }
 
 function getServerToken(): string {
-  return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
+  return (
+    process.env.OWNER_API_TOKEN ||
+    process.env.STRAPI_WRITE_TOKEN ||
+    process.env.STRAPI_TOKEN ||
+    ""
+  ).trim();
 }
 
 function json(status: number, body: unknown) {

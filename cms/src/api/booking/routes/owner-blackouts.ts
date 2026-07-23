@@ -5,7 +5,7 @@ export default {
       path: "/owner/blackouts",
       handler: "owner-blackouts.list",
       config: {
-        auth: true,
+        auth: false,
       },
     },
     {
@@ -13,7 +13,7 @@ export default {
       path: "/owner/blackouts",
       handler: "owner-blackouts.create",
       config: {
-        auth: true,
+        auth: false,
       },
     },
     {
@@ -21,7 +21,7 @@ export default {
       path: "/owner/blackouts/:id",
       handler: "owner-blackouts.remove",
       config: {
-        auth: true,
+        auth: false,
       },
     },
   ],
