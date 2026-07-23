@@ -87,7 +87,8 @@ test("checklist uses existing dashboard sections", () => {
   assert.ok(dashboard.includes("boatHasBasicInformation(selectedBoat)"));
   assert.ok(dashboard.includes("ownerHasRequiredDocuments(data)"));
   assert.ok(dashboard.includes("boatExperiences[getBoatExperienceKey(selectedBoat)]"));
-  assert.ok(dashboard.includes("boatBlackouts[Number(selectedBoat.id)]"));
+  assert.ok(dashboard.includes("done: Boolean(selectedBoat.id)"));
+  assert.ok(dashboard.includes('boatSetupAnchor(selectedBoat, "calendar")'));
 });
 
 test("documents checklist link targets the existing document section", () => {

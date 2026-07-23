@@ -30,6 +30,35 @@ async function resolveBoatIdByOwnerToken(strapi: any, token: string): Promise<nu
   return toNumber(item?.boat_id);
 }
 
+async function resolveLogicalBoat(strapi: any, boatId: number) {
+  const result = await strapi.db.connection.raw(
+    `
+    select
+      requested.id as requested_boat_id,
+      requested.document_id,
+      array_agg(logical.id order by logical.id)::int[] as boat_ids
+    from public.boats requested
+    join public.boats logical
+      on logical.document_id = requested.document_id
+    where requested.id = ?
+    group by requested.id, requested.document_id
+    limit 1
+    `,
+    [boatId]
+  );
+
+  const row = result?.rows?.[0];
+  if (!row?.document_id || !Array.isArray(row.boat_ids)) return null;
+
+  return {
+    requestedBoatId: toNumber(row.requested_boat_id),
+    documentId: String(row.document_id),
+    boatIds: row.boat_ids
+      .map((value: unknown) => toNumber(value))
+      .filter((value: number) => value > 0),
+  };
+}
+
 export default {
   async list(ctx) {
     const token = cleanString(ctx.query?.token);
@@ -39,6 +68,13 @@ export default {
     if (!boatId) {
       ctx.status = 400;
       ctx.body = { ok: false, error: "boat_id_required" };
+      return;
+    }
+
+    const logical = await resolveLogicalBoat(strapi, boatId);
+    if (!logical) {
+      ctx.status = 404;
+      ctx.body = { ok: false, error: "boat_not_found" };
       return;
     }
 
@@ -52,16 +88,17 @@ export default {
         reason,
         created_at
       from public.boat_blackouts
-      where boat_id = ?
+      where boat_id = any(?::int[])
       order by start_utc asc, id asc
       limit 300
       `,
-      [boatId]
+      [logical.boatIds]
     );
 
     ctx.body = {
       ok: true,
-      boat_id: boatId,
+      boat_id: logical.requestedBoatId,
+      boat_document_id: logical.documentId,
       blackouts: rows?.rows || [],
     };
   },
@@ -72,6 +109,13 @@ export default {
     const token = cleanString(body.token || ctx.query?.token);
     const boatIdFromBody = toNumber(body.boat_id || ctx.query?.boat_id);
     const boatId = boatIdFromBody || (token ? await resolveBoatIdByOwnerToken(strapi, token) : 0);
+
+    const logical = await resolveLogicalBoat(strapi, boatId);
+    if (!logical) {
+      ctx.status = 404;
+      ctx.body = { ok: false, error: "boat_not_found" };
+      return;
+    }
 
     const startUtc = cleanString(body.start_utc);
     const endUtc = cleanString(body.end_utc);
@@ -99,12 +143,12 @@ export default {
       `
       select id
       from public.bookings
-      where boat_id = ?
+      where boat_id = any(?::int[])
         and status in ('hold','deposit_paid','paid_pending_owner','confirmed')
         and tstzrange(slot_start_utc, slot_end_utc, '[)') && tstzrange(?::timestamptz, ?::timestamptz, '[)')
       limit 1
       `,
-      [boatId, startUtc, endUtc]
+      [logical.boatIds, startUtc, endUtc]
     );
 
     if (conflict?.rows?.length) {
@@ -121,7 +165,7 @@ export default {
         (?, ?::timestamp, ?::timestamp, ?, now())
       returning id, boat_id, start_utc, end_utc, reason, created_at
       `,
-      [boatId, startUtc, endUtc, reason]
+      [logical.requestedBoatId, startUtc, endUtc, reason]
     );
 
     ctx.status = 201;
@@ -149,14 +193,21 @@ export default {
       return;
     }
 
+    const logical = await resolveLogicalBoat(strapi, boatId);
+    if (!logical) {
+      ctx.status = 404;
+      ctx.body = { ok: false, error: "boat_not_found" };
+      return;
+    }
+
     const deleted = await strapi.db.connection.raw(
       `
       delete from public.boat_blackouts
       where id = ?
-        and boat_id = ?
+        and boat_id = any(?::int[])
       returning id, boat_id, start_utc, end_utc, reason, created_at
       `,
-      [id, boatId]
+      [id, logical.boatIds]
     );
 
     if (!deleted?.rows?.length) {

@@ -72,8 +72,16 @@ export async function fetchAvailability(
 
   if (!res.ok) return null;
 
-  const json = (await res.json()) as any;
-  if (!json || json.ok !== true) return null;
+  const json: unknown = await res.json();
+
+  if (
+    typeof json !== "object" ||
+    json === null ||
+    !("ok" in json) ||
+    json.ok !== true
+  ) {
+    return null;
+  }
 
   return json as AvailabilityResponse;
 }
