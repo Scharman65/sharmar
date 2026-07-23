@@ -482,19 +482,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const ownerProfileResponse = await strapiJson(
-    `/api/owner/profile-by-user?user_id=${ownerId}`,
+  const ownerProfile = await loadOwnerProfileWithDocuments(
+    ownerAuth.auth.ownerProfile,
     serverToken
   );
-
-  const baseOwnerProfile =
-    ownerProfileResponse.ok &&
-    isRecord(ownerProfileResponse.json) &&
-    isRecord(ownerProfileResponse.json.profile)
-      ? ownerProfileResponse.json.profile
-      : null;
-
-  const ownerProfile = await loadOwnerProfileWithDocuments(baseOwnerProfile, serverToken);
 
   const ownerBoats =
     isRecord(boats.json) && Array.isArray(boats.json.boats)
