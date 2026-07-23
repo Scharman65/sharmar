@@ -309,7 +309,20 @@ function buildRequestHref(
     if (experience.currency) params.set("experienceCurrency", experience.currency);
   }
 
-  if (boat.price_per_hour !== null && boat.price_per_hour !== undefined) {
+  if (
+    boat.min_rental_hours !== null &&
+    boat.min_rental_hours !== undefined
+  ) {
+    params.set(
+      "minRentalHours",
+      String(boat.min_rental_hours)
+    );
+  }
+
+  if (
+    boat.price_per_hour !== null &&
+    boat.price_per_hour !== undefined
+  ) {
     params.set("pph", String(boat.price_per_hour));
   }
   if (boat.price_per_day !== null && boat.price_per_day !== undefined) {

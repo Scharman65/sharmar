@@ -202,3 +202,57 @@ test(
     );
   }
 );
+
+const requestPage = source(
+  "frontend/app/[lang]/request/page.tsx"
+);
+
+test(
+  "calendar passes the boat minimum duration to the request page",
+  () => {
+    assert.match(
+      calendar,
+      /params\.set\(\s*"minRentalHours"/
+    );
+  }
+);
+
+test(
+  "request page uses daily owner price for an eight-hour rental",
+  () => {
+    assert.match(
+      requestPage,
+      /const pricePerDayFromUrl = Number\(sp\.get\("ppd"\)\)/
+    );
+
+    assert.match(
+      requestPage,
+      /hours === 8 && PRICE_PER_DAY > 0/
+    );
+
+    assert.match(
+      requestPage,
+      /return PRICE_PER_DAY/
+    );
+  }
+);
+
+test(
+  "request page rejects manual duration below boat minimum",
+  () => {
+    assert.match(
+      requestPage,
+      /sp\.get\("minRentalHours"\)/
+    );
+
+    assert.match(
+      requestPage,
+      /hours < MINIMUM_RENTAL_HOURS/
+    );
+
+    assert.match(
+      requestPage,
+      /copy\.minimumDuration/
+    );
+  }
+);

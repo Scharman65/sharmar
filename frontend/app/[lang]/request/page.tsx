@@ -50,6 +50,7 @@ function requestCopy(lang: Lang) {
       requiredFields: "Пожалуйста, заполните обязательные поля.",
       invalidDate: "Введите корректную дату в формате YYYY-MM-DD.",
       invalidTimeRange: "Выберите корректное время: время окончания должно быть позже времени начала.",
+      minimumDuration: "Минимальная продолжительность аренды — {hours}.",
       requestNotCreated: "Заявка на бронирование не создана. Попробуйте ещё раз.",
       missingToken: "Токен бронирования отсутствует.",
       unknownError: "Неизвестная ошибка",
@@ -105,6 +106,7 @@ function requestCopy(lang: Lang) {
       requiredFields: "Molimo popunite obavezna polja.",
       invalidDate: "Unesite ispravan datum u formatu YYYY-MM-DD.",
       invalidTimeRange: "Izaberite ispravno vrijeme: vrijeme završetka mora biti poslije početka.",
+      minimumDuration: "Minimalno trajanje najma je {hours}.",
       requestNotCreated: "Zahtjev za rezervaciju nije kreiran. Pokušajte ponovo.",
       missingToken: "Token rezervacije nedostaje.",
       unknownError: "Nepoznata greška",
@@ -159,6 +161,7 @@ function requestCopy(lang: Lang) {
     requiredFields: "Please fill required fields.",
     invalidDate: "Please enter a valid date in YYYY-MM-DD format.",
     invalidTimeRange: "Please choose a valid time range (end time must be after start time).",
+    minimumDuration: "The minimum rental duration is {hours}.",
     requestNotCreated: "Booking request was not created. Please try again.",
     missingToken: "Missing booking token.",
     unknownError: "Unknown error",
@@ -370,14 +373,34 @@ export default function RequestPage() {
     isIsoUtcTimestamp(slotEndUtc);
 
   const pricePerHourFromUrl = Number(sp.get("pph"));
-  const pricePerHourFromEnv = Number(process.env.NEXT_PUBLIC_PRICE_PER_HOUR);
+  const pricePerDayFromUrl = Number(sp.get("ppd"));
+  const minimumRentalHoursFromUrl = Number(
+    sp.get("minRentalHours")
+  );
+  const pricePerHourFromEnv = Number(
+    process.env.NEXT_PUBLIC_PRICE_PER_HOUR
+  );
 
   const PRICE_PER_HOUR =
-    Number.isFinite(pricePerHourFromUrl) && pricePerHourFromUrl > 0
+    Number.isFinite(pricePerHourFromUrl) &&
+    pricePerHourFromUrl > 0
       ? pricePerHourFromUrl
-      : Number.isFinite(pricePerHourFromEnv) && pricePerHourFromEnv > 0
+      : Number.isFinite(pricePerHourFromEnv) &&
+          pricePerHourFromEnv > 0
         ? pricePerHourFromEnv
         : 100;
+
+  const PRICE_PER_DAY =
+    Number.isFinite(pricePerDayFromUrl) &&
+    pricePerDayFromUrl > 0
+      ? pricePerDayFromUrl
+      : 0;
+
+  const MINIMUM_RENTAL_HOURS =
+    Number.isFinite(minimumRentalHoursFromUrl) &&
+    minimumRentalHoursFromUrl > 0
+      ? Math.ceil(minimumRentalHoursFromUrl)
+      : 1;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -415,8 +438,19 @@ export default function RequestPage() {
       return experiencePrice;
     }
     if (!hours) return 0;
+
+    if (hours === 8 && PRICE_PER_DAY > 0) {
+      return PRICE_PER_DAY;
+    }
+
     return hours * PRICE_PER_HOUR;
-  }, [hasExperience, experiencePrice, hours, PRICE_PER_HOUR]);
+  }, [
+    hasExperience,
+    experiencePrice,
+    hours,
+    PRICE_PER_DAY,
+    PRICE_PER_HOUR,
+  ]);
 
   const marketplaceBreakdown = useMemo(() => {
     return calculateMarketplaceBreakdown(rawOwnerAmount);
@@ -428,7 +462,9 @@ export default function RequestPage() {
 
   const totalPrice = customerTotalAmount;
 
-  const timeOk = hours > 0;
+  const timeOk =
+    hours > 0 &&
+    (hasExperience || hours >= MINIMUM_RENTAL_HOURS);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -455,8 +491,25 @@ export default function RequestPage() {
       return fail(copy.invalidDate);
     }
 
-    if (!timeFrom || !timeTo || !timeOk) {
+    if (!timeFrom || !timeTo || hours <= 0) {
       setError(copy.invalidTimeRange);
+      inFlight.current = false;
+      return;
+    }
+
+    if (
+      !hasExperience &&
+      hours < MINIMUM_RENTAL_HOURS
+    ) {
+      setError(
+        copy.minimumDuration.replace(
+          "{hours}",
+          formatHourCount(
+            MINIMUM_RENTAL_HOURS,
+            lang
+          )
+        )
+      );
       inFlight.current = false;
       return;
     }
