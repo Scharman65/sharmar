@@ -140,6 +140,50 @@ function buildOwnerDocumentStatus(ownerProfile: JsonObject | null): OwnerDocumen
   };
 }
 
+function buildOwnerProfileDocumentsPath(documentId: string): string {
+  const qs = new URLSearchParams();
+
+  qs.set("filters[documentId][$eq]", documentId);
+  qs.set("status", "draft");
+  qs.set("pagination[pageSize]", "1");
+  qs.set("populate[passport_document][fields][0]", "id");
+  qs.set("populate[passport_document][fields][1]", "name");
+  qs.set("populate[passport_document][fields][2]", "url");
+  qs.set("populate[identity_document][fields][0]", "id");
+  qs.set("populate[identity_document][fields][1]", "name");
+  qs.set("populate[identity_document][fields][2]", "url");
+  qs.set("populate[license_document][fields][0]", "id");
+  qs.set("populate[license_document][fields][1]", "name");
+  qs.set("populate[license_document][fields][2]", "url");
+
+  return `/api/owner-profiles?${qs.toString()}`;
+}
+
+async function loadOwnerProfileWithDocuments(
+  ownerProfile: JsonObject | null,
+  serverToken: string
+): Promise<JsonObject | null> {
+  const documentId = getString(ownerProfile?.document_id ?? ownerProfile?.documentId);
+  if (!ownerProfile || !documentId) return ownerProfile;
+
+  const populated = await strapiJson(buildOwnerProfileDocumentsPath(documentId), serverToken);
+  if (!populated.ok) {
+    console.error("OWNER_PROFILE_DOCUMENTS_STRAPI_ERROR", {
+      status: populated.status,
+      details: populated.json,
+    });
+    return ownerProfile;
+  }
+
+  const rows =
+    isRecord(populated.json) && Array.isArray(populated.json.data)
+      ? populated.json.data
+      : [];
+
+  const populatedProfile = getStrapiItemAttributes(rows[0]);
+  return populatedProfile ? { ...ownerProfile, ...populatedProfile } : ownerProfile;
+}
+
 async function strapiJson(path: string, authToken?: string): Promise<{ ok: boolean; status: number; json: unknown }> {
   const res = await fetch(`${getStrapiBase()}${path}`, {
     method: "GET",
@@ -443,12 +487,14 @@ export async function GET(req: NextRequest) {
     serverToken
   );
 
-  const ownerProfile =
+  const baseOwnerProfile =
     ownerProfileResponse.ok &&
     isRecord(ownerProfileResponse.json) &&
     isRecord(ownerProfileResponse.json.profile)
       ? ownerProfileResponse.json.profile
       : null;
+
+  const ownerProfile = await loadOwnerProfileWithDocuments(baseOwnerProfile, serverToken);
 
   const ownerBoats =
     isRecord(boats.json) && Array.isArray(boats.json.boats)
