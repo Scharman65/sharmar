@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { AvailabilityResponse, AvailabilitySlot } from "@/lib/availability";
 import type { Lang } from "@/i18n";
 import type { Boat } from "@/lib/strapi";
+import { applyMarketplaceFee } from "@/lib/pricing";
 
 type AvailabilityCalendarProps = {
   lang: Lang;
@@ -216,17 +217,29 @@ function getConsecutiveSlots(slots: AvailabilitySlot[], startSlot: AvailabilityS
   return consecutive;
 }
 
-function getValidDurationOptions(slots: AvailabilitySlot[], startSlot: AvailabilitySlot | null): DurationOption[] {
+function getValidDurationOptions(
+  slots: AvailabilitySlot[],
+  startSlot: AvailabilitySlot | null,
+  minimumHours: number,
+  lang: Lang
+): DurationOption[] {
   const consecutive = getConsecutiveSlots(slots, startSlot);
   const availableCount = consecutive.length;
+  const safeMinimum = Math.max(1, Math.ceil(minimumHours));
 
-  return [
-    { label: "1h", slotCount: 1, enabled: availableCount >= 1 },
-    { label: "2h", slotCount: 2, enabled: availableCount >= 2 },
-    { label: "3h", slotCount: 3, enabled: availableCount >= 3 },
-    { label: "4h", slotCount: 4, enabled: availableCount >= 4 },
-    { label: "Full day", slotCount: 8, enabled: availableCount >= 8 },
-  ];
+  const candidates = Array.from(
+    new Set(
+      [1, 2, 3, 4, safeMinimum, 8]
+        .filter((hours) => hours >= safeMinimum)
+        .sort((a, b) => a - b)
+    )
+  );
+
+  return candidates.map((slotCount) => ({
+    label: formatDuration(slotCount, lang),
+    slotCount,
+    enabled: availableCount >= slotCount,
+  }));
 }
 
 function buildDurationSlotRange(
@@ -237,7 +250,7 @@ function buildDurationSlotRange(
   const consecutive = getConsecutiveSlots(slots, startSlot);
   const safeSlotCount = Math.max(1, Math.floor(slotCount));
 
-  if (!consecutive.length || consecutive.length < safeSlotCount) return startSlot;
+  if (!consecutive.length || consecutive.length < safeSlotCount) return null;
 
   return {
     slot_start_utc: consecutive[0].slot_start_utc,
@@ -332,8 +345,24 @@ export function AvailabilityCalendar({
   const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(
     activeGroup?.slots[0] ? slotKey(activeGroup.slots[0]) : null
   );
-  const [selectedDurationSlots, setSelectedDurationSlots] = useState(1);
-  const [selectedExperienceId, setSelectedExperienceId] = useState<number | null>(null);
+  const minimumRentalHours = Math.max(
+    1,
+    Math.ceil(Number(boat.min_rental_hours ?? 1))
+  );
+  const hasHourlyRental =
+    Number.isFinite(Number(boat.price_per_hour)) &&
+    Number(boat.price_per_hour) > 0;
+  const hasFullDayRental =
+    minimumRentalHours === 8 &&
+    Number.isFinite(Number(boat.price_per_day)) &&
+    Number(boat.price_per_day) > 0;
+  const hasTimedRental =
+    hasHourlyRental || hasFullDayRental;
+
+  const [selectedDurationSlots, setSelectedDurationSlots] =
+    useState(minimumRentalHours);
+  const [selectedExperienceId, setSelectedExperienceId] =
+    useState<number | null>(null);
   const experiences = boat.experiences ?? [];
   const selectedExperience =
     selectedExperienceId !== null
@@ -351,16 +380,36 @@ export function AvailabilityCalendar({
   const effectiveDurationSlots = selectedExperienceSlotCount ?? selectedDurationSlots;
 
   const durationOptions = useMemo(
-    () => getValidDurationOptions(activeGroup?.slots ?? [], selectedSlot),
-    [activeGroup?.slots, selectedSlot]
+    () =>
+      getValidDurationOptions(
+        activeGroup?.slots ?? [],
+        selectedSlot,
+        minimumRentalHours,
+        lang
+      ),
+    [
+      activeGroup?.slots,
+      selectedSlot,
+      minimumRentalHours,
+      lang,
+    ]
   );
   const selectedDurationIsValid = selectedExperienceSlotCount
     ? getConsecutiveSlots(activeGroup?.slots ?? [], selectedSlot).length >= selectedExperienceSlotCount
     : durationOptions.some((option) => option.slotCount === selectedDurationSlots && option.enabled);
 
-  const requestSlotRange = selectedExperience
-    ? buildExperienceSlotRange(selectedSlot, Number(selectedExperience.duration_hours))
-    : buildDurationSlotRange(activeGroup?.slots ?? [], selectedSlot, effectiveDurationSlots) ?? selectedSlot;
+  const requestSlotRange = selectedDurationIsValid
+    ? selectedExperience
+      ? buildExperienceSlotRange(
+          selectedSlot,
+          Number(selectedExperience.duration_hours)
+        )
+      : buildDurationSlotRange(
+          activeGroup?.slots ?? [],
+          selectedSlot,
+          effectiveDurationSlots
+        )
+    : null;
   const totalSlots = groups.reduce((sum, group) => sum + group.slots.length, 0);
   const selectedDateLabel = requestSlotRange ? formatDate(requestSlotRange.slot_start_utc, timeZone, lang) : null;
   const selectedTimeLabel = requestSlotRange
@@ -373,19 +422,15 @@ export function AvailabilityCalendar({
   const copy = bookingCopy(lang);
   const ctaLabel = bookingCtaLabel(requestSlotLabel) || "Request this booking";
 
-  useEffect(() => {
-    if (!selectedExperience && !selectedDurationIsValid) setSelectedDurationSlots(1);
-  }, [selectedDurationIsValid, selectedExperience]);
-
   function selectDate(group: SlotGroup) {
     setSelectedDate(group.key);
     setSelectedSlotKey(group.slots[0] ? slotKey(group.slots[0]) : null);
-    setSelectedDurationSlots(1);
+    setSelectedDurationSlots(minimumRentalHours);
   }
 
   function selectSlot(slot: AvailabilitySlot) {
     setSelectedSlotKey(slotKey(slot));
-    setSelectedDurationSlots(1);
+    setSelectedDurationSlots(minimumRentalHours);
   }
 
   return (
@@ -543,12 +588,13 @@ export function AvailabilityCalendar({
                       {lang === "ru" ? "Тип поездки" : lang === "me" ? "Tip putovanja" : "Trip type"}
                     </div>
                     <div style={{ display: "grid", gap: 8 }}>
+                      {hasTimedRental ? (
                       <button
                         type="button"
                         aria-pressed={selectedExperienceId === null}
                         onClick={() => {
                           setSelectedExperienceId(null);
-                          setSelectedDurationSlots(1);
+                          setSelectedDurationSlots(minimumRentalHours);
                         }}
                         style={{
                           borderRadius: 12,
@@ -562,12 +608,18 @@ export function AvailabilityCalendar({
                       >
                         <strong>{lang === "ru" ? "Аренда по времени" : lang === "me" ? "Najam po vremenu" : "Hourly rental"}</strong>
                       </button>
+                      ) : null}
 
                       {experiences.map((experience) => {
                         const isActive = selectedExperienceId === experience.id;
                         const duration = Number(experience.duration_hours);
                         const price = Number(experience.price);
-                        const routeCurrency = experience.currency || boat.currency || "EUR";
+                        const customerPrice =
+                          applyMarketplaceFee(price);
+                        const routeCurrency =
+                          experience.currency ||
+                          boat.currency ||
+                          "EUR";
 
                         return (
                           <button
@@ -604,7 +656,10 @@ export function AvailabilityCalendar({
                             <strong>{experience.title || "Route"}</strong>
                             <span style={{ fontSize: 12, opacity: 0.78 }}>
                               {Number.isFinite(duration) && duration > 0 ? formatDuration(duration, lang) : "—"}
-                              {Number.isFinite(price) && price > 0 ? ` · ${price} ${routeCurrency}` : ""}
+                              {customerPrice !== null &&
+                              customerPrice > 0
+                                ? ` · ${customerPrice} ${routeCurrency}`
+                                : ""}
                             </span>
                             {experience.short_description ? (
                               <span style={{ fontSize: 12, opacity: 0.68 }}>{experience.short_description}</span>
@@ -616,7 +671,9 @@ export function AvailabilityCalendar({
                   </div>
                 ) : null}
 
-                {selectedSlot && !selectedExperience ? (
+                {selectedSlot &&
+                !selectedExperience &&
+                hasTimedRental ? (
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.84 }}>{copy.duration}</div>
                     <div

@@ -308,20 +308,39 @@ async function fetchExperiencesForBoatDocumentId(
   documentId: string,
   preferredLocale?: string | null
 ): Promise<NonNullable<Boat["experiences"]>> {
-  const qs: string[] = [
-    `filters[boat][documentId][$eq]=${encodeURIComponent(documentId)}`,
-    "filters[archived_at][$null]=true",
-    "locale=all",
-    "status=published",
-  ];
-  addDirectExperiencePopulate(qs);
+  const localePriority = Array.from(
+    new Set(
+      [
+        preferredLocale,
+        "en",
+        "ru",
+        "sr-Latn-ME",
+      ].filter(Boolean) as string[]
+    )
+  );
 
-  try {
-    const json = await strapiFetch<{ data: any[] }>(`/api/experiences?${qs.join("&")}`);
-    const directExperiences = normalizeExperiences(json.data ?? []);
-    if (directExperiences.length) return directExperiences;
-  } catch {
-    // Fall back below through the boat document when Strapi cannot resolve the relation directly.
+  for (const locale of localePriority) {
+    const qs: string[] = [
+      `filters[boat][documentId][$eq]=${encodeURIComponent(documentId)}`,
+      "filters[archived_at][$null]=true",
+      `locale=${encodeURIComponent(locale)}`,
+      "status=published",
+    ];
+    addDirectExperiencePopulate(qs);
+
+    try {
+      const json = await strapiFetch<{ data: any[] }>(
+        `/api/experiences?${qs.join("&")}`
+      );
+      const directExperiences =
+        normalizeExperiences(json.data ?? []);
+
+      if (directExperiences.length) {
+        return directExperiences;
+      }
+    } catch {
+      // Continue through the locale fallback order.
+    }
   }
 
   const boatQs: string[] = [
@@ -335,10 +354,6 @@ async function fetchExperiencesForBoatDocumentId(
   try {
     const seen = new Set<string>();
     const experiences: NonNullable<Boat["experiences"]> = [];
-
-    const localePriority = Array.from(
-      new Set([preferredLocale, "en", "ru", "sr-Latn-ME"].filter(Boolean) as string[])
-    );
 
     for (const locale of localePriority) {
       const json = await strapiFetch<{ data: any[] }>(

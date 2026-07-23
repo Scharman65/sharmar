@@ -52,7 +52,7 @@ export async function fetchAvailability(
 
   const today = new Date();
   const from = opts.from ?? isoDateUTC(today);
-  const to = opts.to ?? isoDateUTC(addDaysUTC(today, 14));
+  const to = opts.to ?? isoDateUTC(addDaysUTC(today, 13));
 
   const base = getApiBaseUrl();
   const url =
@@ -83,5 +83,16 @@ export async function fetchAvailability(
     return null;
   }
 
-  return json as AvailabilityResponse;
+  const response = json as AvailabilityResponse;
+  const nowMs = Date.now();
+
+  return {
+    ...response,
+    data: Array.isArray(response.data)
+      ? response.data.filter((slot) => {
+          const startMs = Date.parse(slot.slot_start_utc);
+          return Number.isFinite(startMs) && startMs > nowMs;
+        })
+      : [],
+  };
 }

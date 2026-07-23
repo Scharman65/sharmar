@@ -363,6 +363,8 @@ type BoatPricing = {
   id: number;
   currency: string;
   pricePerHour: number | null;
+  pricePerDay: number | null;
+  minRentalHours: number;
 };
 
 async function getBoatPricingBySlug(slug: string): Promise<BoatPricing | null> {
@@ -371,6 +373,8 @@ async function getBoatPricingBySlug(slug: string): Promise<BoatPricing | null> {
   qs.append("fields[0]", "id");
   qs.append("fields[1]", "currency");
   qs.append("fields[2]", "price_per_hour");
+  qs.append("fields[3]", "price_per_day");
+  qs.append("fields[4]", "min_rental_hours");
 
   const json = await strapiFetch(`/api/boats?${qs.toString()}`);
 
@@ -389,6 +393,11 @@ async function getBoatPricingBySlug(slug: string): Promise<BoatPricing | null> {
     id,
     currency: getStr(first.currency) || "EUR",
     pricePerHour: getNum(first.price_per_hour),
+    pricePerDay: getNum(first.price_per_day),
+    minRentalHours: Math.max(
+      1,
+      Math.ceil(getNum(first.min_rental_hours) || 1)
+    ),
   };
 }
 
@@ -660,6 +669,23 @@ export async function POST(req: Request) {
     }
 
     let hours = diffHoursIso(start, end);
+
+    if (hours < boatPricing.minRentalHours) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `Minimum rental duration is ` +
+            `${boatPricing.minRentalHours} hours.`,
+          fallbackMailto: buildFallbackMailto(p),
+        },
+        {
+          status: 409,
+          headers: { "cache-control": "no-store" },
+        }
+      );
+    }
+
     let ownerAmount: number;
     let requestCurrency = boatPricing.currency;
     let selectedExperience: ExperiencePricing | null = null;
@@ -698,14 +724,36 @@ export async function POST(req: Request) {
         );
       }
 
-      if (!boatPricing.pricePerHour || boatPricing.pricePerHour <= 0) {
-        return NextResponse.json(
-          { ok: false, error: "Boat hourly price is not configured.", fallbackMailto: buildFallbackMailto(p) },
-          { status: 409, headers: { "cache-control": "no-store" } }
+      if (
+        hours === 8 &&
+        boatPricing.pricePerDay &&
+        boatPricing.pricePerDay > 0
+      ) {
+        ownerAmount = roundMoney(boatPricing.pricePerDay);
+      } else {
+        if (
+          !boatPricing.pricePerHour ||
+          boatPricing.pricePerHour <= 0
+        ) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Boat hourly price is not configured for " +
+                "the selected duration.",
+              fallbackMailto: buildFallbackMailto(p),
+            },
+            {
+              status: 409,
+              headers: { "cache-control": "no-store" },
+            }
+          );
+        }
+
+        ownerAmount = roundMoney(
+          hours * boatPricing.pricePerHour
         );
       }
-
-      ownerAmount = roundMoney(hours * boatPricing.pricePerHour);
     }
 
     const breakdown = calculateMarketplaceBreakdown(ownerAmount);
