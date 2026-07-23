@@ -18,11 +18,33 @@ export const metadata: Metadata = {
 
 type Props = {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<{
+    boatDocumentId?: string;
+    sourceLocale?: string;
+  }>;
 };
 
-export default async function AdminTranslationPreviewPage({ params }: Props) {
-  const { lang: rawLang } = await params;
+function initialSourceLocale(value: string | undefined) {
+  return value === "ru" || value === "en" || value === "sr-Latn-ME"
+    ? value
+    : "en";
+}
+
+export default async function AdminTranslationPreviewPage({
+  params,
+  searchParams,
+}: Props) {
+  const [{ lang: rawLang }, query] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const lang: Lang = isLang(rawLang) ? rawLang : "en";
 
-  return <AdminTranslationPreviewClient lang={lang} />;
+  return (
+    <AdminTranslationPreviewClient
+      lang={lang}
+      initialBoatDocumentId={(query.boatDocumentId ?? "").trim()}
+      initialSourceLocale={initialSourceLocale(query.sourceLocale)}
+    />
+  );
 }

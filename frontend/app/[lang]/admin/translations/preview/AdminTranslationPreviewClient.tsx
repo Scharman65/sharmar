@@ -414,12 +414,24 @@ function LocaleTranslation({
   );
 }
 
-export default function AdminTranslationPreviewClient({ lang }: { lang: Lang }) {
+export default function AdminTranslationPreviewClient({
+  lang,
+  initialBoatDocumentId,
+  initialSourceLocale,
+}: {
+  lang: Lang;
+  initialBoatDocumentId: string;
+  initialSourceLocale: StrapiLocale;
+}) {
   const ui = copy[lang];
   const [authenticated, setAuthenticated] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
-  const [boatDocumentId, setBoatDocumentId] = useState("");
-  const [sourceLocale, setSourceLocale] = useState<StrapiLocale>("ru");
+  const [boatDocumentId, setBoatDocumentId] = useState(
+    initialBoatDocumentId
+  );
+  const [sourceLocale, setSourceLocale] = useState<StrapiLocale>(
+    initialSourceLocale
+  );
   const [generateAi, setGenerateAi] = useState(false);
   const [response, setResponse] = useState<PreviewResponse | null>(null);
   const [saveDraftResponse, setSaveDraftResponse] = useState<SaveDraftResponse | null>(null);
