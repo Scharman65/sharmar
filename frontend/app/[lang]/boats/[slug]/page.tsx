@@ -423,7 +423,11 @@ export default async function BoatPage({ params }: Props) {
 
         <div className="meta-row">
           <span>
-            {tr.boat.type}: {boat.boat_type ?? "—"}
+            {tr.boat.type}:{" "}
+            {localizedBoatType(
+              boat.boat_type ?? boat.vesselType,
+              lang
+            )}
           </span>
           <span>·</span>
           <span>
@@ -523,7 +527,17 @@ export default async function BoatPage({ params }: Props) {
               }
             );
             add(pageCopy(lang).priceHour, applyMarketplaceFee((boat as any).price_per_hour), fmtMoney);
-            add(pageCopy(lang).priceDay, applyMarketplaceFee((boat as any).price_per_day), fmtMoney);
+            add(
+              lang === "ru"
+                ? "Цена за 8 часов"
+                : lang === "me"
+                  ? "Cijena za 8 sati"
+                  : "Price for 8 hours",
+              applyMarketplaceFee(
+                (boat as any).price_per_day
+              ),
+              fmtMoney
+            );
             add(pageCopy(lang).priceWeek, applyMarketplaceFee((boat as any).price_per_week), fmtMoney);
             add(pageCopy(lang).deposit, (boat as any).deposit ?? null, fmtMoney);
 

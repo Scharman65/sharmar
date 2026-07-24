@@ -419,3 +419,53 @@ test(
     );
   }
 );
+
+test(
+  "date cards count valid start slots instead of raw hourly slots",
+  () => {
+    assert.match(
+      calendar,
+      /\{group\.startSlots\.length\}/
+    );
+
+    assert.doesNotMatch(
+      calendar,
+      /\{group\.slots\.length\}/
+    );
+  }
+);
+
+test(
+  "top boat metadata uses localized vessel type",
+  () => {
+    assert.match(
+      publicBoatPage,
+      /localizedBoatType\(\s*boat\.boat_type \?\? boat\.vesselType/
+    );
+
+    assert.doesNotMatch(
+      publicBoatPage,
+      /boat\.boat_type \?\? "—"/
+    );
+  }
+);
+
+test(
+  "daily price is presented as an eight-hour price",
+  () => {
+    assert.match(
+      publicBoatPage,
+      /Цена за 8 часов/
+    );
+
+    assert.match(
+      publicBoatPage,
+      /Cijena za 8 sati/
+    );
+
+    assert.match(
+      publicBoatPage,
+      /Price for 8 hours/
+    );
+  }
+);

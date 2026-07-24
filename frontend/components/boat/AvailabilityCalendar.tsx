@@ -618,7 +618,10 @@ export function AvailabilityCalendar({
                     {group.dateLabel}
                   </div>
                   <div style={{ marginTop: 5, fontSize: 12, opacity: 0.76 }}>
-                    {group.slots.length} {group.slots.length === 1 ? copy.timeSingle : copy.timePlural}
+                    {group.startSlots.length}{" "}
+                     {group.startSlots.length === 1
+                       ? copy.timeSingle
+                       : copy.timePlural}
                   </div>
                 </button>
               );
