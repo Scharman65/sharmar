@@ -19,6 +19,7 @@ export default async function LangLayout({ children, params }: Props) {
   const { lang: raw } = await params;
   const lang: Lang = isLang(raw) ? raw : "en";
   const tr = t(lang);
+  const currentYear = new Date().getFullYear();
 
   return (
     <html lang={htmlLang(lang)}>
@@ -59,7 +60,7 @@ export default async function LangLayout({ children, params }: Props) {
 
           <footer className="footer">
             <div className="footer-inner">
-              <span>© 2025 Sharmar Boats</span>
+              <span>© {currentYear} Sharmar Boats</span>
 
               <nav className="footer-links" aria-label="Footer">
                 <Link href={`/${lang}/how-it-works`}>

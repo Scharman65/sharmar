@@ -469,3 +469,27 @@ test(
     );
   }
 );
+
+const langLayout = source(
+  "frontend/app/[lang]/layout.tsx"
+);
+
+test(
+  "footer uses the automatic current year",
+  () => {
+    assert.match(
+      langLayout,
+      /new Date\(\)\.getFullYear\(\)/
+    );
+
+    assert.match(
+      langLayout,
+      /© \{currentYear\} Sharmar Boats/
+    );
+
+    assert.doesNotMatch(
+      langLayout,
+      /© 2025 Sharmar Boats/
+    );
+  }
+);
