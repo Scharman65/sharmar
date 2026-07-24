@@ -247,6 +247,36 @@ function stableHashHex(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
 }
 
+function isAuthorizedE2eNotificationSuppression(req: Request): boolean {
+  const configuredSecret = (
+    process.env.SHARMAR_E2E_TEST_SECRET ?? ""
+  ).trim();
+
+  const suppliedSecret = (
+    req.headers.get("x-sharmar-e2e-test-secret") ?? ""
+  ).trim();
+
+  const suppressionRequested =
+    req.headers.get("x-sharmar-e2e-suppress-notifications") === "1";
+
+  if (
+    !suppressionRequested ||
+    configuredSecret.length < 32 ||
+    suppliedSecret.length !== configuredSecret.length
+  ) {
+    return false;
+  }
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(suppliedSecret, "utf8"),
+      Buffer.from(configuredSecret, "utf8")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function buildFingerprint(req: Request, ip: string | null): string {
   const ua = req.headers.get("user-agent") ?? "";
   const al = req.headers.get("accept-language") ?? "";
@@ -579,6 +609,8 @@ function emailLocaleFromRequest(req: Request): string {
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
   const emailLocale = emailLocaleFromRequest(req);
+  const suppressNotifications =
+    isAuthorizedE2eNotificationSuppression(req);
   const t0 = Date.now();
 
   let body: unknown;
@@ -827,7 +859,12 @@ export async function POST(req: Request) {
       console.error("OWNER_CONTACT_LOOKUP_FAILED", e);
     }
 
-    if (id > 0 && BOOKING_TO && resend) {
+    if (
+      id > 0 &&
+      BOOKING_TO &&
+      resend &&
+      !suppressNotifications
+    ) {
       try {
         const mail = bookingAdminEmail({
           locale: emailLocale,
@@ -855,7 +892,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (id > 0) {
+    if (id > 0 && !suppressNotifications) {
       try {
         ownerNotificationResults = await notifyOwnerOfBookingRequest({
           requestId: id,
@@ -884,7 +921,12 @@ export async function POST(req: Request) {
       }
     }
 
-    if (id > 0 && p.email && resend) {
+    if (
+      id > 0 &&
+      p.email &&
+      resend &&
+      !suppressNotifications
+    ) {
       try {
         const mail = bookingCustomerRequestEmail({
           locale: emailLocale,
@@ -919,6 +961,7 @@ export async function POST(req: Request) {
       id,
       fingerprint: fp,
       source_ip: ip,
+      e2e_notifications_suppressed: suppressNotifications,
       owner_notifications: ownerNotificationResults.map((r) => ({
         channel: r.channel,
         provider: r.provider,
@@ -934,6 +977,7 @@ export async function POST(req: Request) {
         id,
         token: publicToken,
         ownerUrl,
+        notificationsSuppressed: suppressNotifications,
         ownerNotifications: ownerNotificationResults.map((r) => ({
           channel: r.channel,
           provider: r.provider,
