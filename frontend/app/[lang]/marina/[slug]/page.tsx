@@ -335,11 +335,11 @@ export default async function MarinaPage({ params }: PageProps) {
 
   if (!marina) notFound();
 
-  // Frontend-only marina filtering for the safe scaling phase. A later backend phase can
-  // replace this with API-level marina filtering once the marina contract is finalized.
-  const boats = (await fetchBoats(lang).catch(() => []))
-    .filter((boat) => boatMatchesMarina(boat, marina))
-    .slice(0, 6);
+  const boats = (
+    await fetchBoats(lang, {
+      homeMarinaSlug: marina.slug,
+    }).catch(() => [])
+  ).slice(0, 6);
   const relatedMarinas = getRelatedMarinas(marina);
   const marinaUrl = absoluteSiteUrl(marinaPath(lang, marina.slug));
   const jsonLd = [
