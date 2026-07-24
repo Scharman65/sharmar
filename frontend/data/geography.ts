@@ -89,7 +89,7 @@ export const CITIES: CityDefinition[] = [
     seoTitle: "Yacht Rentals in Bar | Sharmar",
     seoDescription:
       "Explore yacht rentals, catamarans, motor boats, and sailing boats from Bar, Montenegro with Sharmar.",
-    marinaSlugs: ["bar-marina"],
+    marinaSlugs: ["bar"],
   },
   {
     slug: "herceg-novi",

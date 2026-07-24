@@ -121,6 +121,35 @@ export const MARINAS: MarinaDefinition[] = [
   },
 
   {
+    slug: "bar",
+    city: "Bar",
+    country: "Montenegro",
+    region: "Adriatic Sea",
+    title: "Bar Marina",
+    description:
+      "Yacht and boat rental marina in Bar with access to southern Montenegro and Adriatic routes.",
+    descriptions: {
+      en: "Yacht and boat rental marina in Bar with access to southern Montenegro and Adriatic routes.",
+      ru: "Марина в Баре для аренды яхт и лодок с выходом к маршрутам юга Черногории и Адриатики.",
+      me: "Marina u Baru za najam jahti i plovila sa pristupom rutama južne Crne Gore i Jadrana.",
+    },
+    seoTitle:
+      "Bar Marina Yacht Rentals & Motor Boats | Sharmar",
+    seoTitles: {
+      en: "Bar Marina Yacht Rentals & Motor Boats | Sharmar",
+      ru: "Аренда яхт и моторных лодок в марине Бара | Sharmar",
+      me: "Najam jahti i motornih plovila u marini Bar | Sharmar",
+    },
+    seoDescription:
+      "Browse motor yachts, sailing boats, and routes available from Bar Marina in Montenegro.",
+    seoDescriptions: {
+      en: "Browse motor yachts, sailing boats, and routes available from Bar Marina in Montenegro.",
+      ru: "Смотрите моторные яхты, парусные лодки и маршруты, доступные из марины Бара в Черногории.",
+      me: "Pregledajte motorne jahte, jedrilice i rute dostupne iz marine Bar u Crnoj Gori.",
+    },
+  },
+
+  {
     slug: "dubrovnik-marina",
     city: "Dubrovnik",
     country: "Croatia",
