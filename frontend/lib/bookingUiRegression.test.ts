@@ -164,7 +164,7 @@ test(
 );
 
 test(
-  "request API loads and enforces minimum rental duration",
+  "request API loads and enforces exact rental duration",
   () => {
     assert.match(
       requestApi,
@@ -178,7 +178,7 @@ test(
 
     assert.match(
       requestApi,
-      /Minimum rental duration is/
+      /Rental duration must be exactly/
     );
   }
 );

@@ -636,7 +636,7 @@ export async function POST(req: Request) {
 
   const bookingTz = process.env.BOOKING_TZ ?? "Europe/Podgorica";
   const tf = p.timeFrom && isValidTime(p.timeFrom) ? p.timeFrom : "10:00";
-  const tt = p.timeTo && isValidTime(p.timeTo) ? p.timeTo : "14:00";
+  const tt = p.timeTo && isValidTime(p.timeTo) ? p.timeTo : "18:00";
 
   const start = toUtcIsoFromLocal(p.dateFrom, tf, bookingTz);
   const end = toUtcIsoFromLocal(p.dateTo, tt, bookingTz);
@@ -670,12 +670,34 @@ export async function POST(req: Request) {
 
     let hours = diffHoursIso(start, end);
 
-    if (hours < boatPricing.minRentalHours) {
+    if (
+      !p.experienceId &&
+      Math.abs(hours - boatPricing.minRentalHours) > 1 / 60
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            `Minimum rental duration is ` +
+            `Rental duration must be exactly ` +
+            `${boatPricing.minRentalHours} hours.`,
+          fallbackMailto: buildFallbackMailto(p),
+        },
+        {
+          status: 409,
+          headers: { "cache-control": "no-store" },
+        }
+      );
+    }
+
+    if (
+      p.experienceId &&
+      hours < boatPricing.minRentalHours
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `Minimum route duration is ` +
             `${boatPricing.minRentalHours} hours.`,
           fallbackMailto: buildFallbackMailto(p),
         },
@@ -731,27 +753,17 @@ export async function POST(req: Request) {
       ) {
         ownerAmount = roundMoney(boatPricing.pricePerDay);
       } else {
-        if (
-          !boatPricing.pricePerHour ||
-          boatPricing.pricePerHour <= 0
-        ) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error:
-                "Boat hourly price is not configured for " +
-                "the selected duration.",
-              fallbackMailto: buildFallbackMailto(p),
-            },
-            {
-              status: 409,
-              headers: { "cache-control": "no-store" },
-            }
-          );
-        }
-
-        ownerAmount = roundMoney(
-          hours * boatPricing.pricePerHour
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Boat fixed-duration price is not configured.",
+            fallbackMailto: buildFallbackMailto(p),
+          },
+          {
+            status: 409,
+            headers: { "cache-control": "no-store" },
+          }
         );
       }
     }

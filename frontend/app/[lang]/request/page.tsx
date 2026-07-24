@@ -25,7 +25,6 @@ type RequestPayload = {
   timeTo?: string;
 
   hours?: number;
-  pricePerHour?: number;
   totalPrice?: number;
   ownerAmount?: number;
   marketplaceFeeAmount?: number;
@@ -375,24 +374,10 @@ export default function RequestPage() {
     isIsoUtcTimestamp(slotStartUtc) &&
     isIsoUtcTimestamp(slotEndUtc);
 
-  const pricePerHourFromUrl = Number(sp.get("pph"));
   const pricePerDayFromUrl = Number(sp.get("ppd"));
   const minimumRentalHoursFromUrl = Number(
     sp.get("minRentalHours")
   );
-  const pricePerHourFromEnv = Number(
-    process.env.NEXT_PUBLIC_PRICE_PER_HOUR
-  );
-
-  const PRICE_PER_HOUR =
-    Number.isFinite(pricePerHourFromUrl) &&
-    pricePerHourFromUrl > 0
-      ? pricePerHourFromUrl
-      : Number.isFinite(pricePerHourFromEnv) &&
-          pricePerHourFromEnv > 0
-        ? pricePerHourFromEnv
-        : 100;
-
   const PRICE_PER_DAY =
     Number.isFinite(pricePerDayFromUrl) &&
     pricePerDayFromUrl > 0
@@ -411,7 +396,7 @@ export default function RequestPage() {
 
   const [date, setDate] = useState(slotParts?.date ?? "");
   const [timeFrom, setTimeFrom] = useState(slotParts?.timeFrom ?? "10:00");
-  const [timeTo, setTimeTo] = useState(slotParts?.timeTo ?? "14:00");
+  const [timeTo, setTimeTo] = useState(slotParts?.timeTo ?? "18:00");
 
   const [peopleCount, setPeopleCount] = useState<number>(1);
   const [needSkipper, setNeedSkipper] = useState<boolean>(false);
@@ -442,17 +427,24 @@ export default function RequestPage() {
     }
     if (!hours) return 0;
 
+    const durationMatchesFixedRental =
+      Math.abs(hours - MINIMUM_RENTAL_HOURS) <= 1 / 60;
+
+    if (!durationMatchesFixedRental) {
+      return 0;
+    }
+
     if (hours === 8 && PRICE_PER_DAY > 0) {
       return PRICE_PER_DAY;
     }
 
-    return hours * PRICE_PER_HOUR;
+    return 0;
   }, [
     hasExperience,
     experiencePrice,
     hours,
+    MINIMUM_RENTAL_HOURS,
     PRICE_PER_DAY,
-    PRICE_PER_HOUR,
   ]);
 
   const marketplaceBreakdown = useMemo(() => {
@@ -467,7 +459,8 @@ export default function RequestPage() {
 
   const timeOk =
     hours > 0 &&
-    (hasExperience || hours >= MINIMUM_RENTAL_HOURS);
+    (hasExperience ||
+      Math.abs(hours - MINIMUM_RENTAL_HOURS) <= 1 / 60);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -533,7 +526,6 @@ export default function RequestPage() {
       timeTo,
 
       hours,
-      pricePerHour: PRICE_PER_HOUR,
       totalPrice,
       ownerAmount,
       marketplaceFeeAmount,
@@ -628,7 +620,10 @@ export default function RequestPage() {
     Boolean(date) &&
     Boolean(timeFrom) &&
     Boolean(timeTo) &&
-    timeOk;
+    timeOk &&
+    ownerAmount > 0 &&
+    marketplaceFeeAmount > 0 &&
+    customerTotalAmount > 0;
 
   const summaryRows = [
     { label: copy.summaryBoat, value: boatTitle || boatSlug || "—" },
@@ -881,13 +876,7 @@ export default function RequestPage() {
 
                         )
 
-                      : `${money(
-
-                          PRICE_PER_HOUR,
-
-                          currency
-
-                        )} / ${copy.hour}`}
+                      : `${money(PRICE_PER_DAY, currency)} / ${formatDuration(8, lang)}`}
 
                   </b>
 
