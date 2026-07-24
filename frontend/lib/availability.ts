@@ -67,7 +67,7 @@ export async function fetchAvailability(
       "accept": "application/json",
       "accept-language": lang,
     },
-    next: { revalidate: 300 },
+    cache: "no-store",
   });
 
   if (!res.ok) return null;

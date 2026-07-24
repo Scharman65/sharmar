@@ -256,3 +256,166 @@ test(
     );
   }
 );
+
+const publicBoatPage = source(
+  "frontend/app/[lang]/boats/[slug]/page.tsx"
+);
+
+test(
+  "availability removes past slots and calendar keeps only complete starts",
+  () => {
+    assert.match(
+      availability,
+      /startMs > nowMs/
+    );
+
+    assert.match(
+      calendar,
+      /length >= minimumRentalHours/
+    );
+
+    assert.match(
+      calendar,
+      /activeGroup\.startSlots\.map/
+    );
+  }
+);
+
+test(
+  "availability fetch is not cached across passing time",
+  () => {
+    assert.match(
+      availability,
+      /cache: "no-store"/
+    );
+
+    assert.doesNotMatch(
+      availability,
+      /revalidate: 300/
+    );
+  }
+);
+
+test(
+  "eight hours is displayed as an exact duration",
+  () => {
+    assert.doesNotMatch(
+      calendar,
+      /if \(slotCount === 8\) return copy\.fullDay/
+    );
+
+    assert.match(
+      calendar,
+      /return `\$\{hours\} \$\{noun\}`/
+    );
+  }
+);
+
+test(
+  "calendar counter counts valid starts instead of raw hourly slots",
+  () => {
+    assert.match(
+      calendar,
+      /group\.startSlots\.length/
+    );
+
+    assert.match(
+      calendar,
+      /sum \+ group\.startSlots\.length/
+    );
+  }
+);
+
+test(
+  "fixed rental terminology replaces hourly rental terminology",
+  () => {
+    assert.match(
+      calendar,
+      /Аренда на/
+    );
+
+    assert.match(
+      calendar,
+      /Najam na/
+    );
+
+    assert.match(
+      calendar,
+      /-hour rental/
+    );
+
+    assert.doesNotMatch(
+      calendar,
+      />Hourly rental</
+    );
+  }
+);
+
+test(
+  "public boat page localizes motorboat and minimum duration",
+  () => {
+    assert.match(
+      publicBoatPage,
+      /Моторная яхта/
+    );
+
+    assert.match(
+      publicBoatPage,
+      /Motorna jahta/
+    );
+
+    assert.match(
+      publicBoatPage,
+      /Минимальная продолжительность аренды/
+    );
+
+    assert.match(
+      publicBoatPage,
+      /Minimalno trajanje najma/
+    );
+  }
+);
+
+test(
+  "direct request link passes daily price and minimum duration",
+  () => {
+    assert.match(
+      publicBoatPage,
+      /requestParams\.set\(\s*"minRentalHours"/
+    );
+
+    assert.match(
+      publicBoatPage,
+      /requestParams\.set\(\s*"ppd"/
+    );
+  }
+);
+
+test(
+  "request page displays fixed eight-hour owner rate",
+  () => {
+    assert.match(
+      requestPage,
+      /fixedBoatRate: "8-hour boat rate"/
+    );
+
+    assert.match(
+      requestPage,
+      /hours === 8/
+    );
+
+    assert.match(
+      requestPage,
+      /money\(\s*ownerAmount/
+    );
+
+    assert.doesNotMatch(
+      requestPage,
+      new RegExp(
+        "hasExperience\\s*\\?\\s*" +
+          "money\\(ownerAmount,\\s*currency\\)\\s*" +
+          ":\\s*`\\$\\{money\\(PRICE_PER_HOUR"
+      )
+    );
+  }
+);

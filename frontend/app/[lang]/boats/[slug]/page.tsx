@@ -157,6 +157,80 @@ function pageCopy(lang: Lang): PageCopy {
   };
 }
 
+function localizedBoatType(
+  value: unknown,
+  lang: Lang
+): string {
+  const raw = String(value ?? "").trim();
+
+  if (!raw) return "—";
+
+  const normalized = raw.toLowerCase();
+
+  if (
+    normalized === "motorboat" ||
+    normalized === "motor boat" ||
+    normalized === "motor" ||
+    normalized === "motor yacht"
+  ) {
+    if (lang === "ru") return "Моторная яхта";
+    if (lang === "me") return "Motorna jahta";
+    return "Motorboat";
+  }
+
+  if (
+    normalized === "sailboat" ||
+    normalized === "sailing boat"
+  ) {
+    if (lang === "ru") return "Парусная яхта";
+    if (lang === "me") return "Jedrilica";
+    return "Sailboat";
+  }
+
+  if (normalized === "catamaran") {
+    if (lang === "ru") return "Катамаран";
+    if (lang === "me") return "Katamaran";
+    return "Catamaran";
+  }
+
+  return raw;
+}
+
+function localizedHourCount(
+  value: number,
+  lang: Lang
+): string {
+  const hours = Math.max(1, Math.floor(value));
+
+  if (lang === "ru") {
+    const mod10 = hours % 10;
+    const mod100 = hours % 100;
+    const noun =
+      mod10 === 1 && mod100 !== 11
+        ? "час"
+        : mod10 >= 2 &&
+            mod10 <= 4 &&
+            (mod100 < 12 || mod100 > 14)
+          ? "часа"
+          : "часов";
+
+    return `${hours} ${noun}`;
+  }
+
+  if (lang === "me") {
+    const noun =
+      hours === 1
+        ? "sat"
+        : hours >= 2 && hours <= 4
+          ? "sata"
+          : "sati";
+
+    return `${hours} ${noun}`;
+  }
+
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
 type Props = {
   params: Promise<{ lang: string; slug: string }>;
 };
@@ -263,9 +337,36 @@ export default async function BoatPage({ params }: Props) {
   requestParams.set("title", boat.title ?? slug);
   if (boat.documentId) requestParams.set("documentId", boat.documentId);
   if (Number.isFinite(boatId) && boatId > 0) requestParams.set("boatId", String(boatId));
-  if ((boat as any).currency) requestParams.set("currency", String((boat as any).currency));
-  if ((boat as any).price_per_hour) requestParams.set("pph", String((boat as any).price_per_hour));
-  const requestHref = `/${lang}/request?${requestParams.toString()}`;
+  if ((boat as any).currency) {
+    requestParams.set(
+      "currency",
+      String((boat as any).currency)
+    );
+  }
+
+  if ((boat as any).min_rental_hours) {
+    requestParams.set(
+      "minRentalHours",
+      String((boat as any).min_rental_hours)
+    );
+  }
+
+  if ((boat as any).price_per_hour) {
+    requestParams.set(
+      "pph",
+      String((boat as any).price_per_hour)
+    );
+  }
+
+  if ((boat as any).price_per_day) {
+    requestParams.set(
+      "ppd",
+      String((boat as any).price_per_day)
+    );
+  }
+
+  const requestHref =
+    `/${lang}/request?${requestParams.toString()}`;
   const primaryPrice =
     (boat as any).listing_type === "sale"
       ? fmtMoney((boat as any).sale_price)
@@ -360,7 +461,13 @@ export default async function BoatPage({ params }: Props) {
         {(() => {
           rows.length = 0;
 
-          add(pageCopy(lang).type, boat.boat_type ?? boat.vesselType ?? null);
+          add(
+            pageCopy(lang).type,
+            localizedBoatType(
+              boat.boat_type ?? boat.vesselType,
+              lang
+            )
+          );
           add(
             pageCopy(lang).capacity,
             boat.capacity,
@@ -390,18 +497,29 @@ export default async function BoatPage({ params }: Props) {
           if (listing === "rent") {
             const minRentalHours = Number((boat as any).min_rental_hours ?? 1);
             add(
-              lang === "ru" ? "Почасовая аренда" : lang === "me" ? "Najam po satu" : "Hourly rental",
-              Number.isFinite(minRentalHours) && minRentalHours > 1 ? minRentalHours : 1,
+              lang === "ru"
+                ? "Минимальная продолжительность аренды"
+                : lang === "me"
+                  ? "Minimalno trajanje najma"
+                  : "Minimum rental duration",
+              Number.isFinite(minRentalHours) &&
+                minRentalHours > 0
+                ? minRentalHours
+                : 1,
               (x) => {
                 const hours = Number(x);
-                if (!Number.isFinite(hours) || hours <= 1) {
-                  return lang === "ru" ? "от 1 часа" : lang === "me" ? "od 1 sata" : "from 1 hour";
+
+                if (
+                  !Number.isFinite(hours) ||
+                  hours <= 0
+                ) {
+                  return null;
                 }
-                return lang === "ru"
-                  ? `от ${hours} часов`
-                  : lang === "me"
-                    ? `od ${hours} sata`
-                    : `from ${hours} hours`;
+
+                return localizedHourCount(
+                  hours,
+                  lang
+                );
               }
             );
             add(pageCopy(lang).priceHour, applyMarketplaceFee((boat as any).price_per_hour), fmtMoney);

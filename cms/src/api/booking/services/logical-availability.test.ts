@@ -186,7 +186,7 @@ test(
 );
 
 test(
-  "public boat page exposes minimum rental hours",
+  "public boat page exposes localized minimum rental duration",
   () => {
     assert.match(
       boatPage,
@@ -194,6 +194,26 @@ test(
     );
 
     assert.match(
+      boatPage,
+      /Minimum rental duration/
+    );
+
+    assert.match(
+      boatPage,
+      /Минимальная продолжительность аренды/
+    );
+
+    assert.match(
+      boatPage,
+      /Minimalno trajanje najma/
+    );
+
+    assert.match(
+      boatPage,
+      /localizedHourCount/
+    );
+
+    assert.doesNotMatch(
       boatPage,
       /from \$\{hours\} hours/
     );

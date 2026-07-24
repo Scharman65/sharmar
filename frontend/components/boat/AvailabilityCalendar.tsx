@@ -23,6 +23,7 @@ type SlotGroup = {
   dayName: string;
   dateLabel: string;
   slots: AvailabilitySlot[];
+  startSlots: AvailabilitySlot[];
 };
 
 type DurationOption = {
@@ -109,10 +110,10 @@ function bookingCopy(lang: Lang) {
       availableDates: "Доступные даты",
       tripDuration: "Длительность поездки",
       selectedBooking: "Выбранное бронирование",
-      slot: "слот",
-      slots: "слотов",
-      timeSingle: "время",
-      timePlural: "времени",
+      slot: "вариант начала",
+      slots: "вариантов начала",
+      timeSingle: "начало",
+      timePlural: "вариантов начала",
     };
   }
 
@@ -130,10 +131,10 @@ function bookingCopy(lang: Lang) {
       availableDates: "Dostupni datumi",
       tripDuration: "Trajanje putovanja",
       selectedBooking: "Odabrana rezervacija",
-      slot: "termin",
-      slots: "termina",
-      timeSingle: "vrijeme",
-      timePlural: "vremena",
+      slot: "vrijeme polaska",
+      slots: "vremena polaska",
+      timeSingle: "polazak",
+      timePlural: "polazaka",
     };
   }
 
@@ -150,18 +151,49 @@ function bookingCopy(lang: Lang) {
     availableDates: "Available dates",
     tripDuration: "Trip duration",
     selectedBooking: "Selected booking request",
-    slot: "slot",
-    slots: "slots",
-    timeSingle: "time",
-    timePlural: "times",
+    slot: "available start",
+    slots: "available starts",
+    timeSingle: "start",
+    timePlural: "starts",
   };
 }
 
-function formatDuration(slotCount: number, lang: Lang): string {
-  const copy = bookingCopy(lang);
+function formatDuration(
+  slotCount: number,
+  lang: Lang
+): string {
+  const hours = Math.max(
+    1,
+    Math.floor(slotCount)
+  );
 
-  if (slotCount === 8) return copy.fullDay;
-  return `${slotCount} ${slotCount === 1 ? copy.hour : copy.hours}`;
+  if (lang === "ru") {
+    const mod10 = hours % 10;
+    const mod100 = hours % 100;
+    const noun =
+      mod10 === 1 && mod100 !== 11
+        ? "час"
+        : mod10 >= 2 &&
+            mod10 <= 4 &&
+            (mod100 < 12 || mod100 > 14)
+          ? "часа"
+          : "часов";
+
+    return `${hours} ${noun}`;
+  }
+
+  if (lang === "me") {
+    const noun =
+      hours === 1
+        ? "sat"
+        : hours >= 2 && hours <= 4
+          ? "sata"
+          : "sati";
+
+    return `${hours} ${noun}`;
+  }
+
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
 }
 
 function bookingCtaLabel(label: string): string {
@@ -186,6 +218,7 @@ function groupSlots(slots: AvailabilitySlot[], timeZone: string, lang: Lang): Sl
         groups.set(parts.key, {
           ...parts,
           slots: [slot],
+          startSlots: [],
         });
       }
     });
@@ -348,29 +381,74 @@ export function AvailabilityCalendar({
   availabilityEmpty,
   availabilityUnavailable,
 }: AvailabilityCalendarProps) {
-  const timeZone = availability?.timezone || "Europe/Podgorica";
-  const groups = useMemo(
-    () => groupSlots(availability?.data ?? [], timeZone, lang),
-    [availability?.data, lang, timeZone]
-  );
-  const [selectedDate, setSelectedDate] = useState<string | null>(groups[0]?.key ?? null);
-  const activeGroup = groups.find((group) => group.key === selectedDate) ?? groups[0] ?? null;
-  const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(
-    activeGroup?.slots[0] ? slotKey(activeGroup.slots[0]) : null
-  );
+  const timeZone =
+    availability?.timezone || "Europe/Podgorica";
+
   const minimumRentalHours = Math.max(
     1,
     Math.ceil(Number(boat.min_rental_hours ?? 1))
   );
+
   const hasHourlyRental =
     Number.isFinite(Number(boat.price_per_hour)) &&
     Number(boat.price_per_hour) > 0;
+
   const hasFullDayRental =
     minimumRentalHours === 8 &&
     Number.isFinite(Number(boat.price_per_day)) &&
     Number(boat.price_per_day) > 0;
+
   const hasTimedRental =
     hasHourlyRental || hasFullDayRental;
+
+  const rawGroups = useMemo(
+    () =>
+      groupSlots(
+        availability?.data ?? [],
+        timeZone,
+        lang
+      ),
+    [availability?.data, lang, timeZone]
+  );
+
+  const groups = useMemo(
+    () =>
+      rawGroups
+        .map((group) => ({
+          ...group,
+          startSlots: group.slots.filter(
+            (slot) =>
+              getConsecutiveSlots(
+                group.slots,
+                slot
+              ).length >= minimumRentalHours
+          ),
+        }))
+        .filter(
+          (group) =>
+            group.startSlots.length > 0
+        ),
+    [rawGroups, minimumRentalHours]
+  );
+
+  const [selectedDate, setSelectedDate] =
+    useState<string | null>(
+      groups[0]?.key ?? null
+    );
+
+  const activeGroup =
+    groups.find(
+      (group) => group.key === selectedDate
+    ) ??
+    groups[0] ??
+    null;
+
+  const [selectedSlotKey, setSelectedSlotKey] =
+    useState<string | null>(
+      activeGroup?.startSlots[0]
+        ? slotKey(activeGroup.startSlots[0])
+        : null
+    );
 
   const [selectedDurationSlots, setSelectedDurationSlots] =
     useState(minimumRentalHours);
@@ -382,7 +460,12 @@ export function AvailabilityCalendar({
       ? experiences.find((experience) => experience.id === selectedExperienceId) ?? null
       : null;
   const selectedSlot =
-    activeGroup?.slots.find((slot) => slotKey(slot) === selectedSlotKey) ?? activeGroup?.slots[0] ?? null;
+    activeGroup?.startSlots.find(
+      (slot) =>
+        slotKey(slot) === selectedSlotKey
+    ) ??
+    activeGroup?.startSlots[0] ??
+    null;
   const selectedExperienceSlotCount =
     selectedExperience?.duration_hours &&
     Number.isFinite(Number(selectedExperience.duration_hours)) &&
@@ -423,7 +506,11 @@ export function AvailabilityCalendar({
           effectiveDurationSlots
         )
     : null;
-  const totalSlots = groups.reduce((sum, group) => sum + group.slots.length, 0);
+  const totalSlots = groups.reduce(
+    (sum, group) =>
+      sum + group.startSlots.length,
+    0
+  );
   const selectedDateLabel = requestSlotRange ? formatDate(requestSlotRange.slot_start_utc, timeZone, lang) : null;
   const selectedTimeLabel = requestSlotRange
     ? `${formatTime(requestSlotRange.slot_start_utc, timeZone, lang)}-${formatTime(
@@ -437,7 +524,11 @@ export function AvailabilityCalendar({
 
   function selectDate(group: SlotGroup) {
     setSelectedDate(group.key);
-    setSelectedSlotKey(group.slots[0] ? slotKey(group.slots[0]) : null);
+    setSelectedSlotKey(
+      group.startSlots[0]
+        ? slotKey(group.startSlots[0])
+        : null
+    );
     setSelectedDurationSlots(minimumRentalHours);
   }
 
@@ -560,7 +651,7 @@ export function AvailabilityCalendar({
                       gap: 8,
                     }}
                   >
-                    {activeGroup.slots.map((slot) => {
+                    {activeGroup.startSlots.map((slot) => {
                       const key = slotKey(slot);
                       const isActive = selectedSlot ? key === slotKey(selectedSlot) : false;
 
@@ -619,7 +710,19 @@ export function AvailabilityCalendar({
                           textAlign: "left",
                         }}
                       >
-                        <strong>{lang === "ru" ? "Аренда по времени" : lang === "me" ? "Najam po vremenu" : "Hourly rental"}</strong>
+                        <strong>
+                          {lang === "ru"
+                            ? `Аренда на ${formatDuration(
+                                minimumRentalHours,
+                                lang
+                              )}`
+                            : lang === "me"
+                              ? `Najam na ${formatDuration(
+                                  minimumRentalHours,
+                                  lang
+                                )}`
+                              : `${minimumRentalHours}-hour rental`}
+                        </strong>
                       </button>
                       ) : null}
 

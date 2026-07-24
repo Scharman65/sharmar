@@ -84,6 +84,7 @@ function requestCopy(lang: Lang) {
       priceEstimate: "Предварительный расчёт",
       priceEstimateText: "Расчёт обновляется по выбранному времени. Списание выполняется только после подтверждения владельцем.",
       boatRate: "Тариф лодки",
+      fixedBoatRate: "Тариф за 8 часов",
       hour: "час",
       serviceFee: "Онлайн-бронирование",
       reservationProtection: "Защита бронирования",
@@ -140,6 +141,7 @@ function requestCopy(lang: Lang) {
       priceEstimate: "Procjena cijene",
       priceEstimateText: "Procjena se ažurira prema odabranom vremenu. Naplata se vrši tek nakon odobrenja vlasnika.",
       boatRate: "Cijena broda",
+      fixedBoatRate: "Cijena za 8 sati",
       hour: "sat",
       serviceFee: "Online rezervacija",
       reservationProtection: "Zaštita rezervacije",
@@ -195,6 +197,7 @@ function requestCopy(lang: Lang) {
     priceEstimate: "Price estimate",
     priceEstimateText: "The estimate updates from the selected time range. Final capture happens only after owner approval.",
     boatRate: "Boat rate",
+    fixedBoatRate: "8-hour boat rate",
     hour: "hour",
     serviceFee: "Online booking",
     reservationProtection: "Reservation protection",
@@ -791,7 +794,17 @@ export default function RequestPage() {
 
               {!timeOk ? (
                 <div className="kicker field-note">
-                  {copy.endAfterStart}
+                  {!hasExperience &&
+                  hours > 0 &&
+                  hours < MINIMUM_RENTAL_HOURS
+                    ? copy.minimumDuration.replace(
+                        "{hours}",
+                        formatHourCount(
+                          MINIMUM_RENTAL_HOURS,
+                          lang
+                        )
+                      )
+                    : copy.endAfterStart}
                 </div>
               ) : null}
 
@@ -835,12 +848,49 @@ export default function RequestPage() {
 
               <div className="price-lines">
                 <div>
-                  <span>{hasExperience ? experienceTitle : copy.boatRate}</span>
-                  <b>
+
+                  <span>
+
                     {hasExperience
-                      ? money(ownerAmount, currency)
-                      : `${money(PRICE_PER_HOUR, currency)} / ${copy.hour}`}
+
+                      ? experienceTitle
+
+                      : hours === 8 &&
+
+                          PRICE_PER_DAY > 0
+
+                        ? copy.fixedBoatRate
+
+                        : copy.boatRate}
+
+                  </span>
+
+                  <b>
+
+                    {hasExperience ||
+
+                    (hours === 8 &&
+
+                      PRICE_PER_DAY > 0)
+
+                      ? money(
+
+                          ownerAmount,
+
+                          currency
+
+                        )
+
+                      : `${money(
+
+                          PRICE_PER_HOUR,
+
+                          currency
+
+                        )} / ${copy.hour}`}
+
                   </b>
+
                 </div>
                 <div>
                   <span>{copy.summaryDuration}</span>
