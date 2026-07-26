@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
+import AdminTranslationEditor, { type EditableAiPreview } from "./AdminTranslationEditor";
 
 type StrapiLocale = "ru" | "en" | "sr-Latn-ME";
 
@@ -434,6 +435,7 @@ export default function AdminTranslationPreviewClient({
   );
   const [generateAi, setGenerateAi] = useState(false);
   const [response, setResponse] = useState<PreviewResponse | null>(null);
+  const [reviewedAiPreview, setReviewedAiPreview] = useState<EditableAiPreview | null>(null);
   const [saveDraftResponse, setSaveDraftResponse] = useState<SaveDraftResponse | null>(null);
   const [confirmSaveDraft, setConfirmSaveDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -479,6 +481,7 @@ export default function AdminTranslationPreviewClient({
     await fetch("/api/admin/session", { method: "DELETE" });
     setAuthenticated(false);
     setResponse(null);
+    setReviewedAiPreview(null);
     setSaveDraftResponse(null);
   }
 
@@ -490,6 +493,7 @@ export default function AdminTranslationPreviewClient({
     setLoading(true);
     setError(null);
     setResponse(null);
+    setReviewedAiPreview(null);
     setSaveDraftResponse(null);
     setConfirmSaveDraft(false);
 
@@ -509,6 +513,7 @@ export default function AdminTranslationPreviewClient({
 
       const data: PreviewResponse = await res.json().catch(() => ({ ok: false, code: "unknown" }));
       setResponse(data);
+      setReviewedAiPreview(data.aiPreview ?? null);
 
       if (!res.ok || data.ok === false) {
         setError(errorMessage(ui, data.code));
@@ -526,7 +531,7 @@ export default function AdminTranslationPreviewClient({
   }
 
   async function runSaveDraft(dryRun: boolean) {
-    if (!response?.aiPreview) return;
+    if (!reviewedAiPreview) return;
     if (!dryRun && !confirmSaveDraft) {
       setError(ui.confirmSave);
       return;
@@ -549,7 +554,7 @@ export default function AdminTranslationPreviewClient({
           boatDocumentId: boatDocumentId.trim(),
           sourceLocale,
           targetLocales,
-          aiPreview: response.aiPreview,
+          aiPreview: reviewedAiPreview,
         }),
       });
       const data: SaveDraftResponse = await res.json().catch(() => ({ ok: false, code: "unknown" }));
@@ -759,7 +764,21 @@ export default function AdminTranslationPreviewClient({
         </section>
       ) : null}
 
-      {response?.aiPreview ? (
+      {reviewedAiPreview ? (
+        <AdminTranslationEditor
+          lang={lang}
+          value={reviewedAiPreview}
+          targetLocales={previewTargetLocales}
+          onChange={(next) => {
+            setReviewedAiPreview(next);
+            setSaveDraftResponse(null);
+            setConfirmSaveDraft(false);
+            setError(null);
+          }}
+        />
+      ) : null}
+
+      {reviewedAiPreview ? (
         <section className="admin-translation-card">
           <h2>{ui.draftPlan}</h2>
           <p className="admin-translation-muted">{ui.draftOnlyNotice}</p>
