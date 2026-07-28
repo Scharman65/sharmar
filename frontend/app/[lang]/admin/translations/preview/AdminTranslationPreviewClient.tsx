@@ -142,8 +142,8 @@ type Copy = {
 
 const copy: Record<Lang, Copy> = {
   ru: {
-    title: "AI-перевод лодки",
-    warning: "Это только предварительный просмотр. Переводы не сохраняются и не публикуются.",
+    title: "Перевод лодки",
+    warning: "Одна кнопка переводит лодку и все маршруты на два остальных языка. Публикация выполняется отдельно.",
     adminPassword: "Пароль администратора",
     signIn: "Войти",
     signOut: "Выйти",
@@ -154,13 +154,13 @@ const copy: Record<Lang, Copy> = {
     sourceOnly: "Показать исходные данные",
     aiPreview: "Создать предпросмотр AI",
     previewButton: "Проверить без AI",
-    generateButton: "Создать предпросмотр AI",
+    generateButton: "Перевести на остальные языки",
     loading: "Загрузка...",
     sourcePayload: "Исходные данные",
     aiResult: "Предпросмотр AI",
     draftPlan: "План сохранения черновика",
-    dryRunButton: "Проверить сохранение черновика",
-    saveDraftButton: "Сохранить черновик перевода",
+    dryRunButton: "Проверить переводы",
+    saveDraftButton: "Сохранить переводы как черновики",
     confirmSave: "Подтверждаю, что эта операция должна сохранить только черновики переводов.",
     draftOnlyNotice: "Сохранение черновика никогда не публикует контент. Оно только создаёт или обновляет черновые локализации.",
     changedFields: "Поля для записи",
@@ -212,8 +212,8 @@ const copy: Record<Lang, Copy> = {
     },
   },
   en: {
-    title: "Boat AI translation",
-    warning: "This is preview only. Translations are not saved or published.",
+    title: "Boat translation",
+    warning: "One button translates the boat and all routes into the other two languages. Publishing remains separate.",
     adminPassword: "Admin password",
     signIn: "Sign in",
     signOut: "Sign out",
@@ -224,13 +224,13 @@ const copy: Record<Lang, Copy> = {
     sourceOnly: "Preview source only",
     aiPreview: "Generate AI preview",
     previewButton: "Preview without AI",
-    generateButton: "Generate AI preview",
+    generateButton: "Translate into the other languages",
     loading: "Loading...",
     sourcePayload: "Source payload",
     aiResult: "AI preview",
     draftPlan: "Draft save plan",
-    dryRunButton: "Check draft save",
-    saveDraftButton: "Save draft translations",
+    dryRunButton: "Check translations",
+    saveDraftButton: "Save translations as drafts",
     confirmSave: "I confirm this write must save draft translations only.",
     draftOnlyNotice: "Draft saving never publishes content. It only creates or updates draft localizations.",
     changedFields: "Fields to write",
@@ -282,8 +282,8 @@ const copy: Record<Lang, Copy> = {
     },
   },
   me: {
-    title: "AI prevod broda",
-    warning: "Ovo je samo pregled. Prevodi se ne čuvaju i ne objavljuju.",
+    title: "Prevod plovila",
+    warning: "Jedno dugme prevodi plovilo i sve rute na preostala dva jezika. Objavljivanje ostaje odvojeno.",
     adminPassword: "Administratorska lozinka",
     signIn: "Prijavi se",
     signOut: "Odjavi se",
@@ -294,13 +294,13 @@ const copy: Record<Lang, Copy> = {
     sourceOnly: "Prikaži izvorne podatke",
     aiPreview: "Napravi AI pregled",
     previewButton: "Provjeri bez AI",
-    generateButton: "Napravi AI pregled",
+    generateButton: "Prevedi na ostale jezike",
     loading: "Učitavanje...",
     sourcePayload: "Izvorni podaci",
     aiResult: "AI pregled",
     draftPlan: "Plan čuvanja nacrta",
-    dryRunButton: "Provjeri čuvanje nacrta",
-    saveDraftButton: "Sačuvaj nacrt prevoda",
+    dryRunButton: "Provjeri prevode",
+    saveDraftButton: "Sačuvaj prevode kao nacrte",
     confirmSave: "Potvrđujem da ova radnja smije sačuvati samo nacrte prevoda.",
     draftOnlyNotice: "Čuvanje nacrta nikada ne objavljuje sadržaj. Samo kreira ili ažurira nacrte lokalizacija.",
     changedFields: "Polja za upis",
@@ -433,7 +433,6 @@ export default function AdminTranslationPreviewClient({
   const [sourceLocale, setSourceLocale] = useState<StrapiLocale>(
     initialSourceLocale
   );
-  const [generateAi, setGenerateAi] = useState(false);
   const [response, setResponse] = useState<PreviewResponse | null>(null);
   const [reviewedAiPreview, setReviewedAiPreview] = useState<EditableAiPreview | null>(null);
   const [saveDraftResponse, setSaveDraftResponse] = useState<SaveDraftResponse | null>(null);
@@ -489,7 +488,7 @@ export default function AdminTranslationPreviewClient({
     void refreshSession();
   }, []);
 
-  async function submit(nextGenerateAi: boolean) {
+  async function submit() {
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -507,7 +506,7 @@ export default function AdminTranslationPreviewClient({
           boatDocumentId: boatDocumentId.trim(),
           sourceLocale,
           targetLocales,
-          generateAi: nextGenerateAi,
+          generateAi: true,
         }),
       });
 
@@ -515,8 +514,28 @@ export default function AdminTranslationPreviewClient({
       setResponse(data);
       setReviewedAiPreview(data.aiPreview ?? null);
 
-      if (!res.ok || data.ok === false) {
+      if (!res.ok || data.ok === false || !data.aiPreview) {
         setError(errorMessage(ui, data.code));
+        return;
+      }
+
+      const dryRunRes = await fetch("/api/admin/translations/save-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dryRun: true,
+          confirmSaveDraft: false,
+          overwrite: false,
+          boatDocumentId: boatDocumentId.trim(),
+          sourceLocale,
+          targetLocales,
+          aiPreview: data.aiPreview,
+        }),
+      });
+      const dryRunData: SaveDraftResponse = await dryRunRes.json().catch(() => ({ ok: false, code: "unknown" }));
+      setSaveDraftResponse(dryRunData);
+      if (!dryRunRes.ok || dryRunData.ok === false) {
+        setError(errorMessage(ui, dryRunData.code));
       }
     } catch {
       setError(errorMessage(ui, "unknown"));
@@ -527,7 +546,7 @@ export default function AdminTranslationPreviewClient({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submit(generateAi);
+    void submit();
   }
 
   async function runSaveDraft(dryRun: boolean) {
@@ -632,32 +651,8 @@ export default function AdminTranslationPreviewClient({
             ))}
           </div>
 
-          <div className="admin-translation-mode">
-            <label>
-              <input
-                type="radio"
-                name="translation-mode"
-                checked={!generateAi}
-                onChange={() => setGenerateAi(false)}
-              />
-              {ui.sourceOnly}
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="translation-mode"
-                checked={generateAi}
-                onChange={() => setGenerateAi(true)}
-              />
-              {ui.aiPreview}
-            </label>
-          </div>
-
           <div className="admin-translation-actions">
-            <button type="button" onClick={() => void submit(false)} disabled={loading}>
-              {loading ? ui.loading : ui.previewButton}
-            </button>
-            <button type="button" onClick={() => void submit(true)} disabled={loading}>
+            <button type="button" onClick={() => void submit()} disabled={loading}>
               {loading ? ui.loading : ui.generateButton}
             </button>
           </div>
@@ -683,7 +678,7 @@ export default function AdminTranslationPreviewClient({
         ) : null}
       </section>
 
-      <section className="admin-translation-card">
+      <section className="admin-translation-card" hidden>
         <h2>{ui.sourcePayload}</h2>
         {!response ? <p className="admin-translation-muted">{ui.noResponse}</p> : null}
 
@@ -726,7 +721,7 @@ export default function AdminTranslationPreviewClient({
       </section>
 
       {response?.aiPreview ? (
-        <section className="admin-translation-card">
+        <section className="admin-translation-card" hidden>
           <h2>{ui.aiResult}</h2>
           <TextBlock label={ui.model} value={response.aiPreview.model} />
           <TextBlock label={ui.labels.sourceLocale} value={response.aiPreview.sourceLocale} />
@@ -780,12 +775,9 @@ export default function AdminTranslationPreviewClient({
 
       {reviewedAiPreview ? (
         <section className="admin-translation-card">
-          <h2>{ui.draftPlan}</h2>
-          <p className="admin-translation-muted">{ui.draftOnlyNotice}</p>
+          <h2>{saveBlocked ? ui.errorTitle : (lang === "ru" ? "Все переводы готовы" : lang === "me" ? "Svi prevodi su spremni" : "All translations are ready")}</h2>
+          <p className="admin-translation-muted">{saveBlocked ? ui.blockers : (lang === "ru" ? "Внутренняя проверка пройдена. Цены, длительность, фотографии, slug и связи не изменяются." : lang === "me" ? "Interna provjera je prošla. Cijene, trajanje, fotografije, slug i veze se ne mijenjaju." : "Internal checks passed. Prices, duration, photos, slug and relations remain unchanged.")}</p>
           <div className="admin-translation-actions">
-            <button type="button" onClick={() => void runSaveDraft(true)} disabled={saveLoading}>
-              {saveLoading ? ui.loading : ui.dryRunButton}
-            </button>
             <button
               type="button"
               onClick={() => void runSaveDraft(false)}
