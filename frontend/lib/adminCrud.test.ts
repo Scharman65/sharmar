@@ -20,7 +20,7 @@ const cmsService = read("../cms/src/api/admin-crud/services/admin-crud.ts");
 const ownerSchema = read("../cms/src/api/owner-profile/content-types/owner-profile/schema.json");
 const boatSchema = read("../cms/src/api/boat/content-types/boat/schema.json");
 const experienceSchema = read("../cms/src/api/experience/content-types/experience/schema.json");
-const userExtensionSchema = read("../cms/src/extensions/users-permissions/content-types/user/schema.json");
+const userExtension = read("../cms/src/extensions/users-permissions/strapi-server.ts");
 const archiveMigration = read("../cms/database/migrations/20260721054428-admin-crud-archive-owner-password.js");
 const moderationEventSchema = read("../cms/src/api/moderation-event/content-types/moderation-event/schema.json");
 const ownerApi = read("lib/auth/ownerApi.ts");
@@ -106,7 +106,7 @@ test("schema and migration add true archive and forced-password fields additivel
   assert.ok(ownerSchema.includes('"archived_at"'));
   assert.ok(boatSchema.includes('"archived_at"'));
   assert.ok(experienceSchema.includes('"archived_at"'));
-  assert.ok(userExtensionSchema.includes('"must_change_password"'));
+  assert.ok(userExtension.includes("must_change_password"));
   assert.ok(archiveMigration.includes("add column if not exists archived_at"));
   assert.ok(archiveMigration.includes("add column if not exists must_change_password boolean not null default false"));
   assert.doesNotMatch(archiveMigration, /drop column|drop table|alter type/i);

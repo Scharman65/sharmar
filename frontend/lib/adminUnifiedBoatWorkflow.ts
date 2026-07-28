@@ -24,6 +24,21 @@ export type LogicalBoat = {
   ready: boolean;
 };
 
+export type BoatOwnerLink = {
+  boat_id: number | null;
+  boat_document_id: string | null;
+  boat_locale: string | null;
+  owner_user_id: number | null;
+  created_by_id: number | null;
+  owner_profile_id: number | null;
+  owner_email: string | null;
+  owner_username: string | null;
+  owner_display_name: string | null;
+  owner_phone: string | null;
+  owner_confirmed: boolean | null;
+  owner_blocked: boolean | null;
+};
+
 const localeLabels: Record<AdminLocale, "EN" | "RU" | "ME"> = {
   en: "EN",
   ru: "RU",
@@ -102,6 +117,103 @@ export function asText(value: unknown): string {
 export function asNumber(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeBoatOwnerLink(item: unknown): BoatOwnerLink | null {
+  if (!isRecord(item)) return null;
+
+  return {
+    boat_id: asNumber(item.boat_id),
+    boat_document_id: asText(item.boat_document_id) || null,
+    boat_locale: asText(item.boat_locale) || null,
+    owner_user_id: asNumber(item.owner_user_id),
+    created_by_id: asNumber(item.created_by_id),
+    owner_profile_id: asNumber(item.owner_profile_id),
+    owner_email: asText(item.owner_email) || null,
+    owner_username: asText(item.owner_username) || null,
+    owner_display_name: asText(item.owner_display_name) || null,
+    owner_phone: asText(item.owner_phone) || null,
+    owner_confirmed: asBoolean(item.owner_confirmed),
+    owner_blocked: asBoolean(item.owner_blocked),
+  };
+}
+
+function boatOwnerDocumentLocaleKey(documentId: string | null | undefined, locale: string | null | undefined): string | null {
+  return documentId && locale ? `${documentId}:${locale}` : null;
+}
+
+function hasOwnerIdentity(link: BoatOwnerLink): boolean {
+  return Boolean(
+    asText(link.owner_display_name ?? link.owner_email) ||
+      asNumber(link.owner_user_id ?? link.created_by_id) !== null
+  );
+}
+
+function preferOwnerLink(current: BoatOwnerLink | undefined, next: BoatOwnerLink): BoatOwnerLink {
+  if (!current) return next;
+  if (!hasOwnerIdentity(current) && hasOwnerIdentity(next)) return next;
+  return current;
+}
+
+function applyOwnerLink<T extends JsonRecord>(boat: T, link: BoatOwnerLink): T {
+  return {
+    ...boat,
+    owner_user_id: link.owner_user_id ?? asNumber(boat.owner_user_id) ?? null,
+    created_by_id: link.created_by_id ?? asNumber(boat.created_by_id) ?? null,
+    owner_profile_id: link.owner_profile_id ?? asNumber(boat.owner_profile_id) ?? null,
+    owner_email: (link.owner_email ?? asText(boat.owner_email)) || null,
+    owner_username: (link.owner_username ?? asText(boat.owner_username)) || null,
+    owner_display_name: (link.owner_display_name ?? asText(boat.owner_display_name)) || null,
+    owner_phone: (link.owner_phone ?? asText(boat.owner_phone)) || null,
+    owner_confirmed:
+      link.owner_confirmed ??
+      (typeof boat.owner_confirmed === "boolean" ? boat.owner_confirmed : null),
+    owner_blocked:
+      link.owner_blocked ??
+      (typeof boat.owner_blocked === "boolean" ? boat.owner_blocked : null),
+  };
+}
+
+export function mergeBoatOwnerLinks<T extends JsonRecord>(boats: T[], rawLinks: unknown[] | undefined): T[] {
+  const links = (rawLinks ?? [])
+    .map(normalizeBoatOwnerLink)
+    .filter((link): link is BoatOwnerLink => Boolean(link));
+
+  const byId = new Map<number, BoatOwnerLink>();
+  const byDocumentLocale = new Map<string, BoatOwnerLink>();
+  const byDocument = new Map<string, BoatOwnerLink>();
+
+  for (const link of links) {
+    if (link.boat_id !== null) byId.set(link.boat_id, preferOwnerLink(byId.get(link.boat_id), link));
+
+    const documentLocaleKey = boatOwnerDocumentLocaleKey(link.boat_document_id, link.boat_locale);
+    if (documentLocaleKey) byDocumentLocale.set(documentLocaleKey, preferOwnerLink(byDocumentLocale.get(documentLocaleKey), link));
+
+    if (link.boat_document_id) {
+      byDocument.set(link.boat_document_id, preferOwnerLink(byDocument.get(link.boat_document_id), link));
+    }
+  }
+
+  return boats.map((boat) => {
+    const id = asNumber(boat.id);
+    const documentId = asText(boat.documentId) || null;
+    const locale = asText(boat.locale) || null;
+    const documentLocaleKey = boatOwnerDocumentLocaleKey(documentId, locale);
+    const link =
+      (id !== null ? byId.get(id) : null) ??
+      (documentLocaleKey ? byDocumentLocale.get(documentLocaleKey) : null) ??
+      (documentId ? byDocument.get(documentId) : null);
+
+    return link ? applyOwnerLink(boat, link) : boat;
+  });
 }
 
 function localeOf(row: JsonRecord): AdminLocale | null {

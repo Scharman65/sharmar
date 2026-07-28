@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   groupLogicalBoats,
   logicalDocumentCount,
+  mergeBoatOwnerLinks,
   routePriceInvariantRows,
   type JsonRecord,
 } from "./adminUnifiedBoatWorkflow.ts";
@@ -15,6 +16,14 @@ const frontendRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function read(path: string): string {
   return readFileSync(join(frontendRoot, path), "utf8");
+}
+
+function sourceBlock(source: string, start: string, end: string): string {
+  const startIndex = source.indexOf(start);
+  assert.notEqual(startIndex, -1, `${start} not found`);
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  assert.notEqual(endIndex, -1, `${end} not found`);
+  return source.slice(startIndex, endIndex);
 }
 
 const cockpit = read("app/[lang]/admin/AdminCockpitClient.tsx");
@@ -166,8 +175,109 @@ test("owner and marina are aggregated from any localization row", () => {
   );
 });
 
-test("dashboard boat query requests owner_user_id explicitly", () => {
-  assert.ok(dashboardApi.includes('"fields[30]=owner_user_id"'));
+test("dashboard boat query does not request private owner_user_id from public Strapi Content API", () => {
+  const queryBlock = sourceBlock(dashboardApi, "function boatQuery", "function experienceQuery");
+  assert.doesNotMatch(queryBlock, /owner_user_id/);
+  assert.ok(dashboardApi.includes("mergeBoatOwnerLinks("));
+  assert.ok(dashboardApi.includes("cmsSummary?.boatOwnerLinks"));
+});
+
+test("CMS boatOwnerLinks supply owner when public Strapi boat rows omit owner_user_id", () => {
+  const publicRows = [
+    boat("ru", { owner_user_id: undefined, owner_display_name: null, owner_email: null, owner_confirmed: null }),
+    boat("en", { owner_user_id: undefined, owner_display_name: null, owner_email: null, owner_confirmed: null }),
+    boat("sr-Latn-ME", { owner_user_id: undefined, owner_display_name: null, owner_email: null, owner_confirmed: null }),
+  ];
+  const mergedRows = mergeBoatOwnerLinks(publicRows, [
+    {
+      boat_id: 1,
+      boat_document_id: "oceanis-doc",
+      boat_locale: "ru",
+      owner_user_id: 42,
+      owner_email: "owner@example.test",
+      owner_display_name: "Captain Owner",
+      owner_confirmed: true,
+      owner_blocked: false,
+    },
+  ]);
+  const logicalBoats = groupLogicalBoats(mergedRows, completeRoutes, "ru");
+
+  assert.equal(logicalBoats[0].primary.owner_user_id, 42);
+  assert.equal(logicalBoats[0].primary.owner_display_name, "Captain Owner");
+  assert.equal(
+    logicalBoats[0].blockers.some((blocker) => /owner|владелец|vlasnik/i.test(blocker)),
+    false
+  );
+});
+
+test("owner link for one physical row is applied to every row of the same logical boat", () => {
+  const publicRows = [
+    boat("ru", { owner_user_id: null, owner_display_name: null, owner_email: null }),
+    boat("en", { id: 22, owner_user_id: null, owner_display_name: null, owner_email: null }),
+    boat("sr-Latn-ME", { owner_user_id: null, owner_display_name: null, owner_email: null }),
+  ];
+  const mergedRows = mergeBoatOwnerLinks(publicRows, [
+    {
+      boat_id: 22,
+      boat_document_id: "oceanis-doc",
+      boat_locale: "en",
+      owner_user_id: 84,
+      owner_email: "owner@example.test",
+      owner_display_name: "Captain Owner",
+      owner_confirmed: true,
+      owner_blocked: false,
+    },
+  ]);
+
+  assert.deepEqual(mergedRows.map((row) => row.owner_user_id), [84, 84, 84]);
+  assert.deepEqual(mergedRows.map((row) => row.owner_display_name), ["Captain Owner", "Captain Owner", "Captain Owner"]);
+});
+
+test("owner link null values do not erase owner data already present on a boat row", () => {
+  const mergedRows = mergeBoatOwnerLinks([
+    boat("ru", {
+      owner_user_id: 17,
+      owner_email: "existing@example.test",
+      owner_display_name: "Existing Owner",
+      owner_confirmed: true,
+    }),
+  ], [
+    {
+      boat_id: 1,
+      boat_document_id: "oceanis-doc",
+      boat_locale: "ru",
+      owner_user_id: null,
+      owner_email: null,
+      owner_display_name: null,
+      owner_confirmed: null,
+      owner_blocked: null,
+    },
+  ]);
+
+  assert.equal(mergedRows[0].owner_user_id, 17);
+  assert.equal(mergedRows[0].owner_email, "existing@example.test");
+  assert.equal(mergedRows[0].owner_display_name, "Existing Owner");
+  assert.equal(mergedRows[0].owner_confirmed, true);
+});
+
+test("RU primary without marina uses EN published marina for the logical boat", () => {
+  const logicalBoats = groupLogicalBoats([
+    boat("ru", { marina_name: "", state: "draft", publishedAt: null }),
+    boat("en", { marina_name: "Bar", state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+    boat("sr-Latn-ME", { marina_name: "" }),
+  ], completeRoutes, "ru");
+
+  assert.equal(logicalBoats[0].primary.marina_name, "Bar");
+  assert.equal(
+    logicalBoats[0].blockers.some((blocker) => /marina|марина/i.test(blocker)),
+    false
+  );
+});
+
+test("boat API query failures produce a dashboard error instead of a silent zero-boats success", () => {
+  assert.ok(dashboardApi.includes("strapi_boat_query_failed"));
+  assert.ok(dashboardApi.includes("boatResult.failed > 0 && boatResult.rows.length === 0"));
+  assert.ok(dashboardApi.includes("status: 502"));
 });
 
 test("owner, documents, media, and marina failures block readiness before publish", () => {
