@@ -210,6 +210,11 @@ const copy = {
     reachError: "Не удалось выполнить действие",
     errors: {
       unauthorized: "Сессия администратора недействительна.",
+      admin_cookie_missing: "Cookie сессии администратора отсутствует. Войдите снова.",
+      invalid_admin_session: "Сессия администратора недействительна. Войдите снова.",
+      session_expired: "Сессия администратора истекла. Войдите снова.",
+      admin_session_unavailable: "Сессии администратора недоступны: на сервере не настроен ADMIN_SESSION_SECRET.",
+      missing_moderation_permission: "У этой сессии нет права на модерацию.",
       write_not_enabled: "Действия модерации выключены на сервере.",
       csrf_check_failed: "Проверка безопасности запроса не пройдена.",
       transition_not_allowed: "Этот переход статуса недоступен.",
@@ -259,6 +264,11 @@ const copy = {
     reachError: "Could not complete the action.",
     errors: {
       unauthorized: "Admin session is invalid.",
+      admin_cookie_missing: "The admin session cookie is missing. Sign in again.",
+      invalid_admin_session: "The admin session is invalid. Sign in again.",
+      session_expired: "The admin session has expired. Sign in again.",
+      admin_session_unavailable: "Admin sessions are unavailable because ADMIN_SESSION_SECRET is not configured on the server.",
+      missing_moderation_permission: "This session does not have moderation access.",
       write_not_enabled: "Moderation actions are disabled on the server.",
       csrf_check_failed: "Request security check failed.",
       transition_not_allowed: "This status transition is not available.",
@@ -308,6 +318,11 @@ const copy = {
     reachError: "Radnja nije izvršena.",
     errors: {
       unauthorized: "Administratorska sesija nije važeća.",
+      admin_cookie_missing: "Cookie administratorske sesije nedostaje. Prijavite se ponovo.",
+      invalid_admin_session: "Administratorska sesija nije važeća. Prijavite se ponovo.",
+      session_expired: "Administratorska sesija je istekla. Prijavite se ponovo.",
+      admin_session_unavailable: "Administratorske sesije nijesu dostupne jer ADMIN_SESSION_SECRET nije podešen na serveru.",
+      missing_moderation_permission: "Ova sesija nema pravo na moderaciju.",
       write_not_enabled: "Moderacijske radnje su isključene na serveru.",
       csrf_check_failed: "Sigurnosna provjera zahtjeva nije prošla.",
       transition_not_allowed: "Ova promjena statusa nije dostupna.",
@@ -401,6 +416,7 @@ export default function AdminModerationActions({
           "Content-Type": "application/json",
         },
         cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           entityType,
           documentId:

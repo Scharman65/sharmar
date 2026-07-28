@@ -470,7 +470,10 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
     let cancelled = false;
     setRemoteRows(null);
 
-    void fetch(ADMIN_CRUD_ROUTES[entity], { cache: "no-store" })
+    void fetch(ADMIN_CRUD_ROUTES[entity], {
+      cache: "no-store",
+      credentials: "same-origin",
+    })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`admin_crud_list_failed:${response.status}`);
@@ -536,6 +539,8 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       const response = await fetch(route, {
         method,
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           action: pending.action,
           fields: {},
@@ -575,6 +580,8 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       const response = await fetch("/api/admin/moderation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           entityType: "owner_profile",
           profileId,
@@ -620,6 +627,8 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       const response = await fetch(ADMIN_CRUD_ROUTES.boat, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           action: "create",
           fields: {
@@ -659,6 +668,8 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       const response = await fetch(ADMIN_CRUD_ROUTES.owner, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           action: "create",
           fields: {
@@ -718,7 +729,12 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       formData.set("relationField", uploadRelationField);
     }
     try {
-      const response = await fetch(ADMIN_CRUD_ROUTES[entity], { method: "POST", body: formData });
+      const response = await fetch(ADMIN_CRUD_ROUTES[entity], {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       const json = await response.json().catch(() => null) as { code?: string } | null;
       if (!response.ok) {
         setMessage(json?.code ?? ui.failed);

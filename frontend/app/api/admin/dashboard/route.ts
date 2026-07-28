@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
-import { requireAdminSession } from "@/lib/adminSession";
+import { getAdminSessionStatus } from "@/lib/adminSession";
 
 type JsonObject = Record<string, unknown>;
 type RowStatus = "draft" | "published";
@@ -564,11 +564,18 @@ async function fetchRowsByStatus(
 }
 
 export async function GET() {
-  const session = await requireAdminSession("dashboard");
-  if (!session) {
+  const sessionStatus = await getAdminSessionStatus();
+  if (!sessionStatus.authenticated) {
     return NextResponse.json(
-      { ok: false, code: "unauthorized" },
+      { ok: false, code: sessionStatus.code },
       { status: 401, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  if (!sessionStatus.session.permissions.includes("dashboard")) {
+    return NextResponse.json(
+      { ok: false, code: "missing_dashboard_permission" },
+      { status: 403, headers: { "cache-control": "no-store" } }
     );
   }
 

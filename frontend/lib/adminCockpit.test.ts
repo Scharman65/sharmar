@@ -16,6 +16,7 @@ const previewClient = read("app/[lang]/admin/translations/preview/AdminTranslati
 const page = read("app/[lang]/admin/page.tsx");
 const sessionApi = read("app/api/admin/session/route.ts");
 const sessionHelper = read("lib/adminSession.ts");
+const sessionCore = read("lib/adminSessionCore.ts");
 const dashboardApi = read("app/api/admin/dashboard/route.ts");
 const moderationApi = read("app/api/admin/moderation/route.ts");
 const previewApi = read("app/api/admin/translations/preview/route.ts");
@@ -47,12 +48,12 @@ test("admin login uses server session route and does not store raw token in brow
 });
 
 test("admin session cookie is HttpOnly, Secure in production, SameSite strict, and expiring", () => {
-  assert.ok(sessionHelper.includes('ADMIN_SESSION_COOKIE = "sharmar_admin_session"'));
+  assert.ok(sessionCore.includes('ADMIN_SESSION_COOKIE = "sharmar_admin_session"'));
   assert.ok(sessionHelper.includes("httpOnly: true"));
   assert.ok(sessionHelper.includes('secure: process.env.NODE_ENV === "production"'));
   assert.ok(sessionHelper.includes('sameSite: "strict"'));
   assert.ok(sessionHelper.includes("ADMIN_SESSION_MAX_AGE_SECONDS"));
-  assert.ok(sessionHelper.includes("exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_MAX_AGE_SECONDS"));
+  assert.ok(sessionCore.includes("exp: nowSeconds(now) + ADMIN_SESSION_MAX_AGE_SECONDS"));
 });
 
 test("raw admin credential is not returned by session API", () => {
@@ -73,15 +74,16 @@ test("logout clears the HttpOnly admin session", () => {
 
 test("protected admin APIs require server session instead of browser-supplied token", () => {
   [dashboardApi, moderationApi, previewApi, saveDraftApi].forEach((source) => {
-    assert.ok(source.includes("requireAdminSession("));
+    assert.ok(source.includes("requireAdminSession(") || source.includes("getAdminSessionStatus()"));
     assert.doesNotMatch(source, /req\.headers\.get\("x-admin-token"\)/);
   });
 });
 
 test("translation-only session cannot moderate and moderation writes remain fail-closed", () => {
-  assert.ok(sessionHelper.includes('permissions: ["dashboard", "translation"]'));
-  assert.ok(sessionHelper.includes('permissions: ["dashboard", "translation", "moderation"]'));
-  assert.ok(moderationApi.includes('requireAdminSession("moderation")'));
+  assert.ok(sessionCore.includes('permissions: ["dashboard", "translation"]'));
+  assert.ok(sessionCore.includes('permissions: ["dashboard", "translation", "moderation"]'));
+  assert.ok(moderationApi.includes('sessionStatus.session.permissions.includes("moderation")'));
+  assert.ok(moderationApi.includes("missing_moderation_permission"));
   assert.ok(moderationApi.includes('process.env.ADMIN_MODERATION_WRITE_ENABLED !== "true"'));
 });
 
@@ -183,7 +185,7 @@ test("unassigned experience publication is blocked in UI copy", () => {
 test("translation workflow supports source preview, AI preview, dry-run, and draft save without publishing", () => {
   assert.ok(previewClient.includes("Показать исходные данные"));
   assert.ok(previewClient.includes("Generate AI preview"));
-  assert.ok(previewClient.includes("runSaveDraft(true)"));
+  assert.ok(previewClient.includes("dryRun: true"));
   assert.ok(saveDraftApi.includes("dryRun === false"));
   assert.ok(saveDraftApi.includes("doesPublish: false"));
   assert.ok(saveDraftApi.includes("overwrite_not_enabled"));
@@ -198,7 +200,7 @@ test("API errors render as safe localized messages", () => {
 
 test("double-submit protection is present on client moderation and translation actions", () => {
   assert.ok(moderationActions.includes("pendingAction !== null"));
-  assert.ok(previewClient.includes("disabled={saveLoading}"));
+  assert.ok(previewClient.includes("disabled={saveLoading || !confirmSaveDraft || saveBlocked}"));
   assert.ok(previewClient.includes("disabled={loading}"));
 });
 

@@ -12,6 +12,7 @@ type SessionState = {
   authenticated: boolean;
   permissions: string[];
   expiresAt: number | null;
+  code?: string;
 };
 
 type DashboardData = {
@@ -36,6 +37,15 @@ const copy = {
     loading: "Загрузка...",
     noData: "Данные ещё не загружены",
     loadError: "Не удалось загрузить данные",
+    errors: {
+      invalid_admin_password: "Неверный пароль администратора.",
+      admin_cookie_missing: "Cookie сессии не установлена. Проверьте, что браузер принимает cookies для sharmar.me.",
+      invalid_admin_session: "Сессия администратора недействительна. Войдите снова.",
+      session_expired: "Сессия администратора истекла. Войдите снова.",
+      admin_session_unavailable: "Сессии администратора недоступны: на сервере не настроен ADMIN_SESSION_SECRET.",
+      missing_dashboard_permission: "У этой сессии нет доступа к панели администратора.",
+      dashboard_api_unavailable: "Dashboard API недоступен. Вход выполнен, но данные панели не загрузились.",
+    },
     retry: "Обновить данные",
     sections: {
       overview: "Обзор",
@@ -147,6 +157,15 @@ const copy = {
     loading: "Loading...",
     noData: "Data has not been loaded yet",
     loadError: "Could not load data",
+    errors: {
+      invalid_admin_password: "The admin password is incorrect.",
+      admin_cookie_missing: "The session cookie was not set. Check that this browser accepts cookies for sharmar.me.",
+      invalid_admin_session: "The admin session is invalid. Sign in again.",
+      session_expired: "The admin session has expired. Sign in again.",
+      admin_session_unavailable: "Admin sessions are unavailable because ADMIN_SESSION_SECRET is not configured on the server.",
+      missing_dashboard_permission: "This session does not have dashboard access.",
+      dashboard_api_unavailable: "Dashboard API is unavailable. Sign-in succeeded, but dashboard data did not load.",
+    },
     retry: "Refresh data",
     sections: {
       overview: "Overview",
@@ -258,6 +277,15 @@ const copy = {
     loading: "Učitavanje...",
     noData: "Podaci još nijesu učitani",
     loadError: "Podaci nijesu učitani",
+    errors: {
+      invalid_admin_password: "Administratorska lozinka nije tačna.",
+      admin_cookie_missing: "Cookie sesije nije postavljen. Provjerite da pregledač prihvata cookies za sharmar.me.",
+      invalid_admin_session: "Administratorska sesija nije važeća. Prijavite se ponovo.",
+      session_expired: "Administratorska sesija je istekla. Prijavite se ponovo.",
+      admin_session_unavailable: "Administratorske sesije nijesu dostupne jer ADMIN_SESSION_SECRET nije podešen na serveru.",
+      missing_dashboard_permission: "Ova sesija nema pristup administratorskoj tabli.",
+      dashboard_api_unavailable: "Dashboard API nije dostupan. Prijava je uspjela, ali podaci table nijesu učitani.",
+    },
     retry: "Osvježi podatke",
     sections: {
       overview: "Pregled",
@@ -369,6 +397,7 @@ const copy = {
   loading: string;
   noData: string;
   loadError: string;
+  errors: Record<string, string>;
   retry: string;
   sections: Record<Section, string>;
   cards: Record<string, string>;
@@ -479,6 +508,11 @@ function completeness(parts: boolean[]): string {
   return `${ready}/${total}`;
 }
 
+function adminErrorMessage(ui: (typeof copy)[Lang], code: string | undefined): string {
+  const errors: Record<string, string> = ui.errors;
+  return code ? errors[code] ?? `${ui.loadError} (${code}).` : ui.loadError;
+}
+
 export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   const ui = copy[lang];
   const [session, setSession] = useState<SessionState>({ authenticated: false, permissions: [], expiresAt: null });
@@ -527,14 +561,35 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   }, []);
 
   const refreshSession = useCallback(async () => {
-    const response = await fetch("/api/admin/session", { cache: "no-store" });
-    const json = await response.json().catch(() => null);
-    if (json && typeof json === "object") {
-      setSession({
+    const fallback: SessionState = {
+      authenticated: false,
+      permissions: [],
+      expiresAt: null,
+      code: "admin_session_unavailable",
+    };
+
+    try {
+      const response = await fetch("/api/admin/session", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json || typeof json !== "object") {
+        setSession(fallback);
+        return fallback;
+      }
+
+      const nextSession: SessionState = {
         authenticated: Boolean((json as SessionState).authenticated),
         permissions: Array.isArray((json as SessionState).permissions) ? (json as SessionState).permissions : [],
         expiresAt: asNumber((json as SessionState).expiresAt),
-      });
+        code: asText((json as SessionState).code),
+      };
+      setSession(nextSession);
+      return nextSession;
+    } catch {
+      setSession(fallback);
+      return fallback;
     }
   }, []);
 
@@ -542,19 +597,29 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/dashboard", { cache: "no-store" });
+      const response = await fetch("/api/admin/dashboard", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json || typeof json !== "object" || (json as DashboardData).ok !== true) {
-        setError(ui.loadError);
+        const code = json && typeof json === "object" ? asText((json as { code?: unknown }).code) : "";
+        if (response.status === 401) {
+          setSession({ authenticated: false, permissions: [], expiresAt: null, code });
+          setData(null);
+          setError(adminErrorMessage(ui, code || "invalid_admin_session"));
+          return;
+        }
+        setError(adminErrorMessage(ui, code || "dashboard_api_unavailable"));
         return;
       }
       setData(json as DashboardData);
     } catch {
-      setError(ui.loadError);
+      setError(adminErrorMessage(ui, "dashboard_api_unavailable"));
     } finally {
       setLoading(false);
     }
-  }, [ui.loadError]);
+  }, [ui]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -564,25 +629,36 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
       const response = await fetch("/api/admin/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({ password }),
       });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json || typeof json !== "object" || (json as { ok?: boolean }).ok !== true) {
-        setError(ui.loadError);
+        const code = json && typeof json === "object" ? asText((json as { code?: unknown }).code) : "";
+        setError(adminErrorMessage(ui, code || "invalid_admin_password"));
         return;
       }
       setPassword("");
-      await refreshSession();
+      const nextSession = await refreshSession();
+      if (!nextSession.authenticated) {
+        setError(adminErrorMessage(ui, nextSession.code || "admin_cookie_missing"));
+        return;
+      }
       await loadDashboard();
     } catch {
-      setError(ui.loadError);
+      setError(adminErrorMessage(ui, "admin_session_unavailable"));
     } finally {
       setLoading(false);
     }
   }
 
   async function signOut() {
-    await fetch("/api/admin/session", { method: "DELETE" });
+    await fetch("/api/admin/session", {
+      method: "DELETE",
+      cache: "no-store",
+      credentials: "same-origin",
+    });
     setSession({ authenticated: false, permissions: [], expiresAt: null });
     setData(null);
     setPassword("");

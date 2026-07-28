@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminSession, sameOriginRequest } from "@/lib/adminSession";
+import { getAdminSessionStatus, sameOriginRequest } from "@/lib/adminSession";
 
 type JsonObject = Record<string, unknown>;
 
@@ -44,14 +44,24 @@ function json(
 }
 
 export async function POST(req: NextRequest) {
-  const session = await requireAdminSession("moderation");
-  if (!session) {
+  const sessionStatus = await getAdminSessionStatus();
+  if (!sessionStatus.authenticated) {
     return json(
       {
         ok: false,
-        code: "unauthorized",
+        code: sessionStatus.code,
       },
       401
+    );
+  }
+
+  if (!sessionStatus.session.permissions.includes("moderation")) {
+    return json(
+      {
+        ok: false,
+        code: "missing_moderation_permission",
+      },
+      403
     );
   }
 

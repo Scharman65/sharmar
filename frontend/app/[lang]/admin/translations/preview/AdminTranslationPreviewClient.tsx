@@ -447,7 +447,10 @@ export default function AdminTranslationPreviewClient({
   );
 
   async function refreshSession() {
-    const res = await fetch("/api/admin/session", { cache: "no-store" });
+    const res = await fetch("/api/admin/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
     const json = await res.json().catch(() => null);
     setAuthenticated(Boolean(json && typeof json === "object" && (json as { authenticated?: boolean }).authenticated));
   }
@@ -460,6 +463,8 @@ export default function AdminTranslationPreviewClient({
       const res = await fetch("/api/admin/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({ password: adminPassword }),
       });
       const json = await res.json().catch(() => null);
@@ -477,7 +482,11 @@ export default function AdminTranslationPreviewClient({
   }
 
   async function signOut() {
-    await fetch("/api/admin/session", { method: "DELETE" });
+    await fetch("/api/admin/session", {
+      method: "DELETE",
+      cache: "no-store",
+      credentials: "same-origin",
+    });
     setAuthenticated(false);
     setResponse(null);
     setReviewedAiPreview(null);
@@ -502,6 +511,8 @@ export default function AdminTranslationPreviewClient({
         headers: {
           "Content-Type": "application/json",
         },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           boatDocumentId: boatDocumentId.trim(),
           sourceLocale,
@@ -522,6 +533,8 @@ export default function AdminTranslationPreviewClient({
       const dryRunRes = await fetch("/api/admin/translations/save-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           dryRun: true,
           confirmSaveDraft: false,
@@ -566,6 +579,8 @@ export default function AdminTranslationPreviewClient({
         headers: {
           "Content-Type": "application/json",
         },
+        cache: "no-store",
+        credentials: "same-origin",
         body: JSON.stringify({
           dryRun,
           confirmSaveDraft: !dryRun,

@@ -3,7 +3,7 @@ import {
   authenticateAdminPassword,
   clearAdminSessionCookie,
   createAdminSessionCookie,
-  getAdminSession,
+  getAdminSessionStatus,
   sameOriginRequest,
   setAdminSessionCookie,
 } from "@/lib/adminSession";
@@ -18,12 +18,14 @@ function json(body: Record<string, unknown>, status = 200) {
 }
 
 export async function GET() {
-  const session = await getAdminSession();
+  const status = await getAdminSessionStatus();
+  const session = status.authenticated ? status.session : null;
   return json({
     ok: true,
-    authenticated: Boolean(session),
+    authenticated: status.authenticated,
     permissions: session?.permissions ?? [],
     expiresAt: session?.expiresAt ?? null,
+    code: status.code,
   });
 }
 
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
     authenticated: true,
     permissions: session.permissions,
     expiresAt: session.expiresAt,
+    code: "authenticated",
   });
   setAdminSessionCookie(response, cookie);
   return response;

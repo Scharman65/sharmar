@@ -23,7 +23,7 @@ const moderationActions = read("app/[lang]/admin/AdminModerationActions.tsx");
 const dashboardApi = read("app/api/admin/dashboard/route.ts");
 const moderationApi = read("app/api/admin/moderation/route.ts");
 const previewApi = read("app/api/admin/translations/preview/route.ts");
-const sessionHelper = read("lib/adminSession.ts");
+const sessionCore = read("lib/adminSessionCore.ts");
 const cmsService = read("../cms/src/api/admin-moderation/services/admin-moderation.ts");
 const cmsStateMachine = read("../cms/src/api/admin-moderation/services/state-machine.ts");
 const eventSchema = read("../cms/src/api/moderation-event/content-types/moderation-event/schema.json");
@@ -130,10 +130,11 @@ test("Translation workflow is linked from route detail without performing AI cal
 });
 
 test("Admin authorization remains server-side and write-gated", () => {
-  assert.ok(moderationApi.includes('requireAdminSession("moderation")'));
+  assert.ok(moderationApi.includes('sessionStatus.session.permissions.includes("moderation")'));
+  assert.ok(moderationApi.includes("missing_moderation_permission"));
   assert.ok(moderationApi.includes('process.env.ADMIN_MODERATION_WRITE_ENABLED !== "true"'));
-  assert.ok(sessionHelper.includes('permissions: ["dashboard", "translation"]'));
-  assert.ok(sessionHelper.includes('permissions: ["dashboard", "translation", "moderation"]'));
+  assert.ok(sessionCore.includes('permissions: ["dashboard", "translation"]'));
+  assert.ok(sessionCore.includes('permissions: ["dashboard", "translation", "moderation"]'));
   assert.doesNotMatch(cockpit, /localStorage|sessionStorage|document\.cookie|x-admin-token/);
   assert.doesNotMatch(moderationActions, /localStorage|sessionStorage|document\.cookie|x-admin-token/);
 });

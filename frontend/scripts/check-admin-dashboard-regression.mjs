@@ -41,7 +41,8 @@ assert(
 );
 
 assert(
-  frontendRoute.includes('requireAdminSession("dashboard")'),
+  frontendRoute.includes("getAdminSessionStatus()") &&
+    frontendRoute.includes('sessionStatus.session.permissions.includes("dashboard")'),
   "dashboard remains protected by admin session"
 );
 
