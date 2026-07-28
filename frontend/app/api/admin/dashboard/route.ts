@@ -181,9 +181,21 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[20]=submitted_for_review_at",
     "fields[21]=reviewed_at",
     "fields[23]=archived_at",
+    "fields[24]=description",
+    "fields[25]=capacity",
+    "fields[26]=year",
+    "fields[27]=length_m",
+    "fields[28]=engine_hp",
+    "fields[29]=min_rental_hours",
     "populate[cover][fields][0]=id",
+    "populate[cover][fields][1]=url",
+    "populate[cover][fields][2]=alternativeText",
     "populate[images][fields][0]=id",
+    "populate[images][fields][1]=url",
+    "populate[images][fields][2]=alternativeText",
     "populate[experiences][fields][0]=id",
+    "populate[home_marina][fields][0]=name",
+    "populate[home_marina][fields][1]=slug",
   ]);
 }
 
@@ -212,13 +224,45 @@ function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[15]=updatedAt",
     "fields[16]=archived_at",
     "populate[cover][fields][0]=id",
+    "populate[cover][fields][1]=url",
+    "populate[cover][fields][2]=alternativeText",
     "populate[gallery][fields][0]=id",
+    "populate[gallery][fields][1]=url",
+    "populate[gallery][fields][2]=alternativeText",
     "populate[boat][fields][0]=title",
     "populate[boat][fields][1]=documentId",
     "populate[boat][fields][2]=locale",
     "populate[boat][fields][3]=publishedAt",
     "populate[boat][fields][4]=moderation_status",
   ]);
+}
+
+function mediaUrl(value: unknown): string | null {
+  const row = getFirstRelated(value);
+  const url = row ? asString(row.url) : null;
+  if (!url) return null;
+  return /^https?:\/\//i.test(url)
+    ? url
+    : `${getStrapiBase()}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function mediaUrls(value: unknown): string[] {
+  const rows = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.data)
+      ? value.data
+      : [];
+
+  return rows
+    .map((item) => {
+      const row = getAttributes(item);
+      const url = row ? asString(row.url) : null;
+      if (!url) return null;
+      return /^https?:\/\//i.test(url)
+        ? url
+        : `${getStrapiBase()}${url.startsWith("/") ? url : `/${url}`}`;
+    })
+    .filter((url): url is string => Boolean(url));
 }
 
 function moderationEventQuery(): string {
@@ -250,6 +294,7 @@ function normalizeBoat(item: unknown, status: RowStatus) {
     documentId: asString(row.documentId),
     locale: asString(row.locale),
     title: asString(row.title),
+    description: asString(row.description),
     slug: asString(row.slug),
     listing_type: asString(row.listing_type),
     boat_type: asString(row.boat_type),
@@ -263,7 +308,16 @@ function normalizeBoat(item: unknown, status: RowStatus) {
     updated_at: asString(row.updatedAt ?? row.updated_at),
     cover_count: getRelatedCount(row.cover),
     images_count: getRelatedCount(row.images),
+    cover_url: mediaUrl(row.cover),
+    image_urls: mediaUrls(row.images),
     experiences_count: getRelatedCount(row.experiences),
+    marina_name: asString(getFirstRelated(row.home_marina)?.name),
+    marina_slug: asString(getFirstRelated(row.home_marina)?.slug),
+    capacity: asNumber(row.capacity),
+    year: asNumber(row.year),
+    length_m: asNumber(row.length_m),
+    engine_hp: asNumber(row.engine_hp),
+    min_rental_hours: asNumber(row.min_rental_hours),
     price_per_hour: asNumber(row.price_per_hour),
     price_per_day: asNumber(row.price_per_day),
     price_per_week: asNumber(row.price_per_week),
@@ -381,6 +435,8 @@ function normalizeExperience(item: unknown, status: RowStatus) {
     archived_at: asString(row.archived_at),
     cover_count: getRelatedCount(row.cover),
     gallery_count: getRelatedCount(row.gallery),
+    cover_url: mediaUrl(row.cover),
+    gallery_urls: mediaUrls(row.gallery),
     created_at: asString(row.createdAt ?? row.created_at),
     updated_at: asString(row.updatedAt ?? row.updated_at),
   };
@@ -662,18 +718,27 @@ export async function GET() {
   }, {});
   const experiencesWithoutBoat = uniqueModerationExperiences.filter((experience) => !experience.boatDocumentId).length;
   const experiencesWithIncompleteTranslations = uniqueModerationExperiences.filter((experience) => !experience.translation_complete).length;
+  const logicalDraftBoats = uniqueModerationBoats.filter((boat) => boat.state !== "published").length;
+  const logicalPublishedBoats = uniqueModerationBoats.filter((boat) => boat.state === "published").length;
+  const logicalDraftExperiences = uniqueModerationExperiences.filter((experience) => experience.state !== "published").length;
+  const logicalPublishedExperiences = uniqueModerationExperiences.filter((experience) => experience.state === "published").length;
 
   return NextResponse.json(
     {
       ok: true,
       summary: {
-        totalBoats: draftBoats + publishedBoats,
-        draftBoats,
-        publishedBoats,
+        totalBoats: uniqueModerationBoats.length,
+        draftBoats: logicalDraftBoats,
+        publishedBoats: logicalPublishedBoats,
+        localizationRowBoats: draftBoats + publishedBoats,
         boatsAwaitingReview,
         moderationCounts,
         totalOwners,
         totalExperiences:
+          uniqueModerationExperiences.length,
+        draftExperiences: logicalDraftExperiences,
+        publishedExperiences: logicalPublishedExperiences,
+        localizationRowExperiences:
           (experienceResult.totals.draft ?? 0) + (experienceResult.totals.published ?? 0),
         experienceModerationCounts,
         experiencesAwaitingReview:

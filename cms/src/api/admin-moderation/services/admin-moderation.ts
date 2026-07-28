@@ -37,6 +37,7 @@ type ModerationInput = {
   action: string;
   comment?: string;
   actor: string;
+  batchOperationId?: string;
 };
 
 type BoatRow = {
@@ -49,6 +50,7 @@ type BoatRow = {
   moderation_status: string | null;
   owner_user_id: number | null;
   created_by_id: number | null;
+  home_marina?: { id?: number | null; documentId?: string | null; name?: string | null } | null;
 };
 
 type ExperienceRow = {
@@ -137,6 +139,13 @@ function shapeBoatRow(value: unknown): BoatRow | null {
     moderation_status: asString(value.moderation_status),
     owner_user_id: asNumber(value.owner_user_id),
     created_by_id: asNumber(value.created_by_id),
+    home_marina: isRecord(value.home_marina)
+      ? {
+          id: asNumber(value.home_marina.id),
+          documentId: asString(value.home_marina.documentId),
+          name: asString(value.home_marina.name),
+        }
+      : null,
   };
 }
 
@@ -289,6 +298,27 @@ async function ownerDocumentCount(
   return asNumber(rawRows(result)[0]?.count) ?? 0;
 }
 
+async function experienceMediaCount(
+  cms: StrapiLike,
+  experienceIds: number[]
+): Promise<number> {
+  if (!experienceIds.length) return 0;
+
+  const result = await cms.db.connection.raw(
+    `
+    select count(distinct relation.file_id)::int as count
+    from public.files_related_mph relation
+    where
+      relation.related_type = 'api::experience.experience'
+      and relation.related_id = any(?::int[])
+      and relation.field in ('cover', 'gallery')
+    `,
+    [experienceIds]
+  );
+
+  return asNumber(rawRows(result)[0]?.count) ?? 0;
+}
+
 async function createAuditEvent(
   cms: StrapiLike,
   input: {
@@ -370,12 +400,101 @@ async function loadBoatRows(
       "owner_user_id",
       "created_by_id",
     ],
+    populate: {
+      home_marina: {
+        select: ["id", "documentId", "name"],
+      },
+    },
     limit: 100,
   });
 
   return (Array.isArray(rows) ? rows : [])
     .map(shapeBoatRow)
     .filter((row): row is BoatRow => Boolean(row));
+}
+
+async function loadLinkedExperienceRows(
+  cms: StrapiLike,
+  boatRows: BoatRow[]
+): Promise<ExperienceRow[]> {
+  const boatIds = boatRows.map((row) => row.id).filter(Boolean);
+  if (!boatIds.length) return [];
+
+  const linkedRows = await cms.db.query("api::experience.experience").findMany({
+    where: {
+      boat: {
+        id: {
+          $in: boatIds,
+        },
+      },
+    },
+    select: ["documentId"],
+    populate: {
+      boat: {
+        select: [
+          "id",
+          "documentId",
+          "locale",
+          "publishedAt",
+          "title",
+          "slug",
+          "moderation_status",
+          "owner_user_id",
+          "created_by_id",
+        ],
+      },
+    },
+    limit: 100,
+  });
+
+  const documentIds = Array.from(new Set(
+    (Array.isArray(linkedRows) ? linkedRows : [])
+      .map((row) => asString(isRecord(row) ? row.documentId : null))
+      .filter((documentId): documentId is string => Boolean(documentId))
+  ));
+
+  if (!documentIds.length) return [];
+
+  const allRows = await cms.db.query("api::experience.experience").findMany({
+    where: {
+      documentId: {
+        $in: documentIds,
+      },
+    },
+    select: [
+      "id",
+      "documentId",
+      "locale",
+      "publishedAt",
+      "title",
+      "slug",
+      "duration_hours",
+      "price",
+      "currency",
+      "is_active",
+      "updatedAt",
+    ],
+    populate: {
+      boat: {
+        select: [
+          "id",
+          "documentId",
+          "locale",
+          "publishedAt",
+          "title",
+          "slug",
+          "moderation_status",
+          "owner_user_id",
+          "created_by_id",
+        ],
+      },
+    },
+    limit: 300,
+  });
+
+  return (Array.isArray(allRows) ? allRows : [])
+    .map(shapeExperienceRow)
+    .filter((row): row is ExperienceRow => Boolean(row));
 }
 
 async function loadExperienceRows(
@@ -534,6 +653,256 @@ async function linkedBoatReadyForExperiencePublish(
   }
 
   return { ok: true, ownerUserId };
+}
+
+function duplicateLocales(rows: Array<{ locale: string | null; publishedAt?: string | null }>): Locale[] {
+  return REQUIRED_LOCALES.filter((locale) => {
+    const localeRows = rows.filter((row) => row.locale === locale);
+    const drafts = localeRows.filter((row) => !row.publishedAt);
+    const published = localeRows.filter((row) => row.publishedAt);
+    return drafts.length > 1 || published.length > 1;
+  });
+}
+
+function publishableStatus(status: string | null, publishedAt: string | null): boolean {
+  const current = status || (publishedAt ? "published" : null);
+  return current === "submitted" ||
+    current === "under_review" ||
+    current === "approved" ||
+    current === "published";
+}
+
+function byDocument<T extends { documentId: string }>(rows: T[]): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    grouped.set(row.documentId, [...(grouped.get(row.documentId) ?? []), row]);
+  }
+  return grouped;
+}
+
+async function planUnifiedBoatPublication(
+  cms: StrapiLike,
+  documentId: string
+) {
+  const boatRows = await loadBoatRows(cms, documentId);
+  const blockers: string[] = [];
+
+  if (!boatRows.length) {
+    return { ok: false as const, status: 404, body: { ok: false, code: "boat_not_found", blockers } };
+  }
+
+  const missingBoatLocales = missingPublishLocales(boatRows);
+  const incompleteBoatLocales = incompletePublishLocales(boatRows);
+  const duplicateBoatLocales = duplicateLocales(boatRows);
+  if (missingBoatLocales.length) blockers.push("required_boat_locales_missing");
+  if (incompleteBoatLocales.length) blockers.push("required_boat_locales_incomplete");
+  if (duplicateBoatLocales.length) blockers.push("duplicate_boat_localizations");
+  if (!boatRows.every((row) => publishableStatus(row.moderation_status, row.publishedAt))) {
+    blockers.push("boat_moderation_state_blocks_publication");
+  }
+
+  const ownerUserId = boatRows[0]?.owner_user_id ?? boatRows[0]?.created_by_id ?? null;
+  if (!ownerUserId) blockers.push("boat_owner_missing");
+
+  let ownerProfile: { id: number; verificationStatus: string | null } | null = null;
+  if (ownerUserId) {
+    ownerProfile = await ownerProfileForUser(cms, ownerUserId);
+    if (!ownerProfile || ownerProfile.verificationStatus !== "approved") {
+      blockers.push("owner_not_approved");
+    } else {
+      const documentCount = await ownerDocumentCount(cms, ownerProfile.id);
+      if (documentCount < 1) blockers.push("owner_document_required");
+    }
+  }
+
+  const mediaCount = await boatMediaCount(cms, boatRows.map((row) => row.id));
+  if (mediaCount < 1) blockers.push("boat_media_required");
+  if (!boatRows.some((row) => row.home_marina?.id || row.home_marina?.documentId || row.home_marina?.name)) {
+    blockers.push("marina_required");
+  }
+
+  const experienceRows = await loadLinkedExperienceRows(cms, boatRows);
+  const experienceGroups = byDocument(experienceRows);
+  if (!experienceGroups.size) blockers.push("linked_routes_required");
+
+  const experiencePlans: Array<{
+    documentId: string;
+    rows: ExperienceRow[];
+    missingLocales: Locale[];
+    incompleteLocales: Locale[];
+    duplicateLocales: Locale[];
+  }> = [];
+
+  for (const [experienceDocumentId, rows] of experienceGroups) {
+    const latestEvent = await latestExperienceEvent(cms, experienceDocumentId);
+    const currentStatus = experienceCurrentStatus(rows, latestEvent);
+    const missingLocales = missingPublishLocales(rows);
+    const incompleteLocales = incompleteExperiencePublishLocales(rows);
+    const duplicateRouteLocales = duplicateLocales(rows);
+    if (missingLocales.length) blockers.push(`route_required_locales_missing:${experienceDocumentId}`);
+    if (incompleteLocales.length) blockers.push(`route_required_locales_incomplete:${experienceDocumentId}`);
+    if (duplicateRouteLocales.length) blockers.push(`duplicate_route_localizations:${experienceDocumentId}`);
+    if (!rows.every((row) => row.boat?.documentId === documentId)) {
+      blockers.push(`invalid_boat_route_relation:${experienceDocumentId}`);
+    }
+    if (!publishableStatus(currentStatus, rows.some((row) => row.publishedAt) ? "published" : null)) {
+      blockers.push(`route_moderation_state_blocks_publication:${experienceDocumentId}`);
+    }
+    const routeMedia = await experienceMediaCount(cms, rows.map((row) => row.id));
+    if (routeMedia < 1) blockers.push(`route_media_required:${experienceDocumentId}`);
+    experiencePlans.push({
+      documentId: experienceDocumentId,
+      rows,
+      missingLocales,
+      incompleteLocales,
+      duplicateLocales: duplicateRouteLocales,
+    });
+  }
+
+  if (blockers.length) {
+    return {
+      ok: false as const,
+      status: 409,
+      body: {
+        ok: false,
+        code: "unified_publication_blocked",
+        blockers: Array.from(new Set(blockers)),
+        missingBoatLocales,
+        incompleteBoatLocales,
+        duplicateBoatLocales,
+      },
+    };
+  }
+
+  return {
+    ok: true as const,
+    boatRows,
+    experiencePlans,
+    ownerUserId,
+    ownerProfileId: ownerProfile?.id ?? null,
+  };
+}
+
+async function publishUnifiedBoat(
+  cms: StrapiLike,
+  input: ModerationInput
+) {
+  const documentId = asString(input.documentId);
+  if (!documentId) {
+    return {
+      ok: false,
+      status: 400,
+      body: { ok: false, code: "document_id_required" },
+    };
+  }
+
+  const actor = cleanActor(input.actor);
+  const batchOperationId = asString(input.batchOperationId) ?? `boat-publication:${documentId}:${Date.now()}`;
+  const plan = await planUnifiedBoatPublication(cms, documentId);
+  if (plan.ok === false) return plan;
+
+  const now = new Date().toISOString();
+  const published: Array<{ uid: string; documentId: string; locale: Locale }> = [];
+  const boatWasPublished = new Set(
+    plan.boatRows
+      .filter((row) => row.publishedAt)
+      .map((row) => row.locale)
+      .filter((locale): locale is Locale => Boolean(locale))
+  );
+  const routeWasPublished = new Map<string, Set<string>>();
+  for (const routePlan of plan.experiencePlans) {
+    routeWasPublished.set(
+      routePlan.documentId,
+      new Set(routePlan.rows.filter((row) => row.publishedAt).map((row) => row.locale).filter(Boolean) as string[])
+    );
+  }
+
+  try {
+    await cms.db.transaction(async () => {
+      await updateBoatSharedFields(cms, documentId, REQUIRED_LOCALES, {
+        moderation_status: "published",
+        moderation_comment: null,
+        reviewed_by: actor,
+        reviewed_at: now,
+      });
+
+      for (const locale of REQUIRED_LOCALES) {
+        await cms.documents("api::boat.boat").publish({ documentId, locale });
+        published.push({ uid: "api::boat.boat", documentId, locale });
+      }
+
+      for (const routePlan of plan.experiencePlans) {
+        await updateExperienceSharedFields(cms, routePlan.documentId, REQUIRED_LOCALES, {
+          is_active: true,
+        });
+        for (const locale of REQUIRED_LOCALES) {
+          await cms.documents("api::experience.experience").publish({
+            documentId: routePlan.documentId,
+            locale,
+          });
+          published.push({ uid: "api::experience.experience", documentId: routePlan.documentId, locale });
+        }
+      }
+
+      await createAuditEvent(cms, {
+        entityType: "boat",
+        entityDocumentId: documentId,
+        entityId: plan.boatRows[0]?.id ?? null,
+        action: "publish_logical_boat",
+        previousStatus: plan.boatRows[0]?.moderation_status ?? "approved",
+        newStatus: "published",
+        comment: "",
+        actor,
+        metadata: {
+          batchOperationId,
+          locales: REQUIRED_LOCALES,
+          ownerUserId: plan.ownerUserId,
+          ownerProfileId: plan.ownerProfileId,
+          routeDocumentIds: plan.experiencePlans.map((routePlan) => routePlan.documentId),
+        },
+      });
+    });
+  } catch {
+    for (const item of published.reverse()) {
+      const wasPublished = item.uid === "api::boat.boat"
+        ? boatWasPublished.has(item.locale)
+        : routeWasPublished.get(item.documentId)?.has(item.locale);
+      if (wasPublished) continue;
+      try {
+        await cms.documents(item.uid).unpublish({
+          documentId: item.documentId,
+          locale: item.locale,
+        });
+      } catch {
+        // Compensation is best-effort; the caller receives a failed batch result.
+      }
+    }
+
+    return {
+      ok: false,
+      status: 500,
+      body: {
+        ok: false,
+        code: "unified_publication_failed",
+        message: "Unified boat publication failed and compensation was attempted.",
+        batchOperationId,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    body: {
+      ok: true,
+      code: "unified_publication_completed",
+      message: "Лодка, переводы и маршруты опубликованы.",
+      boatDocumentId: documentId,
+      routeDocumentIds: plan.experiencePlans.map((routePlan) => routePlan.documentId),
+      batchOperationId,
+      doesPublish: true,
+    },
+  };
 }
 
 async function moderateBoat(
@@ -1166,6 +1535,9 @@ export function createAdminModerationService(cms: StrapiLike) {
       }
 
       if (input.entityType === "boat") {
+        if (input.action === "publish_logical_boat") {
+          return publishUnifiedBoat(cms, input);
+        }
         return moderateBoat(cms, input);
       }
 

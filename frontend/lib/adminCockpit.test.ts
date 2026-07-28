@@ -156,7 +156,11 @@ test("document requirement decision remains explicit instead of guessed", () => 
 });
 
 test("boat moderation is connected to protected actions and CMS audit events", () => {
-  assert.ok(moderationActions.includes('entityType="boat"') || cockpit.includes('entityType="boat"'));
+  assert.ok(
+    moderationActions.includes('entityType="boat"') ||
+      cockpit.includes('entityType="boat"') ||
+      cockpit.includes('action: "publish_logical_boat"')
+  );
   assert.ok(moderationApi.includes("/api/admin-moderation/action"));
   assert.ok(dashboardApi.includes("moderationEventQuery"));
   assert.ok(dashboardApi.includes("moderationEvents,"));
