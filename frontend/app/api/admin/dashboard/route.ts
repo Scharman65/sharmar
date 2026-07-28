@@ -187,6 +187,7 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
     "fields[27]=length_m",
     "fields[28]=engine_hp",
     "fields[29]=min_rental_hours",
+    "fields[30]=owner_user_id",
     "populate[cover][fields][0]=id",
     "populate[cover][fields][1]=url",
     "populate[cover][fields][2]=alternativeText",

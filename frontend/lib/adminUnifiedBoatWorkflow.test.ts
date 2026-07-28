@@ -129,6 +129,47 @@ test("missing boat or route locales block batch publication readiness", () => {
   assert.equal(logicalBoats[0].blockers.some((blocker) => /Petrovac/.test(blocker)), true);
 });
 
+test("owner and marina are aggregated from any localization row", () => {
+  const logicalBoats = groupLogicalBoats([
+    boat("ru", {
+      owner_display_name: null,
+      owner_email: null,
+      owner_user_id: null,
+      marina_name: "",
+    }),
+    boat("en", {
+      state: "published",
+      publishedAt: "2026-07-01T00:00:00.000Z",
+      owner_display_name: null,
+      owner_email: null,
+      owner_user_id: 2,
+      marina_name: "Bar",
+    }),
+    boat("sr-Latn-ME", {
+      owner_display_name: null,
+      owner_email: null,
+      owner_user_id: null,
+      marina_name: "",
+    }),
+  ], completeRoutes, "ru");
+
+  assert.equal(logicalBoats.length, 1);
+  assert.equal(logicalBoats[0].primary.owner_user_id, 2);
+  assert.equal(logicalBoats[0].primary.marina_name, "Bar");
+  assert.equal(
+    logicalBoats[0].blockers.some((blocker) => /owner|владелец|vlasnik/i.test(blocker)),
+    false
+  );
+  assert.equal(
+    logicalBoats[0].blockers.some((blocker) => /marina|марина/i.test(blocker)),
+    false
+  );
+});
+
+test("dashboard boat query requests owner_user_id explicitly", () => {
+  assert.ok(dashboardApi.includes('"fields[30]=owner_user_id"'));
+});
+
 test("owner, documents, media, and marina failures block readiness before publish", () => {
   const logicalBoats = groupLogicalBoats([
     boat("ru", { owner_confirmed: false, owner_documents_count: 0, cover_count: 0, images_count: 0, marina_name: "" }),

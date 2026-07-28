@@ -219,7 +219,60 @@ export function groupLogicalBoats(boats: JsonRecord[], routes: JsonRecord[], lan
 
   return Array.from(boatGroups.entries()).map(([documentId, rows]) => {
     const locales = groupLocales(rows);
-    const primary = pickPrimary(rows, strapiLocaleFromLang(lang));
+    const selectedPrimary = pickPrimary(rows, strapiLocaleFromLang(lang));
+    const ownerSource =
+      rows.find(
+        (row) =>
+          Boolean(asText(row.owner_display_name ?? row.owner_email)) ||
+          asNumber(row.owner_user_id ?? row.created_by_id) !== null
+      ) ?? selectedPrimary;
+    const marinaSource =
+      rows.find(
+        (row) =>
+          Boolean(asText(row.marina_name ?? row.home_marina_name)) &&
+          asText(row.state) === "published"
+      ) ??
+      rows.find((row) => Boolean(asText(row.marina_name ?? row.home_marina_name))) ??
+      selectedPrimary;
+    const primary: JsonRecord = {
+      ...selectedPrimary,
+      owner_user_id:
+        asNumber(ownerSource.owner_user_id) ??
+        asNumber(selectedPrimary.owner_user_id) ??
+        null,
+      created_by_id:
+        asNumber(ownerSource.created_by_id) ??
+        asNumber(selectedPrimary.created_by_id) ??
+        null,
+      owner_display_name:
+        asText(ownerSource.owner_display_name) ??
+        asText(selectedPrimary.owner_display_name) ??
+        null,
+      owner_email:
+        asText(ownerSource.owner_email) ??
+        asText(selectedPrimary.owner_email) ??
+        null,
+      owner_confirmed:
+        typeof ownerSource.owner_confirmed === "boolean"
+          ? ownerSource.owner_confirmed
+          : selectedPrimary.owner_confirmed,
+      owner_blocked:
+        typeof ownerSource.owner_blocked === "boolean"
+          ? ownerSource.owner_blocked
+          : selectedPrimary.owner_blocked,
+      owner_documents_count:
+        asNumber(ownerSource.owner_documents_count) ??
+        asNumber(selectedPrimary.owner_documents_count) ??
+        undefined,
+      marina_name:
+        asText(marinaSource.marina_name ?? marinaSource.home_marina_name) ??
+        asText(selectedPrimary.marina_name ?? selectedPrimary.home_marina_name) ??
+        null,
+      marina_slug:
+        asText(marinaSource.marina_slug ?? marinaSource.home_marina_slug) ??
+        asText(selectedPrimary.marina_slug ?? selectedPrimary.home_marina_slug) ??
+        null,
+    };
     const labels = copy[lang];
     const linkedRoutes = Array.from(routeGroups.entries())
       .filter(([, routeRows]) => routeRows.some((route) => asText(route.boatDocumentId) === documentId))
