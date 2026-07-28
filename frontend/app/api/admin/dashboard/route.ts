@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
 import { getAdminSessionStatus } from "@/lib/adminSession";
-import { mergeBoatOwnerLinks } from "@/lib/adminUnifiedBoatWorkflow";
+import {
+  extractCmsAdminSummaryPayload,
+  extractCmsBoatOwnerLinks,
+  mergeBoatOwnerLinks,
+} from "@/lib/adminUnifiedBoatWorkflow";
 
 type JsonObject = Record<string, unknown>;
 type RowStatus = "draft" | "published";
@@ -566,31 +570,57 @@ export async function GET() {
 
   const warnings: string[] = [];
   const cmsAdminToken = getCmsAdminSummaryToken();
+  if (!cmsAdminToken) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "cms_admin_summary_token_missing",
+        warnings: ["CMS admin summary token missing; protected dashboard data not loaded."],
+      },
+      { status: 500, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   const [boatResult, experienceResult, eventResult, cmsSummaryResult] = await Promise.all([
     fetchRowsByStatus(boatQuery, serverToken, warnings),
     fetchRowsByStatus(experienceQuery, serverToken, warnings),
     strapiGet(moderationEventQuery(), serverToken),
-    cmsAdminToken ? cmsAdminSummaryGet(cmsAdminToken) : Promise.resolve(null),
+    cmsAdminSummaryGet(cmsAdminToken),
   ]);
 
   if (!eventResult.ok) {
     warnings.push(`Could not load moderation events: Strapi ${eventResult.status}`);
   }
 
-  if (!cmsAdminToken) {
-    warnings.push("CMS admin summary token missing; booking requests/payments/owners not loaded.");
+  let cmsSummary: CmsAdminSummary | null = null;
+  if (cmsSummaryResult.ok && isRecord(cmsSummaryResult.json)) {
+    cmsSummary = extractCmsAdminSummaryPayload(cmsSummaryResult.json) as CmsAdminSummary | null;
+    if (Array.isArray(cmsSummary?.warnings)) {
+      warnings.push(...cmsSummary.warnings.filter((warning): warning is string => typeof warning === "string"));
+    }
+  } else {
+    warnings.push(`Could not load CMS admin summary: Strapi ${cmsSummaryResult.status}`);
+    return NextResponse.json(
+      {
+        ok: false,
+        code: cmsSummaryResult.status === 401 || cmsSummaryResult.status === 403
+          ? "cms_admin_summary_unauthorized"
+          : "cms_admin_summary_unavailable",
+        warnings,
+      },
+      { status: 502, headers: { "cache-control": "no-store" } }
+    );
   }
 
-  let cmsSummary: CmsAdminSummary | null = null;
-  if (cmsSummaryResult) {
-    if (cmsSummaryResult.ok && isRecord(cmsSummaryResult.json)) {
-      cmsSummary = cmsSummaryResult.json as CmsAdminSummary;
-      if (Array.isArray(cmsSummary.warnings)) {
-        warnings.push(...cmsSummary.warnings.filter((warning): warning is string => typeof warning === "string"));
-      }
-    } else {
-      warnings.push(`Could not load CMS admin summary: Strapi ${cmsSummaryResult.status}`);
-    }
+  if (!cmsSummary) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "cms_admin_summary_invalid",
+        warnings: [...warnings, "CMS admin summary response was invalid."],
+      },
+      { status: 502, headers: { "cache-control": "no-store" } }
+    );
   }
 
   if (boatResult.failed > 0 && boatResult.rows.length === 0) {
@@ -606,7 +636,7 @@ export async function GET() {
 
   const boats = mergeBoatOwnerLinks(
     boatResult.rows.map(({ item, status }) => normalizeBoat(item, status)),
-    cmsSummary?.boatOwnerLinks
+    extractCmsBoatOwnerLinks(cmsSummary)
   );
   const moderationEvents = eventResult.ok ? rowsFromJson(eventResult.json).map(normalizeModerationEvent) : [];
   const experiences = enrichExperiences(

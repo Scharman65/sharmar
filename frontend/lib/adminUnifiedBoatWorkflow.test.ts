@@ -5,6 +5,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  extractCmsAdminSummaryPayload,
+  extractCmsBoatOwnerLinks,
   groupLogicalBoats,
   logicalDocumentCount,
   mergeBoatOwnerLinks,
@@ -83,6 +85,37 @@ const completeRoutes = [
   ...["ru", "en", "sr-Latn-ME"].map((locale) => route("petrovac-doc", locale)),
   ...["ru", "en", "sr-Latn-ME"].map((locale) => route("sveti-stefan-doc", locale)),
 ];
+
+const oceanisDocumentId = "ysn736g6n2e0pnhpcmsbo8sw";
+const swiftDocumentId = "pcwdqr3gohdv9u6iv4x6l9f7";
+
+function productionBoat(documentId: string, locale: string, id: number, overrides: JsonRecord = {}): JsonRecord {
+  return boat(locale, {
+    id,
+    documentId,
+    title: documentId === oceanisDocumentId ? `Oceanis ${locale}` : `Swift ${locale}`,
+    slug: documentId === oceanisDocumentId ? `oceanis-${locale}` : `swift-${locale}`,
+    owner_user_id: null,
+    owner_display_name: null,
+    owner_email: null,
+    owner_confirmed: null,
+    owner_blocked: null,
+    ...overrides,
+  });
+}
+
+function productionOwnerLink(documentId: string, locale: string, boatId: number): JsonRecord {
+  return {
+    boat_id: boatId,
+    boat_document_id: documentId,
+    boat_locale: locale,
+    owner_user_id: 2,
+    owner_email: "owner@example.test",
+    owner_display_name: "Captain Owner",
+    owner_confirmed: true,
+    owner_blocked: false,
+  };
+}
 
 test("one logical boat card is produced despite EN/RU/ME rows", () => {
   const logicalBoats = groupLogicalBoats([
@@ -179,7 +212,26 @@ test("dashboard boat query does not request private owner_user_id from public St
   const queryBlock = sourceBlock(dashboardApi, "function boatQuery", "function experienceQuery");
   assert.doesNotMatch(queryBlock, /owner_user_id/);
   assert.ok(dashboardApi.includes("mergeBoatOwnerLinks("));
-  assert.ok(dashboardApi.includes("cmsSummary?.boatOwnerLinks"));
+  assert.ok(dashboardApi.includes("extractCmsBoatOwnerLinks(cmsSummary)"));
+});
+
+test("CMS admin summary root and nested payload shapes expose boatOwnerLinks", () => {
+  const rootPayload = {
+    ok: true,
+    boatOwnerLinks: [productionOwnerLink(oceanisDocumentId, "ru", 10)],
+    summary: { totalOwners: 1 },
+  };
+  const nestedPayload = {
+    data: {
+      ok: true,
+      boatOwnerLinks: [productionOwnerLink(swiftDocumentId, "en", 5)],
+      summary: { totalOwners: 1 },
+    },
+  };
+
+  assert.equal(extractCmsAdminSummaryPayload(rootPayload)?.summary, rootPayload.summary);
+  assert.deepEqual(extractCmsBoatOwnerLinks(rootPayload), rootPayload.boatOwnerLinks);
+  assert.deepEqual(extractCmsBoatOwnerLinks(nestedPayload), nestedPayload.data.boatOwnerLinks);
 });
 
 test("CMS boatOwnerLinks supply owner when public Strapi boat rows omit owner_user_id", () => {
@@ -233,6 +285,45 @@ test("owner link for one physical row is applied to every row of the same logica
   assert.deepEqual(mergedRows.map((row) => row.owner_display_name), ["Captain Owner", "Captain Owner", "Captain Owner"]);
 });
 
+test("production Oceanis and Swift rows receive owners from protected summary links", () => {
+  const rows = [
+    productionBoat(oceanisDocumentId, "ru", 8),
+    productionBoat(oceanisDocumentId, "ru", 10, { state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+    productionBoat(oceanisDocumentId, "en", 7),
+    productionBoat(oceanisDocumentId, "en", 11, { state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+    productionBoat(oceanisDocumentId, "sr-Latn-ME", 9),
+    productionBoat(oceanisDocumentId, "sr-Latn-ME", 12, { state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+    productionBoat(swiftDocumentId, "ru", 2),
+    productionBoat(swiftDocumentId, "ru", 4, { state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+    productionBoat(swiftDocumentId, "en", 1),
+    productionBoat(swiftDocumentId, "en", 5, { state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+    productionBoat(swiftDocumentId, "sr-Latn-ME", 3),
+    productionBoat(swiftDocumentId, "sr-Latn-ME", 6, { state: "published", publishedAt: "2026-07-01T00:00:00.000Z" }),
+  ];
+  const summary = {
+    boatOwnerLinks: [
+      productionOwnerLink(oceanisDocumentId, "en", 11),
+      productionOwnerLink(oceanisDocumentId, "ru", 10),
+      productionOwnerLink(oceanisDocumentId, "sr-Latn-ME", 12),
+      productionOwnerLink(swiftDocumentId, "en", 5),
+      productionOwnerLink(swiftDocumentId, "ru", 4),
+      productionOwnerLink(swiftDocumentId, "sr-Latn-ME", 6),
+    ],
+  };
+  const mergedRows = mergeBoatOwnerLinks(rows, extractCmsBoatOwnerLinks(summary));
+  const logicalBoats = groupLogicalBoats(mergedRows, [], "ru");
+
+  assert.equal(mergedRows.length, 12);
+  assert.equal(mergedRows.filter((row) => row.owner_user_id === 2).length, 12);
+  assert.deepEqual(logicalBoats.map((item) => item.documentId).sort(), [swiftDocumentId, oceanisDocumentId].sort());
+  assert.equal(
+    logicalBoats.some((logicalBoat) =>
+      logicalBoat.blockers.some((blocker) => /owner|владелец|vlasnik/i.test(blocker))
+    ),
+    false
+  );
+});
+
 test("owner link null values do not erase owner data already present on a boat row", () => {
   const mergedRows = mergeBoatOwnerLinks([
     boat("ru", {
@@ -278,6 +369,12 @@ test("boat API query failures produce a dashboard error instead of a silent zero
   assert.ok(dashboardApi.includes("strapi_boat_query_failed"));
   assert.ok(dashboardApi.includes("boatResult.failed > 0 && boatResult.rows.length === 0"));
   assert.ok(dashboardApi.includes("status: 502"));
+});
+
+test("CMS summary failures produce a dashboard error instead of false owner blockers", () => {
+  assert.ok(dashboardApi.includes("cms_admin_summary_unauthorized"));
+  assert.ok(dashboardApi.includes("cms_admin_summary_unavailable"));
+  assert.ok(dashboardApi.includes("cms_admin_summary_token_missing"));
 });
 
 test("owner, documents, media, and marina failures block readiness before publish", () => {

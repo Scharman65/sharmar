@@ -127,6 +127,29 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null;
 }
 
+export function extractCmsAdminSummaryPayload(value: unknown): JsonRecord | null {
+  if (!isRecord(value)) return null;
+
+  const nestedData = isRecord(value.data) ? value.data : null;
+  if (
+    nestedData &&
+    (Array.isArray(nestedData.boatOwnerLinks) ||
+      Array.isArray(nestedData.owners) ||
+      Array.isArray(nestedData.bookingRequests) ||
+      Array.isArray(nestedData.payments) ||
+      isRecord(nestedData.summary))
+  ) {
+    return nestedData;
+  }
+
+  return value;
+}
+
+export function extractCmsBoatOwnerLinks(value: unknown): unknown[] {
+  const payload = extractCmsAdminSummaryPayload(value);
+  return payload && Array.isArray(payload.boatOwnerLinks) ? payload.boatOwnerLinks : [];
+}
+
 function normalizeBoatOwnerLink(item: unknown): BoatOwnerLink | null {
   if (!isRecord(item)) return null;
 
