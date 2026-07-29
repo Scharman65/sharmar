@@ -1,3 +1,12 @@
+import { formatPaymentAmount, paymentSplitCopy, type PaymentSplitLang } from "@/lib/paymentSplit";
+
+type PaymentBreakdownEmailFields = {
+  ownerAmount?: number | string | null;
+  marketplaceFeeAmount?: number | string | null;
+  customerTotalAmount?: number | string | null;
+  currency?: string | null;
+};
+
 type BookingEmail = {
   locale?: string | null;
   id: number;
@@ -11,7 +20,7 @@ type BookingEmail = {
   people: number;
   skipper: boolean;
   notes?: string;
-};
+} & PaymentBreakdownEmailFields;
 
 type OwnerDecisionEmail = {
   locale?: string | null;
@@ -26,7 +35,7 @@ type OwnerDecisionEmail = {
   people: number;
   skipper: boolean;
   notes?: string;
-};
+} & PaymentBreakdownEmailFields;
 
 type BookingCustomerRequestEmail = {
   locale?: string | null;
@@ -37,7 +46,7 @@ type BookingCustomerRequestEmail = {
   publicToken?: string | null;
   supportNote?: string | null;
   supportEmail?: string | null;
-};
+} & PaymentBreakdownEmailFields;
 
 type BookingCustomerDecisionEmail = {
   locale?: string | null;
@@ -48,7 +57,7 @@ type BookingCustomerDecisionEmail = {
   end?: string | null;
   supportNote?: string | null;
   supportEmail?: string | null;
-};
+} & PaymentBreakdownEmailFields;
 
 type OwnerPasswordResetEmail = {
   locale?: string | null;
@@ -81,6 +90,131 @@ export function bookingAdminEmail(p: BookingEmail) {
   return { subject, text };
 }
 
+function normalizeLocale(value: string | null | undefined): PaymentSplitLang {
+  return value === "ru" || value === "me" || value === "en" ? value : "en";
+}
+
+function hasPaymentBreakdown(p: PaymentBreakdownEmailFields): boolean {
+  return (
+    p.ownerAmount !== null &&
+    p.ownerAmount !== undefined &&
+    p.marketplaceFeeAmount !== null &&
+    p.marketplaceFeeAmount !== undefined &&
+    p.customerTotalAmount !== null &&
+    p.customerTotalAmount !== undefined
+  );
+}
+
+function paymentBreakdownText(p: PaymentBreakdownEmailFields, locale: PaymentSplitLang): string[] {
+  if (!hasPaymentBreakdown(p)) return [];
+  const copy = paymentSplitCopy[locale];
+  const currency = p.currency || "EUR";
+
+  return [
+    `${copy.tripPrice}: ${formatPaymentAmount(p.ownerAmount, currency, locale)}`,
+    `${copy.onlineBookingFee}: ${formatPaymentAmount(p.marketplaceFeeAmount, currency, locale)}`,
+    `${copy.totalCost}: ${formatPaymentAmount(p.customerTotalAmount, currency, locale)}`,
+    `${copy.payOnlineNow}: ${formatPaymentAmount(p.marketplaceFeeAmount, currency, locale)}`,
+    `${copy.payOwnerDuringTrip}: ${formatPaymentAmount(p.ownerAmount, currency, locale)}`,
+    copy.mainExplanation,
+  ];
+}
+
+function paymentBreakdownHtml(p: PaymentBreakdownEmailFields, locale: PaymentSplitLang): string[] {
+  if (!hasPaymentBreakdown(p)) return [];
+  return paymentBreakdownText(p, locale).map((line) => `<p>${escapeHtml(line)}</p>`);
+}
+
+function customerRequestCopy(locale: PaymentSplitLang, p: BookingCustomerRequestEmail) {
+  if (locale === "ru") {
+    return {
+      subject: `Заявка получена: ${p.boatTitle}`,
+      hello: `Здравствуйте, ${p.customerName},`,
+      received: `Мы получили вашу заявку на бронирование: ${p.boatTitle}.`,
+      from: "С",
+      to: "До",
+      reference: "Номер заявки",
+      notFinal: "Бронирование ещё не финальное. Может потребоваться подтверждение владельца.",
+      support: "Поддержка",
+      sign: "Sharmar",
+    };
+  }
+
+  if (locale === "me") {
+    return {
+      subject: `Zahtjev je primljen: ${p.boatTitle}`,
+      hello: `Poštovani/a ${p.customerName},`,
+      received: `Primili smo vaš zahtjev za rezervaciju: ${p.boatTitle}.`,
+      from: "Od",
+      to: "Do",
+      reference: "Referenca zahtjeva",
+      notFinal: "Rezervacija još nije konačna. Može biti potrebna potvrda vlasnika.",
+      support: "Podrška",
+      sign: "Sharmar",
+    };
+  }
+
+  return {
+    subject: `Booking request received: ${p.boatTitle}`,
+    hello: `Hello ${p.customerName},`,
+    received: `We received your booking request for ${p.boatTitle}.`,
+    from: "From",
+    to: "To",
+    reference: "Booking reference",
+    notFinal: "Your booking is not final until confirmed. Owner confirmation may be required before the booking is completed.",
+    support: "Support",
+    sign: "Sharmar",
+  };
+}
+
+function customerDecisionCopy(locale: PaymentSplitLang, p: BookingCustomerDecisionEmail, status: "confirmed" | "declined") {
+  if (locale === "ru") {
+    return {
+      subject: status === "confirmed" ? `Бронирование подтверждено: ${p.boatTitle}` : `Заявка отклонена: ${p.boatTitle}`,
+      hello: `Здравствуйте, ${p.customerName},`,
+      decision: status === "confirmed"
+        ? `Ваша заявка на бронирование ${p.boatTitle} подтверждена.`
+        : `Ваша заявка на бронирование ${p.boatTitle} отклонена.`,
+      ownerApproved: "Владелец подтвердил вашу заявку.",
+      from: "С",
+      to: "До",
+      reference: "Номер заявки",
+      support: "Поддержка",
+      sign: "Sharmar",
+    };
+  }
+
+  if (locale === "me") {
+    return {
+      subject: status === "confirmed" ? `Rezervacija potvrđena: ${p.boatTitle}` : `Zahtjev odbijen: ${p.boatTitle}`,
+      hello: `Poštovani/a ${p.customerName},`,
+      decision: status === "confirmed"
+        ? `Vaš zahtjev za rezervaciju ${p.boatTitle} je potvrđen.`
+        : `Vaš zahtjev za rezervaciju ${p.boatTitle} je odbijen.`,
+      ownerApproved: "Vlasnik je potvrdio vaš zahtjev.",
+      from: "Od",
+      to: "Do",
+      reference: "Referenca zahtjeva",
+      support: "Podrška",
+      sign: "Sharmar",
+    };
+  }
+
+  return {
+    subject: status === "confirmed" ? `Booking confirmed: ${p.boatTitle}` : `Booking request declined: ${p.boatTitle}`,
+    hello: `Hello ${p.customerName},`,
+    decision: status === "confirmed"
+      ? `Your booking request for ${p.boatTitle} has been confirmed.`
+      : `Your booking request for ${p.boatTitle} was declined.`,
+    ownerApproved: "The owner approved your request.",
+    from: "From",
+    to: "To",
+    reference: "Booking reference",
+    support: "Support",
+    sign: "Sharmar",
+  };
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -91,36 +225,38 @@ function escapeHtml(value: string): string {
 }
 
 export function bookingCustomerRequestEmail(p: BookingCustomerRequestEmail) {
-  const subject = `Booking request received: ${p.boatTitle}`;
+  const locale = normalizeLocale(p.locale);
+  const copy = customerRequestCopy(locale, p);
+  const subject = copy.subject;
 
   const text = [
-    `Hello ${p.customerName},`,
+    copy.hello,
     ``,
-    `We received your booking request for ${p.boatTitle}.`,
-    p.start ? `From: ${p.start}` : null,
-    p.end ? `To: ${p.end}` : null,
-    p.publicToken ? `Booking reference: ${p.publicToken}` : null,
+    copy.received,
+    p.start ? `${copy.from}: ${p.start}` : null,
+    p.end ? `${copy.to}: ${p.end}` : null,
+    p.publicToken ? `${copy.reference}: ${p.publicToken}` : null,
     ``,
-    `Your booking is not final until confirmed. Owner confirmation may be required before the booking is completed.`,
-    `Any booking fee or payment status is handled through the Sharmar flow.`,
+    copy.notFinal,
+    ...paymentBreakdownText(p, locale),
     ``,
     p.supportNote ? p.supportNote : null,
-    p.supportEmail ? `Support: ${p.supportEmail}` : null,
+    p.supportEmail ? `${copy.support}: ${p.supportEmail}` : null,
     ``,
-    `Sharmar`,
+    copy.sign,
   ].filter(Boolean).join("\n");
 
   const rows = [
-    `<p>Hello ${escapeHtml(p.customerName)},</p>`,
-    `<p>We received your booking request for <strong>${escapeHtml(p.boatTitle)}</strong>.</p>`,
-    p.start ? `<p><strong>From:</strong> ${escapeHtml(p.start)}</p>` : null,
-    p.end ? `<p><strong>To:</strong> ${escapeHtml(p.end)}</p>` : null,
-    p.publicToken ? `<p><strong>Booking reference:</strong> ${escapeHtml(p.publicToken)}</p>` : null,
-    `<p>Your booking is not final until confirmed. Owner confirmation may be required before the booking is completed.</p>`,
-    `<p>Any booking fee or payment status is handled through the Sharmar flow.</p>`,
+    `<p>${escapeHtml(copy.hello)}</p>`,
+    `<p>${escapeHtml(copy.received)}</p>`,
+    p.start ? `<p><strong>${escapeHtml(copy.from)}:</strong> ${escapeHtml(p.start)}</p>` : null,
+    p.end ? `<p><strong>${escapeHtml(copy.to)}:</strong> ${escapeHtml(p.end)}</p>` : null,
+    p.publicToken ? `<p><strong>${escapeHtml(copy.reference)}:</strong> ${escapeHtml(p.publicToken)}</p>` : null,
+    `<p>${escapeHtml(copy.notFinal)}</p>`,
+    ...paymentBreakdownHtml(p, locale),
     p.supportNote ? `<p>${escapeHtml(p.supportNote)}</p>` : null,
-    p.supportEmail ? `<p>Support: ${escapeHtml(p.supportEmail)}</p>` : null,
-    `<p>Sharmar</p>`,
+    p.supportEmail ? `<p>${escapeHtml(copy.support)}: ${escapeHtml(p.supportEmail)}</p>` : null,
+    `<p>${escapeHtml(copy.sign)}</p>`,
   ].filter(Boolean).join("\n");
 
   const html = `<div>${rows}</div>`;
@@ -129,36 +265,38 @@ export function bookingCustomerRequestEmail(p: BookingCustomerRequestEmail) {
 }
 
 export function bookingConfirmedCustomerEmail(p: BookingCustomerDecisionEmail) {
-  const subject = `Booking confirmed: ${p.boatTitle}`;
+  const locale = normalizeLocale(p.locale);
+  const copy = customerDecisionCopy(locale, p, "confirmed");
+  const subject = copy.subject;
 
   const text = [
-    `Hello ${p.customerName},`,
+    copy.hello,
     ``,
-    `Your booking request for ${p.boatTitle} has been confirmed.`,
-    `The owner approved your request.`,
-    p.start ? `From: ${p.start}` : null,
-    p.end ? `To: ${p.end}` : null,
-    p.publicToken ? `Booking reference: ${p.publicToken}` : null,
+    copy.decision,
+    copy.ownerApproved,
+    p.start ? `${copy.from}: ${p.start}` : null,
+    p.end ? `${copy.to}: ${p.end}` : null,
+    p.publicToken ? `${copy.reference}: ${p.publicToken}` : null,
     ``,
-    `Any remaining payment instructions are handled separately through the Sharmar flow or directly with the owner as applicable.`,
+    ...paymentBreakdownText(p, locale),
     ``,
     p.supportNote ? p.supportNote : null,
-    p.supportEmail ? `Support: ${p.supportEmail}` : null,
+    p.supportEmail ? `${copy.support}: ${p.supportEmail}` : null,
     ``,
-    `Sharmar`,
+    copy.sign,
   ].filter(Boolean).join("\n");
 
   const rows = [
-    `<p>Hello ${escapeHtml(p.customerName)},</p>`,
-    `<p>Your booking request for <strong>${escapeHtml(p.boatTitle)}</strong> has been confirmed.</p>`,
-    `<p>The owner approved your request.</p>`,
-    p.start ? `<p><strong>From:</strong> ${escapeHtml(p.start)}</p>` : null,
-    p.end ? `<p><strong>To:</strong> ${escapeHtml(p.end)}</p>` : null,
-    p.publicToken ? `<p><strong>Booking reference:</strong> ${escapeHtml(p.publicToken)}</p>` : null,
-    `<p>Any remaining payment instructions are handled separately through the Sharmar flow or directly with the owner as applicable.</p>`,
+    `<p>${escapeHtml(copy.hello)}</p>`,
+    `<p>${escapeHtml(copy.decision)}</p>`,
+    `<p>${escapeHtml(copy.ownerApproved)}</p>`,
+    p.start ? `<p><strong>${escapeHtml(copy.from)}:</strong> ${escapeHtml(p.start)}</p>` : null,
+    p.end ? `<p><strong>${escapeHtml(copy.to)}:</strong> ${escapeHtml(p.end)}</p>` : null,
+    p.publicToken ? `<p><strong>${escapeHtml(copy.reference)}:</strong> ${escapeHtml(p.publicToken)}</p>` : null,
+    ...paymentBreakdownHtml(p, locale),
     p.supportNote ? `<p>${escapeHtml(p.supportNote)}</p>` : null,
-    p.supportEmail ? `<p>Support: ${escapeHtml(p.supportEmail)}</p>` : null,
-    `<p>Sharmar</p>`,
+    p.supportEmail ? `<p>${escapeHtml(copy.support)}: ${escapeHtml(p.supportEmail)}</p>` : null,
+    `<p>${escapeHtml(copy.sign)}</p>`,
   ].filter(Boolean).join("\n");
 
   const html = `<div>${rows}</div>`;
@@ -167,34 +305,36 @@ export function bookingConfirmedCustomerEmail(p: BookingCustomerDecisionEmail) {
 }
 
 export function bookingDeclinedCustomerEmail(p: BookingCustomerDecisionEmail) {
-  const subject = `Booking request declined: ${p.boatTitle}`;
+  const locale = normalizeLocale(p.locale);
+  const copy = customerDecisionCopy(locale, p, "declined");
+  const subject = copy.subject;
 
   const text = [
-    `Hello ${p.customerName},`,
+    copy.hello,
     ``,
-    `Your booking request for ${p.boatTitle} was declined.`,
-    p.start ? `From: ${p.start}` : null,
-    p.end ? `To: ${p.end}` : null,
-    p.publicToken ? `Booking reference: ${p.publicToken}` : null,
+    copy.decision,
+    p.start ? `${copy.from}: ${p.start}` : null,
+    p.end ? `${copy.to}: ${p.end}` : null,
+    p.publicToken ? `${copy.reference}: ${p.publicToken}` : null,
     ``,
-    `If a booking fee or payment applies, payment or refund handling is managed through the Sharmar flow.`,
+    ...paymentBreakdownText(p, locale),
     ``,
     p.supportNote ? p.supportNote : null,
-    p.supportEmail ? `Support: ${p.supportEmail}` : null,
+    p.supportEmail ? `${copy.support}: ${p.supportEmail}` : null,
     ``,
-    `Sharmar`,
+    copy.sign,
   ].filter(Boolean).join("\n");
 
   const rows = [
-    `<p>Hello ${escapeHtml(p.customerName)},</p>`,
-    `<p>Your booking request for <strong>${escapeHtml(p.boatTitle)}</strong> was declined.</p>`,
-    p.start ? `<p><strong>From:</strong> ${escapeHtml(p.start)}</p>` : null,
-    p.end ? `<p><strong>To:</strong> ${escapeHtml(p.end)}</p>` : null,
-    p.publicToken ? `<p><strong>Booking reference:</strong> ${escapeHtml(p.publicToken)}</p>` : null,
-    `<p>If a booking fee or payment applies, payment or refund handling is managed through the Sharmar flow.</p>`,
+    `<p>${escapeHtml(copy.hello)}</p>`,
+    `<p>${escapeHtml(copy.decision)}</p>`,
+    p.start ? `<p><strong>${escapeHtml(copy.from)}:</strong> ${escapeHtml(p.start)}</p>` : null,
+    p.end ? `<p><strong>${escapeHtml(copy.to)}:</strong> ${escapeHtml(p.end)}</p>` : null,
+    p.publicToken ? `<p><strong>${escapeHtml(copy.reference)}:</strong> ${escapeHtml(p.publicToken)}</p>` : null,
+    ...paymentBreakdownHtml(p, locale),
     p.supportNote ? `<p>${escapeHtml(p.supportNote)}</p>` : null,
-    p.supportEmail ? `<p>Support: ${escapeHtml(p.supportEmail)}</p>` : null,
-    `<p>Sharmar</p>`,
+    p.supportEmail ? `<p>${escapeHtml(copy.support)}: ${escapeHtml(p.supportEmail)}</p>` : null,
+    `<p>${escapeHtml(copy.sign)}</p>`,
   ].filter(Boolean).join("\n");
 
   const html = `<div>${rows}</div>`;
@@ -203,6 +343,7 @@ export function bookingDeclinedCustomerEmail(p: BookingCustomerDecisionEmail) {
 }
 
 export function ownerDecisionEmail(p: OwnerDecisionEmail) {
+  const locale = normalizeLocale(p.locale);
   const subject = `Owner decision required: ${p.boatTitle}`;
 
   const text = [
@@ -219,6 +360,8 @@ export function ownerDecisionEmail(p: OwnerDecisionEmail) {
     `To: ${p.end}`,
     `People: ${p.people}`,
     `Skipper: ${p.skipper ? "yes" : "no"}`,
+    ``,
+    ...paymentBreakdownText(p, locale),
     ``,
     p.notes ? `Notes:\n${p.notes}` : null,
     ``,

@@ -1093,7 +1093,7 @@ export default factories.createCoreController(
       }
 
       const payRes = await strapi.db.connection.raw(
-        `select id, provider, provider_intent_id, status, booking_id, created_at, updated_at
+        `select id, provider, provider_intent_id, amount_cents, currency, status, booking_id, created_at, updated_at
            from public.payments
           where booking_request_id = ?
           order by id desc
@@ -1169,6 +1169,8 @@ export default factories.createCoreController(
               id: payment.id,
               provider: payment.provider || null,
               provider_intent_id: payment.provider_intent_id || null,
+              amount_cents: payment.amount_cents ?? null,
+              currency: payment.currency || null,
               status: payment.status || null,
               booking_id: payment.booking_id || null,
               created_at: payment.created_at || null,

@@ -37,9 +37,9 @@ const copy = {
           "Availability, pricing, routes, schedules, and trip conditions may change depending on season, weather, technical conditions, and owner decisions.",
       },
       {
-        title: "Payments and authorizations",
+        title: "Payments",
         text:
-          "Some bookings may require payment authorization, deposits, or additional verification before final confirmation.",
+          "For online booking, Sharmar charges only the online booking fee through the website. The trip price is paid directly to the yacht owner or operator during the trip.",
       },
       {
         title: "Limitation of liability",
@@ -82,9 +82,9 @@ const copy = {
           "Доступность, цены, маршруты, расписания и условия поездки могут изменяться в зависимости от сезона, погоды, технического состояния и решений владельца.",
       },
       {
-        title: "Оплаты и авторизация",
+        title: "Оплаты",
         text:
-          "Некоторые бронирования могут требовать авторизации оплаты, депозита или дополнительной проверки перед финальным подтверждением.",
+          "При онлайн-бронировании Sharmar списывает через сайт только комиссию за онлайн-бронирование. Стоимость поездки оплачивается напрямую владельцу или оператору яхты во время поездки.",
       },
       {
         title: "Ограничение ответственности",
@@ -127,9 +127,9 @@ const copy = {
           "Dostupnost, cijene, rute, rasporedi i uslovi putovanja mogu se mijenjati zavisno od sezone, vremenskih uslova, tehničkog stanja i odluka vlasnika.",
       },
       {
-        title: "Plaćanja i autorizacije",
+        title: "Plaćanja",
         text:
-          "Neke rezervacije mogu zahtijevati autorizaciju plaćanja, depozit ili dodatnu provjeru prije konačne potvrde.",
+          "Kod online rezervacije Sharmar preko sajta naplaćuje samo naknadu za online rezervaciju. Cijena vožnje plaća se direktno vlasniku ili operateru jahte tokom vožnje.",
       },
       {
         title: "Ograničenje odgovornosti",

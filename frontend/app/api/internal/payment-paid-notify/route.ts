@@ -32,6 +32,12 @@ function getNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function getNumberLike(v: unknown): number | string | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim().length && Number.isFinite(Number(v))) return v.trim();
+  return null;
+}
+
 function unwrapData(jsonValue: unknown): unknown[] {
   if (!isRecord(jsonValue)) return [];
   const data = jsonValue.data;
@@ -71,6 +77,19 @@ async function strapiFetch(path: string, init?: RequestInit): Promise<unknown> {
 async function loadBookingRequest(bookingRequestId: number): Promise<JsonRecord | null> {
   const qs = new URLSearchParams();
   qs.set("filters[id][$eq]", String(bookingRequestId));
+  qs.append("fields[0]", "public_token");
+  qs.append("fields[1]", "full_name");
+  qs.append("fields[2]", "phone");
+  qs.append("fields[3]", "email");
+  qs.append("fields[4]", "start_datetime");
+  qs.append("fields[5]", "end_datetime");
+  qs.append("fields[6]", "people_count");
+  qs.append("fields[7]", "need_skipper");
+  qs.append("fields[8]", "notes");
+  qs.append("fields[9]", "owner_amount");
+  qs.append("fields[10]", "marketplace_fee_amount");
+  qs.append("fields[11]", "customer_total_amount");
+  qs.append("fields[12]", "currency");
   qs.set("populate[boat][fields][0]", "title");
   qs.set("populate[boat][fields][1]", "slug");
   qs.set("pagination[pageSize]", "1");
@@ -99,6 +118,16 @@ function getField(row: JsonRecord, key: string): unknown {
   if (isRecord(attrs) && key in attrs) return attrs[key];
 
   return undefined;
+}
+
+function supportNoteForLocale(locale: string): string {
+  if (locale === "ru") {
+    return "Ваш онлайн-платёж комиссии получен. Владелец проверит вашу заявку на бронирование.";
+  }
+  if (locale === "me") {
+    return "Vaša online uplata naknade je primljena. Vlasnik će pregledati vaš zahtjev za rezervaciju.";
+  }
+  return "Your online booking fee payment has been received. The owner will review your reservation request.";
 }
 
 export async function POST(req: Request) {
@@ -156,15 +185,15 @@ export async function POST(req: Request) {
 
   const boat = getBoatFromBookingRequest(br);
 
-  const publicToken = getStr(getField(br, "public_token"));
-  const customerName = getStr(getField(br, "full_name")) || "Customer";
-  const customerPhone = getStr(getField(br, "phone"));
-  const customerEmail = getStr(getField(br, "email"));
-  const start = getStr(getField(br, "start_datetime"));
-  const end = getStr(getField(br, "end_datetime"));
-  const people = getNum(getField(br, "people_count"));
-  const skipper = Boolean(getField(br, "need_skipper"));
-  const notes = getStr(getField(br, "notes"));
+	  const publicToken = getStr(getField(br, "public_token"));
+	  const customerName = getStr(getField(br, "full_name")) || "Customer";
+	  const customerEmail = getStr(getField(br, "email"));
+	  const start = getStr(getField(br, "start_datetime"));
+	  const end = getStr(getField(br, "end_datetime"));
+	  const ownerAmount = getNumberLike(getField(br, "owner_amount"));
+	  const marketplaceFeeAmount = getNumberLike(getField(br, "marketplace_fee_amount"));
+	  const customerTotalAmount = getNumberLike(getField(br, "customer_total_amount"));
+	  const currency = getStr(getField(br, "currency")) || "EUR";
 
   const boatTitle =
     getStr(boat?.title) ||
@@ -178,11 +207,15 @@ export async function POST(req: Request) {
         boatTitle,
         customerName,
         start,
-        end,
-        publicToken,
-        supportEmail: BOOKING_TO,
-        supportNote: "Your payment has been received. The owner will review your reservation request.",
-      });
+	        end,
+	        publicToken,
+	        supportEmail: BOOKING_TO,
+	        supportNote: supportNoteForLocale(locale),
+	        ownerAmount,
+	        marketplaceFeeAmount,
+	        customerTotalAmount,
+	        currency,
+	      });
 
       await resend.emails.send({
         from: BOOKING_FROM,

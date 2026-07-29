@@ -1,6 +1,7 @@
 import Link from "next/link";
 import OwnerActions from "./OwnerActions";
 import { isLang, type Lang } from "@/i18n";
+import { formatPaymentAmount } from "@/lib/paymentSplit";
 
 type Props = {
   params: Promise<{ lang: string; token: string }>;
@@ -111,8 +112,8 @@ function statusLabel(lang: Lang, status: string | null | undefined): string {
 function copy(lang: Lang) {
   if (lang === "ru") {
     return {
-      paidNote: "Сбор за бронирование оплачен Sharmar. Остаток оплачивается напрямую владельцу.",
-      unpaidNote: "Заявка создана. Сбор за бронирование пока не оплачен. Подтвердите доступность, чтобы клиент мог перейти к следующему шагу.",
+      paidNote: "Комиссия за онлайн-бронирование оплачена Sharmar. Стоимость поездки клиент оплачивает напрямую владельцу во время поездки.",
+      unpaidNote: "Заявка создана. Комиссия за онлайн-бронирование пока не оплачена. Подтвердите доступность, чтобы клиент мог перейти к следующему шагу.",
       requestDetails: "Детали заявки",
       boat: "Лодка",
       route: "Маршрут",
@@ -124,9 +125,9 @@ function copy(lang: Lang) {
       skipper: "Шкипер",
       yes: "Да",
       no: "Нет",
-      ownerAmount: "Сумма владельцу",
-      bookingFee: "Сбор Sharmar",
-      totalAmount: "Итого для клиента",
+      ownerAmount: "Стоимость поездки владельцу",
+      bookingFee: "Комиссия Sharmar",
+      totalAmount: "Общая стоимость",
       notes: "Комментарий",
       notProvided: "Не указано",
     };
@@ -134,8 +135,8 @@ function copy(lang: Lang) {
 
   if (lang === "me") {
     return {
-      paidNote: "Naknada za rezervaciju je plaćena Sharmaru. Preostali iznos plaća se direktno vlasniku.",
-      unpaidNote: "Zahtjev je kreiran. Naknada za rezervaciju još nije plaćena. Potvrdite dostupnost kako bi gost mogao preći na sljedeći korak.",
+      paidNote: "Naknada za online rezervaciju je plaćena Sharmaru. Cijenu vožnje gost plaća direktno vlasniku tokom vožnje.",
+      unpaidNote: "Zahtjev je kreiran. Naknada za online rezervaciju još nije plaćena. Potvrdite dostupnost kako bi gost mogao preći na sljedeći korak.",
       requestDetails: "Detalji zahtjeva",
       boat: "Plovilo",
       route: "Ruta",
@@ -147,7 +148,7 @@ function copy(lang: Lang) {
       skipper: "Skiper",
       yes: "Da",
       no: "Ne",
-      ownerAmount: "Iznos za vlasnika",
+      ownerAmount: "Cijena vožnje vlasniku",
       bookingFee: "Sharmar naknada",
       totalAmount: "Ukupno za gosta",
       notes: "Napomena",
@@ -156,8 +157,8 @@ function copy(lang: Lang) {
   }
 
   return {
-    paidNote: "Booking fee has been paid to Sharmar. The remaining amount is paid directly to the owner.",
-    unpaidNote: "The request has been created. The booking fee has not been paid yet. Confirm availability so the guest can proceed to the next step.",
+      paidNote: "The online booking fee has been paid to Sharmar. The trip price is paid directly to the owner during the trip.",
+      unpaidNote: "The request has been created. The online booking fee has not been paid yet. Confirm availability so the guest can proceed to the next step.",
     requestDetails: "Request details",
     boat: "Boat",
     route: "Route",
@@ -169,7 +170,7 @@ function copy(lang: Lang) {
     skipper: "Skipper",
     yes: "Yes",
     no: "No",
-    ownerAmount: "Owner amount",
+    ownerAmount: "Trip price to owner",
     bookingFee: "Sharmar booking fee",
     totalAmount: "Guest total",
     notes: "Notes",
@@ -177,11 +178,11 @@ function copy(lang: Lang) {
   };
 }
 
-function formatMoney(value: unknown, currency: string | null | undefined): string {
+function formatMoney(value: unknown, currency: string | null | undefined, lang: Lang): string {
   if (value === null || value === undefined || value === "") return "—";
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return "—";
-  return `${n.toFixed(2)} ${currency || "EUR"}`;
+  return formatPaymentAmount(n, currency || "EUR", lang);
 }
 
 function formatDateTime(lang: Lang, value: string | null | undefined): string {
@@ -272,9 +273,9 @@ export default async function OwnerPage({ params }: Props) {
       value: br?.need_skipper === true ? c.yes : br?.need_skipper === false ? c.no : "",
       visible: br?.need_skipper !== null && br?.need_skipper !== undefined,
     },
-    { label: c.ownerAmount, value: formatMoney(br?.owner_amount, currency), visible: br?.owner_amount !== null && br?.owner_amount !== undefined },
-    { label: c.bookingFee, value: formatMoney(br?.marketplace_fee_amount, currency), visible: br?.marketplace_fee_amount !== null && br?.marketplace_fee_amount !== undefined },
-    { label: c.totalAmount, value: formatMoney(br?.customer_total_amount, currency), visible: br?.customer_total_amount !== null && br?.customer_total_amount !== undefined },
+    { label: c.ownerAmount, value: formatMoney(br?.owner_amount, currency, lang), visible: br?.owner_amount !== null && br?.owner_amount !== undefined },
+    { label: c.bookingFee, value: formatMoney(br?.marketplace_fee_amount, currency, lang), visible: br?.marketplace_fee_amount !== null && br?.marketplace_fee_amount !== undefined },
+    { label: c.totalAmount, value: formatMoney(br?.customer_total_amount, currency, lang), visible: br?.customer_total_amount !== null && br?.customer_total_amount !== undefined },
     { label: c.notes, value: textValue(br?.notes), visible: Boolean(textValue(br?.notes)) },
   ];
 

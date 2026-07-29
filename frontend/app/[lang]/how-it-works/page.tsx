@@ -35,9 +35,9 @@ const copy = {
           "The yacht owner reviews the request and confirms or declines availability.",
       },
       {
-        title: "5. Booking completion",
+        title: "5. Booking fee payment",
         text:
-          "After confirmation, the guest receives booking instructions and payment or authorization details where applicable.",
+          "The guest pays only the Sharmar online booking fee through the website. The trip price is paid directly to the owner during the trip.",
       },
     ],
     note:
@@ -72,9 +72,9 @@ const copy = {
           "Владелец яхты проверяет заявку и подтверждает или отклоняет доступность.",
       },
       {
-        title: "5. Завершение бронирования",
+        title: "5. Оплата комиссии за бронирование",
         text:
-          "После подтверждения гость получает инструкции по бронированию и, если применимо, детали оплаты или авторизации.",
+          "Гость оплачивает через сайт только комиссию Sharmar за онлайн-бронирование. Стоимость поездки оплачивается напрямую владельцу во время поездки.",
       },
     ],
     note:
@@ -109,9 +109,9 @@ const copy = {
           "Vlasnik jahte pregleda zahtjev i potvrđuje ili odbija dostupnost.",
       },
       {
-        title: "5. Završetak rezervacije",
+        title: "5. Plaćanje naknade za rezervaciju",
         text:
-          "Nakon potvrde, gost dobija instrukcije za rezervaciju i, gdje je primjenljivo, detalje plaćanja ili autorizacije.",
+          "Gost preko sajta plaća samo Sharmar naknadu za online rezervaciju. Cijena vožnje plaća se direktno vlasniku tokom vožnje.",
       },
     ],
     note:

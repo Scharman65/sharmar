@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { formatPaymentAmount, paymentSplitCopy, type PaymentSplitLang } from "@/lib/paymentSplit";
 
 export type OwnerContact = {
   owner_email: string | null;
@@ -25,6 +26,10 @@ export type OwnerNotificationRequest = {
   skipper: boolean;
   notes?: string | null;
   ownerContact: OwnerContact | null;
+  ownerAmount?: number | string | null;
+  marketplaceFeeAmount?: number | string | null;
+  customerTotalAmount?: number | string | null;
+  currency?: string | null;
 };
 
 export type NotificationResult = {
@@ -115,14 +120,84 @@ function localePrefix(locale: string): string {
   return "New booking request";
 }
 
+function normalizeLocale(locale: string): PaymentSplitLang {
+  return locale === "ru" || locale === "me" || locale === "en" ? locale : "en";
+}
+
+function hasPaymentBreakdown(input: OwnerNotificationRequest): boolean {
+  return (
+    input.ownerAmount !== null &&
+    input.ownerAmount !== undefined &&
+    input.marketplaceFeeAmount !== null &&
+    input.marketplaceFeeAmount !== undefined &&
+    input.customerTotalAmount !== null &&
+    input.customerTotalAmount !== undefined
+  );
+}
+
+function ownerPaymentLines(input: OwnerNotificationRequest): string[] {
+  if (!hasPaymentBreakdown(input)) return [];
+  const locale = normalizeLocale(input.locale);
+  const copy = paymentSplitCopy[locale];
+  const currency = input.currency || "EUR";
+
+  return [
+    `${copy.tripPrice}: ${formatPaymentAmount(input.ownerAmount, currency, locale)}`,
+    `${copy.onlineBookingFee}: ${formatPaymentAmount(input.marketplaceFeeAmount, currency, locale)}`,
+    `${copy.totalCost}: ${formatPaymentAmount(input.customerTotalAmount, currency, locale)}`,
+    `${copy.payOwnerDuringTrip}: ${formatPaymentAmount(input.ownerAmount, currency, locale)}`,
+    locale === "ru"
+      ? "Сумма владельцу оплачивается клиентом непосредственно во время поездки."
+      : locale === "me"
+        ? "Iznos za vlasnika gost plaća direktno tokom vožnje."
+        : "The owner amount is paid by the guest directly during the trip.",
+  ];
+}
+
+function ownerShortLabels(locale: string) {
+  if (locale === "ru") {
+    return {
+      from: "С",
+      to: "До",
+      people: "Гости",
+      skipper: "Шкипер",
+      yes: "да",
+      no: "нет",
+      open: "Открыть",
+    };
+  }
+  if (locale === "me") {
+    return {
+      from: "Od",
+      to: "Do",
+      people: "Gosti",
+      skipper: "Skiper",
+      yes: "da",
+      no: "ne",
+      open: "Otvori",
+    };
+  }
+  return {
+    from: "From",
+    to: "To",
+    people: "People",
+    skipper: "Skipper",
+    yes: "yes",
+    no: "no",
+    open: "Open",
+  };
+}
+
 export function renderShortOwnerMessage(input: OwnerNotificationRequest): string {
+  const labels = ownerShortLabels(input.locale);
   return [
     `${localePrefix(input.locale)}: ${input.boatTitle}`,
-    `From: ${input.start}`,
-    `To: ${input.end}`,
-    `People: ${input.people}`,
-    `Skipper: ${input.skipper ? "yes" : "no"}`,
-    `Open: ${input.ownerUrl}`,
+    `${labels.from}: ${input.start}`,
+    `${labels.to}: ${input.end}`,
+    `${labels.people}: ${input.people}`,
+    `${labels.skipper}: ${input.skipper ? labels.yes : labels.no}`,
+    ...ownerPaymentLines(input),
+    `${labels.open}: ${input.ownerUrl}`,
   ].join("\n");
 }
 
@@ -179,25 +254,49 @@ function extractProviderId(response: unknown): string | null {
 }
 
 function ownerDecisionEmail(input: OwnerNotificationRequest): { subject: string; text: string } {
-  const subject = `Owner decision required: ${input.boatTitle}`;
+  const labels = ownerShortLabels(input.locale);
+  const subject =
+    input.locale === "ru"
+      ? `Нужно решение владельца: ${input.boatTitle}`
+      : input.locale === "me"
+        ? `Potrebna odluka vlasnika: ${input.boatTitle}`
+        : `Owner decision required: ${input.boatTitle}`;
+  const intro =
+    input.locale === "ru"
+      ? "Заявка на бронирование ожидает вашего решения."
+      : input.locale === "me"
+        ? "Zahtjev za rezervaciju čeka vašu odluku."
+        : "A booking request is waiting for your decision.";
+  const boatLabel = input.locale === "ru" ? "Лодка" : input.locale === "me" ? "Brod" : "Boat";
+  const clientLabel = input.locale === "ru" ? "Клиент" : input.locale === "me" ? "Gost" : "Client";
+  const phoneLabel = input.locale === "ru" ? "Телефон" : input.locale === "me" ? "Telefon" : "Phone";
+  const notesLabel = input.locale === "ru" ? "Комментарий" : input.locale === "me" ? "Napomena" : "Notes";
+  const openLabel =
+    input.locale === "ru"
+      ? "Открыть страницу владельца:"
+      : input.locale === "me"
+        ? "Otvorite stranicu vlasnika:"
+        : "Open owner page:";
   const text = [
-    "A booking request is waiting for your decision.",
+    intro,
     "",
-    `Boat: ${input.boatTitle}`,
+    `${boatLabel}: ${input.boatTitle}`,
     `Slug: ${input.boatSlug}`,
     "",
-    `Client: ${input.clientName}`,
-    `Phone: ${input.clientPhone}`,
+    `${clientLabel}: ${input.clientName}`,
+    `${phoneLabel}: ${input.clientPhone}`,
     input.clientEmail ? `Email: ${input.clientEmail}` : null,
     "",
-    `From: ${input.start}`,
-    `To: ${input.end}`,
-    `People: ${input.people}`,
-    `Skipper: ${input.skipper ? "yes" : "no"}`,
+    `${labels.from}: ${input.start}`,
+    `${labels.to}: ${input.end}`,
+    `${labels.people}: ${input.people}`,
+    `${labels.skipper}: ${input.skipper ? labels.yes : labels.no}`,
     "",
-    input.notes ? `Notes:\n${input.notes}` : null,
+    ...ownerPaymentLines(input),
     "",
-    "Open owner page:",
+    input.notes ? `${notesLabel}:\n${input.notes}` : null,
+    "",
+    openLabel,
     input.ownerUrl,
   ].filter(Boolean).join("\n");
 

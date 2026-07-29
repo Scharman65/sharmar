@@ -516,6 +516,16 @@ function emailLocaleFromRequest(req: Request): string {
   }
 }
 
+function supportNoteForLocale(locale: string): string {
+  if (locale === "ru") {
+    return "Если у вас есть вопросы, ответьте на это письмо или свяжитесь с поддержкой Sharmar.";
+  }
+  if (locale === "me") {
+    return "Ako imate pitanja, odgovorite na ovaj email ili kontaktirajte Sharmar podršku.";
+  }
+  return "If you have questions, reply to this email or contact Sharmar support.";
+}
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
   const emailLocale = emailLocaleFromRequest(req);
@@ -676,20 +686,24 @@ export async function POST(req: Request) {
       !suppressNotifications
     ) {
       try {
-        const mail = bookingAdminEmail({
-          locale: emailLocale,
-          id,
-          boatTitle: p.boatTitle || p.boatSlug,
+	        const mail = bookingAdminEmail({
+	          locale: emailLocale,
+	          id,
+	          boatTitle: p.boatTitle || p.boatSlug,
           boatSlug: p.boatSlug,
           name: p.name,
           phone: p.phone,
           email: p.email || undefined,
           start,
           end,
-          people,
-          skipper: Boolean(p.needSkipper),
-          notes: p.message || undefined,
-        });
+	          people,
+	          skipper: Boolean(p.needSkipper),
+	          notes: p.message || undefined,
+	          ownerAmount,
+	          marketplaceFeeAmount,
+	          customerTotalAmount,
+	          currency: requestCurrency,
+	        });
 
         await resend.emails.send({
           from: BOOKING_FROM,
@@ -718,9 +732,13 @@ export async function POST(req: Request) {
           end,
           people,
           skipper: Boolean(p.needSkipper),
-          notes: p.message || null,
-          ownerContact,
-        }, {
+	          notes: p.message || null,
+	          ownerContact,
+	          ownerAmount,
+	          marketplaceFeeAmount,
+	          customerTotalAmount,
+	          currency: requestCurrency,
+	        }, {
           resend,
           bookingFrom: BOOKING_FROM,
           claimDelivery: claimNotificationDelivery,
@@ -742,12 +760,16 @@ export async function POST(req: Request) {
           locale: emailLocale,
           boatTitle: p.boatTitle || p.boatSlug,
           customerName: p.name,
-          start,
-          end,
-          publicToken,
-          supportEmail: BOOKING_TO,
-          supportNote: "If you have questions, reply to this email or contact Sharmar support.",
-        });
+	          start,
+	          end,
+	          publicToken,
+	          supportEmail: BOOKING_TO,
+	          supportNote: supportNoteForLocale(emailLocale),
+	          ownerAmount,
+	          marketplaceFeeAmount,
+	          customerTotalAmount,
+	          currency: requestCurrency,
+	        });
 
         await resend.emails.send({
           from: BOOKING_FROM,

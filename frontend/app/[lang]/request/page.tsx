@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { isLang, t, type Lang } from "@/i18n";
 import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
+import { formatPaymentAmount, paymentSplitCopy } from "@/lib/paymentSplit";
 
 type ApiOk = { ok: true; id: number; token: string };
 type ApiFail = { ok: false; error: string; fallbackMailto?: string };
@@ -79,7 +80,10 @@ function requestCopy(lang: Lang) {
       bookingSummary: "Сводка бронирования",
       selectedTrip: "Выбранная поездка",
       boatReservation: "Бронирование лодки",
-      estimatedTotal: "Ориентировочная сумма",
+      estimatedTotal: "Общая стоимость",
+      payOnlineNow: "Оплатить сейчас онлайн",
+      payOwnerDuringTrip: "Оплатить владельцу во время поездки",
+      splitPaymentText: "Сейчас онлайн оплачивается только комиссия Sharmar. Стоимость поездки оплачивается непосредственно владельцу во время поездки.",
       contactDetails: "Контактные данные",
       contactDetailsText: "Эти данные будут переданы владельцу после отправки заявки.",
       tripDetails: "Детали поездки",
@@ -90,21 +94,21 @@ function requestCopy(lang: Lang) {
       skipperHelp: "Добавьте этот запрос, чтобы владелец подтвердил его.",
       pricingAndPayment: "Цена и оплата",
       priceEstimate: "Предварительный расчёт",
-      priceEstimateText: "Расчёт обновляется по выбранному времени. Списание выполняется только после подтверждения владельцем.",
+      priceEstimateText: "Расчёт обновляется по выбранному маршруту. Онлайн сейчас оплачивается только комиссия за бронирование.",
       boatRate: "Тариф лодки",
       fixedBoatRate: "Тариф за 8 часов",
       hour: "час",
-      serviceFee: "Онлайн-бронирование",
+      serviceFee: "Комиссия за онлайн-бронирование",
       reservationProtection: "Защита бронирования",
       secureAuthorization: "Безопасное онлайн-бронирование",
-      secureAuthorizationText: "Бронирование выполняется через защищённую онлайн-оплату после отправки заявки.",
+      secureAuthorizationText: "После отправки заявки откроется защищённая оплата только комиссии Sharmar.",
       ownerConfirms: "Владелец подтверждает перед финальным бронированием",
       ownerConfirmsText: "Владелец проверяет заявку до окончательного подтверждения бронирования.",
       captureAfterApproval: "Онлайн-подтверждение бронирования",
-      captureAfterApprovalText: "После отправки заявки откроется безопасная оплата. Окончательный статус обновляется по результату платежа и подтверждению.",
+      captureAfterApprovalText: "Стоимость поездки не списывается онлайн и оплачивается владельцу во время поездки.",
       emailFallback: "Написать по email",
       preparing: "Подготовка безопасной оплаты...",
-      continueAuthorization: "Перейти к бронированию",
+      continueAuthorization: "Отправить заявку и оплатить комиссию",
       dateAria: "Дата (YYYY-MM-DD)",
     };
   }
@@ -137,7 +141,10 @@ function requestCopy(lang: Lang) {
       bookingSummary: "Sažetak rezervacije",
       selectedTrip: "Odabrano putovanje",
       boatReservation: "Rezervacija broda",
-      estimatedTotal: "Procijenjeni ukupni iznos",
+      estimatedTotal: "Ukupna cijena",
+      payOnlineNow: "Platite sada online",
+      payOwnerDuringTrip: "Platite vlasniku tokom vožnje",
+      splitPaymentText: "Sada se online plaća samo Sharmar naknada. Cijena vožnje plaća se direktno vlasniku tokom vožnje.",
       contactDetails: "Kontakt podaci",
       contactDetailsText: "Ovi podaci se dijele sa vlasnikom nakon slanja zahtjeva.",
       tripDetails: "Detalji putovanja",
@@ -148,21 +155,21 @@ function requestCopy(lang: Lang) {
       skipperHelp: "Dodajte ovaj zahtjev kako bi ga vlasnik potvrdio.",
       pricingAndPayment: "Cijena i plaćanje",
       priceEstimate: "Procjena cijene",
-      priceEstimateText: "Procjena se ažurira prema odabranom vremenu. Naplata se vrši tek nakon odobrenja vlasnika.",
+      priceEstimateText: "Procjena se ažurira prema odabranoj ruti. Online se sada plaća samo naknada za rezervaciju.",
       boatRate: "Cijena broda",
       fixedBoatRate: "Cijena za 8 sati",
       hour: "sat",
-      serviceFee: "Online rezervacija",
+      serviceFee: "Naknada za online rezervaciju",
       reservationProtection: "Zaštita rezervacije",
       secureAuthorization: "Sigurna online rezervacija",
-      secureAuthorizationText: "Rezervacija se obrađuje kroz sigurnu online uplatu nakon slanja zahtjeva.",
+      secureAuthorizationText: "Nakon slanja zahtjeva otvara se sigurna uplata samo Sharmar naknade.",
       ownerConfirms: "Vlasnik potvrđuje prije finalne rezervacije",
       ownerConfirmsText: "Vlasnik pregledava zahtjev prije konačne potvrde rezervacije.",
       captureAfterApproval: "Online potvrda rezervacije",
-      captureAfterApprovalText: "Nakon slanja zahtjeva otvara se sigurna uplata. Konačni status se ažurira prema plaćanju i potvrdi.",
+      captureAfterApprovalText: "Cijena vožnje se ne naplaćuje online i plaća se vlasniku tokom vožnje.",
       emailFallback: "Pošalji email",
       preparing: "Priprema sigurnog plaćanja...",
-      continueAuthorization: "Idi na rezervaciju",
+      continueAuthorization: "Pošalji zahtjev i plati naknadu",
       dateAria: "Datum (YYYY-MM-DD)",
     };
   }
@@ -194,7 +201,10 @@ function requestCopy(lang: Lang) {
     bookingSummary: "Booking summary",
     selectedTrip: "Your selected trip",
     boatReservation: "Boat reservation",
-    estimatedTotal: "Estimated total",
+    estimatedTotal: "Total cost",
+    payOnlineNow: "Pay online now",
+    payOwnerDuringTrip: "Pay the owner during the trip",
+    splitPaymentText: "Only the Sharmar booking fee is paid online now. The trip price is paid directly to the owner during the trip.",
     contactDetails: "Contact details",
     contactDetailsText: "These details are shared with the owner after you submit the request.",
     tripDetails: "Trip details",
@@ -205,21 +215,21 @@ function requestCopy(lang: Lang) {
     skipperHelp: "Add this request for the owner to confirm.",
     pricingAndPayment: "Pricing and payment",
     priceEstimate: "Price estimate",
-    priceEstimateText: "The estimate updates from the selected time range. Final capture happens only after owner approval.",
+    priceEstimateText: "The estimate updates from the selected route. Only the booking fee is paid online now.",
     boatRate: "Boat rate",
     fixedBoatRate: "8-hour boat rate",
     hour: "hour",
-    serviceFee: "Online booking",
+    serviceFee: "Online booking fee",
     reservationProtection: "Reservation protection",
     secureAuthorization: "Secure online booking",
-    secureAuthorizationText: "Your booking is processed through a secure online payment after you submit this request.",
+    secureAuthorizationText: "After you submit the request, secure payment opens only for the Sharmar fee.",
     ownerConfirms: "Owner confirms before final booking",
     ownerConfirmsText: "The owner reviews the request before the booking is final.",
     captureAfterApproval: "Online booking confirmation",
-    captureAfterApprovalText: "After you submit the request, secure payment opens. Final status is updated from payment and confirmation.",
+    captureAfterApprovalText: "The trip price is not charged online and is paid to the owner during the trip.",
     emailFallback: "Email fallback",
     preparing: "Preparing secure payment...",
-    continueAuthorization: "Continue to booking",
+    continueAuthorization: "Send request and pay fee",
     dateAria: "Date (YYYY-MM-DD)",
   };
 }
@@ -286,14 +296,6 @@ function diffHours(from: string, to: string): number {
 
   if (toMinutes <= fromMinutes) return 0;
   return (toMinutes - fromMinutes) / 60;
-}
-
-function money(value: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
-  } catch {
-    return `${value.toFixed(2)} ${currency}`;
-  }
 }
 
 function formatHourCount(value: number, lang: Lang): string {
@@ -521,6 +523,7 @@ export default function RequestPage() {
   const marketplaceFeeAmount = quote?.marketplaceFeeAmount ?? 0;
   const customerTotalAmount = quote?.customerTotalAmount ?? 0;
   const currency = quote?.currency ?? "EUR";
+  const splitCopy = paymentSplitCopy[lang];
   const quoteErrorText = quoteErrorMessage(quoteError, lang, copy.quoteUnavailable);
 
   const timeOk =
@@ -744,9 +747,22 @@ export default function RequestPage() {
             </div>
             <div className="summary-total">
               <span>{copy.estimatedTotal}</span>
-              <b>{customerTotalAmount ? money(customerTotalAmount, currency) : "—"}</b>
+              <b>{customerTotalAmount ? formatPaymentAmount(customerTotalAmount, currency, lang) : "—"}</b>
             </div>
           </div>
+
+          <div className="summary-payment-split">
+            <div>
+              <span>{copy.payOnlineNow}</span>
+              <b>{marketplaceFeeAmount ? formatPaymentAmount(marketplaceFeeAmount, currency, lang) : "—"}</b>
+            </div>
+            <div>
+              <span>{copy.payOwnerDuringTrip}</span>
+              <b>{ownerAmount ? formatPaymentAmount(ownerAmount, currency, lang) : "—"}</b>
+            </div>
+          </div>
+
+          <p className="summary-split-note">{copy.splitPaymentText}</p>
 
           <div className="summary-grid">
             {summaryRows.map((row) => (
@@ -899,24 +915,32 @@ export default function RequestPage() {
                 <p>{copy.priceEstimateText}</p>
               </div>
 
-              <div className="price-lines">
-                <div>
-                  <span>{quote?.routeTitle || experienceTitle || copy.boatRate}</span>
-                  <b>{ownerAmount ? money(ownerAmount, currency) : "—"}</b>
-                </div>
-                <div>
-                  <span>{copy.summaryDuration}</span>
-                  <b>{hours ? formatDuration(hours, lang) : "—"}</b>
-                </div>
-                <div>
-                  <span>{copy.serviceFee} ({Math.round(MARKETPLACE_FEE_RATE * 100)}%)</span>
-                  <b>{marketplaceFeeAmount ? money(marketplaceFeeAmount, currency) : "—"}</b>
-                </div>
-                <div className="price-total">
-                  <span>{copy.estimatedTotal}</span>
-                  <b>{customerTotalAmount ? money(customerTotalAmount, currency) : "—"}</b>
-                </div>
-              </div>
+	              <div className="price-lines">
+	                <div>
+	                  <span>{splitCopy.tripPrice}</span>
+	                  <b>{ownerAmount ? formatPaymentAmount(ownerAmount, currency, lang) : "—"}</b>
+	                </div>
+	                <div>
+	                  <span>{copy.summaryDuration}</span>
+	                  <b>{hours ? formatDuration(hours, lang) : "—"}</b>
+	                </div>
+	                <div>
+	                  <span>{copy.serviceFee} ({Math.round(MARKETPLACE_FEE_RATE * 100)}%)</span>
+	                  <b>{marketplaceFeeAmount ? formatPaymentAmount(marketplaceFeeAmount, currency, lang) : "—"}</b>
+	                </div>
+	                <div className="price-total">
+	                  <span>{copy.estimatedTotal}</span>
+	                  <b>{customerTotalAmount ? formatPaymentAmount(customerTotalAmount, currency, lang) : "—"}</b>
+	                </div>
+	                <div className="pay-now-line">
+	                  <span>{copy.payOnlineNow}</span>
+	                  <b>{marketplaceFeeAmount ? formatPaymentAmount(marketplaceFeeAmount, currency, lang) : "—"}</b>
+	                </div>
+	                <div>
+	                  <span>{copy.payOwnerDuringTrip}</span>
+	                  <b>{ownerAmount ? formatPaymentAmount(ownerAmount, currency, lang) : "—"}</b>
+	                </div>
+	              </div>
             </section>
 
             <section className="trust-card" aria-label={copy.reservationProtection}>
@@ -1045,12 +1069,49 @@ export default function RequestPage() {
           line-height: 1.1;
         }
 
-        .summary-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
-          padding-top: 16px;
-        }
+	        .summary-grid {
+	          display: grid;
+	          grid-template-columns: repeat(4, minmax(0, 1fr));
+	          gap: 12px;
+	          padding-top: 16px;
+	        }
+
+	        .summary-payment-split {
+	          display: grid;
+	          grid-template-columns: repeat(2, minmax(0, 1fr));
+	          gap: 12px;
+	          padding-top: 16px;
+	        }
+
+	        .summary-payment-split > div {
+	          border: 1px solid rgba(248, 214, 111, 0.28);
+	          border-radius: 10px;
+	          background: rgba(248, 214, 111, 0.10);
+	          padding: 14px;
+	        }
+
+	        .summary-payment-split span,
+	        .summary-split-note {
+	          color: rgba(255, 255, 255, 0.72);
+	        }
+
+	        .summary-payment-split span {
+	          display: block;
+	          font-size: 13px;
+	        }
+
+	        .summary-payment-split b {
+	          display: block;
+	          margin-top: 5px;
+	          font-size: 20px;
+	          line-height: 1.2;
+	          overflow-wrap: anywhere;
+	        }
+
+	        .summary-split-note {
+	          margin: 12px 0 0;
+	          line-height: 1.45;
+	        }
 
         .summary-item {
           min-width: 0;
@@ -1191,11 +1252,17 @@ export default function RequestPage() {
           text-align: right;
         }
 
-        .price-total {
-          margin-top: 4px;
-          padding-top: 14px !important;
-          border-top: 1px solid rgba(255, 255, 255, 0.12);
-        }
+	        .price-total {
+	          margin-top: 4px;
+	          padding-top: 14px !important;
+	          border-top: 1px solid rgba(255, 255, 255, 0.12);
+	        }
+
+	        .pay-now-line {
+	          margin-top: 4px;
+	          padding-top: 14px !important;
+	          border-top: 1px solid rgba(248, 214, 111, 0.26);
+	        }
 
         .price-total span,
         .price-total b {
@@ -1291,10 +1358,14 @@ export default function RequestPage() {
             text-align: left;
           }
 
-          .summary-grid {
-            grid-template-columns: 1fr 1fr;
-            gap: 14px 12px;
-          }
+	          .summary-grid {
+	            grid-template-columns: 1fr 1fr;
+	            gap: 14px 12px;
+	          }
+
+	          .summary-payment-split {
+	            grid-template-columns: 1fr;
+	          }
 
           .field-grid,
           .trip-grid,

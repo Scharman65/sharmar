@@ -16,6 +16,10 @@ type CustomerDecisionEmailPayload = {
   publicToken: string;
   slotStartUtc: string | null;
   slotEndUtc: string | null;
+  ownerAmount?: number | string | null;
+  marketplaceFeeAmount?: number | string | null;
+  customerTotalAmount?: number | string | null;
+  currency?: string | null;
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -35,6 +39,12 @@ function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length ? value.trim() : null;
 }
 
+function getNumberLike(value: unknown): number | string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length && Number.isFinite(Number(value))) return value.trim();
+  return null;
+}
+
 function findString(value: unknown, keys: string[]): string | null {
   if (!isRecord(value)) return null;
 
@@ -47,6 +57,24 @@ function findString(value: unknown, keys: string[]): string | null {
     if (isRecord(nested)) {
       const found = findString(nested, keys);
       if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+function findNumberLike(value: unknown, keys: string[]): number | string | null {
+  if (!isRecord(value)) return null;
+
+  for (const key of keys) {
+    const direct = getNumberLike(value[key]);
+    if (direct !== null) return direct;
+  }
+
+  for (const nested of Object.values(value)) {
+    if (isRecord(nested)) {
+      const found = findNumberLike(nested, keys);
+      if (found !== null) return found;
     }
   }
 
@@ -70,6 +98,10 @@ function extractCustomerDecisionEmailPayload(
     publicToken,
     slotStartUtc: findString(result, ["slot_start_utc", "start_datetime", "start"]),
     slotEndUtc: findString(result, ["slot_end_utc", "end_datetime", "end"]),
+    ownerAmount: findNumberLike(result, ["owner_amount", "ownerAmount"]),
+    marketplaceFeeAmount: findNumberLike(result, ["marketplace_fee_amount", "marketplaceFeeAmount"]),
+    customerTotalAmount: findNumberLike(result, ["customer_total_amount", "customerTotalAmount"]),
+    currency: findString(result, ["currency"]),
   };
 }
 
@@ -88,6 +120,10 @@ async function loadCustomerDecisionPayload(
   qs.append("fields[2]", "start_datetime");
   qs.append("fields[3]", "end_datetime");
   qs.append("fields[4]", "public_token");
+  qs.append("fields[5]", "owner_amount");
+  qs.append("fields[6]", "marketplace_fee_amount");
+  qs.append("fields[7]", "customer_total_amount");
+  qs.append("fields[8]", "currency");
   qs.append("populate[boat][fields][0]", "title");
   qs.append("populate[boat][fields][1]", "name");
   qs.append("populate[boat][fields][2]", "slug");
@@ -124,12 +160,17 @@ async function loadCustomerDecisionPayload(
     publicToken: findString(first, ["public_token"]) || publicToken,
     slotStartUtc: findString(first, ["start_datetime", "slot_start_utc", "start"]),
     slotEndUtc: findString(first, ["end_datetime", "slot_end_utc", "end"]),
+    ownerAmount: findNumberLike(first, ["owner_amount", "ownerAmount"]),
+    marketplaceFeeAmount: findNumberLike(first, ["marketplace_fee_amount", "marketplaceFeeAmount"]),
+    customerTotalAmount: findNumberLike(first, ["customer_total_amount", "customerTotalAmount"]),
+    currency: findString(first, ["currency"]),
   };
 }
 
 async function sendCustomerDecisionEmail(
   action: string,
-  payload: CustomerDecisionEmailPayload
+  payload: CustomerDecisionEmailPayload,
+  locale: "en" | "ru" | "me"
 ): Promise<void> {
   if (!resend) return;
 
@@ -144,14 +185,22 @@ async function sendCustomerDecisionEmail(
   if (!template) return;
 
   const mail = template({
-    locale: emailLocale,
+    locale,
     boatTitle: payload.boatTitle,
     customerName: payload.customerName,
     publicToken: payload.publicToken,
     start: payload.slotStartUtc,
     end: payload.slotEndUtc,
     supportEmail: BOOKING_TO,
-    supportNote: "If you have questions, reply to this email or contact Sharmar support.",
+    supportNote: locale === "ru"
+      ? "Если у вас есть вопросы, ответьте на это письмо или свяжитесь с поддержкой Sharmar."
+      : locale === "me"
+        ? "Ako imate pitanja, odgovorite na ovaj email ili kontaktirajte Sharmar podršku."
+        : "If you have questions, reply to this email or contact Sharmar support.",
+    ownerAmount: payload.ownerAmount,
+    marketplaceFeeAmount: payload.marketplaceFeeAmount,
+    customerTotalAmount: payload.customerTotalAmount,
+    currency: payload.currency,
   });
 
   await resend.emails.send({
@@ -174,10 +223,20 @@ function getActionPath(action: string, token: string): string | null {
   return null;
 }
 
-const emailLocale = "en";
+function emailLocaleFromRequest(req: Request): "en" | "ru" | "me" {
+  const ref = String(req.headers.get("referer") || "").trim();
+  try {
+    if (ref) {
+      const first = new URL(ref).pathname.split("/").filter(Boolean)[0] || "";
+      if (first === "ru" || first === "me" || first === "en") return first;
+    }
+  } catch {}
+  return "en";
+}
 
-export async function POST(_req: Request, ctx: RouteCtx) {
+export async function POST(req: Request, ctx: RouteCtx) {
   const { token, action } = await ctx.params;
+  const emailLocale = emailLocaleFromRequest(req);
 
   const cleanToken = String(token || "").trim();
   const mapped = getActionPath(action, cleanToken);
@@ -250,7 +309,7 @@ export async function POST(_req: Request, ctx: RouteCtx) {
 
     if ((normalizedAction === "confirm" || normalizedAction === "decline") && customerNotificationPayload) {
       try {
-        await sendCustomerDecisionEmail(normalizedAction, customerNotificationPayload);
+        await sendCustomerDecisionEmail(normalizedAction, customerNotificationPayload, emailLocale);
       } catch (e) {
         console.warn("CUSTOMER_DECISION_EMAIL_SEND_FAILED", e);
       }

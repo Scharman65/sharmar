@@ -174,10 +174,10 @@ export default async function ThanksPage({ params, searchParams }: Props) {
 
   const title = isPaymentSuccess
     ? lang === "ru"
-      ? "Оплата прошла успешно"
+      ? "Комиссия за бронирование оплачена"
       : lang === "me"
-        ? "Plaćanje je uspješno"
-        : "Payment successful"
+        ? "Naknada za rezervaciju je plaćena"
+        : "Booking fee paid"
     : tr.booking.sentTitle;
 
   const text = isPaymentSuccess

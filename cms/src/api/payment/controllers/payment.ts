@@ -9,6 +9,55 @@ import {
   verifyDodoWebhookSignature,
 } from "../services/dodo";
 
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function amountCentsMatchesFee(amountCents: unknown, feeAmount: unknown): boolean {
+  const cents = numberOrNull(amountCents);
+  const fee = numberOrNull(feeAmount);
+  if (cents === null || fee === null) return false;
+  return Math.round(cents) === Math.round(roundMoney(fee) * 100);
+}
+
+function paymentSplitPayload(input: {
+  amount_cents: unknown;
+  currency: unknown;
+  owner_amount: unknown;
+  marketplace_fee_amount: unknown;
+  customer_total_amount: unknown;
+}) {
+  const amountCents = numberOrNull(input.amount_cents);
+  const ownerAmount = numberOrNull(input.owner_amount);
+  const marketplaceFeeAmount = numberOrNull(input.marketplace_fee_amount);
+  const customerTotalAmount = numberOrNull(input.customer_total_amount);
+  const currency = String(input.currency || "").trim().toUpperCase();
+  const consistencyOk = amountCentsMatchesFee(amountCents, marketplaceFeeAmount);
+
+  return {
+    amount_cents: amountCents,
+    currency: currency || null,
+    pricing: {
+      owner_amount: ownerAmount,
+      marketplace_fee_amount: marketplaceFeeAmount,
+      customer_total_amount: customerTotalAmount,
+      currency: currency || null,
+    },
+    payment_consistency: {
+      ok: consistencyOk,
+      expected_amount_cents:
+        marketplaceFeeAmount !== null ? Math.round(roundMoney(marketplaceFeeAmount) * 100) : null,
+      actual_amount_cents: amountCents,
+    },
+  };
+}
+
 export default {
   async health(ctx) {
     ctx.status = 200;
@@ -67,9 +116,9 @@ export default {
       .where("idempotency_key", idk)
       .first();
 
-    if (existing) {
-      const meta = parseDodoMetadata(existing.metadata);
-      if (dodoIdempotencyConflicts(meta, idempotencyRequestHash)) {
+      if (existing) {
+        const meta = parseDodoMetadata(existing.metadata);
+        if (dodoIdempotencyConflicts(meta, idempotencyRequestHash)) {
         ctx.status = 409;
         ctx.body = { error: "idempotency_key_conflict" };
         return;
@@ -84,11 +133,18 @@ export default {
         checkout_url: meta.checkout_url || null,
         amount_cents: existing.amount_cents,
         currency: existing.currency,
-        status: existing.status,
-        booking_request_id: existing.booking_request_id,
-      };
-      return;
-    }
+          status: existing.status,
+          booking_request_id: existing.booking_request_id,
+          ...paymentSplitPayload({
+            amount_cents: existing.amount_cents,
+            currency: existing.currency,
+            owner_amount: meta.owner_amount,
+            marketplace_fee_amount: meta.marketplace_fee_amount,
+            customer_total_amount: meta.customer_total_amount,
+          }),
+        };
+        return;
+      }
 
     const br = await strapi.db.query("api::booking-request.booking-request").findOne({
       where: { public_token: publicToken },
@@ -128,11 +184,17 @@ export default {
       select
         count(l.boat_id) as boats_cnt,
         min(l.boat_id) as boat_id,
+        br.start_datetime as start_datetime,
+        br.end_datetime as end_datetime,
         br.marketplace_fee_amount as marketplace_fee_amount,
         br.customer_total_amount as customer_total_amount,
         br.owner_amount as owner_amount,
         br.currency as br_currency,
-        min(b.deposit) as deposit,
+        min(b.title) as boat_title,
+        min(b.slug) as boat_slug,
+        min(e.title) as route_title,
+        min(e.slug) as route_slug,
+        min(e.duration_hours) as route_duration_hours,
         min(b.listing_type) as listing_type,
         min(b.currency) as currency
 
@@ -141,6 +203,10 @@ export default {
         on l.booking_request_id = br.id
       left join public.boats b
         on b.id = l.boat_id
+      left join public.booking_requests_experience_lnk el
+        on el.booking_request_id = br.id
+      left join public.experiences e
+        on e.id = el.experience_id
       where br.id = ?
       group by br.id
       `,
@@ -151,7 +217,6 @@ export default {
 
     const boatsCnt = Number(row?.boats_cnt || 0);
     const boatId = row?.boat_id != null ? Number(row.boat_id) : null;
-    const deposit = (row?.deposit) != null ? Number(row.deposit) : null;
     const marketplaceFeeAmount = (row?.marketplace_fee_amount) != null ? Number(row.marketplace_fee_amount) : null;
     const customerTotalAmount = (row?.customer_total_amount) != null ? Number(row.customer_total_amount) : null;
     const ownerAmount = (row?.owner_amount) != null ? Number(row.owner_amount) : null;
@@ -174,19 +239,29 @@ export default {
             return;
         }
 
-    const chargeAmount =
-      marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) && marketplaceFeeAmount > 0
-        ? marketplaceFeeAmount
-        : deposit;
-    const amountSource =
-      marketplaceFeeAmount != null && Number.isFinite(marketplaceFeeAmount) && marketplaceFeeAmount > 0
-        ? "marketplace_fee"
-        : "legacy_deposit";
+    if (
+      ownerAmount == null ||
+      marketplaceFeeAmount == null ||
+      customerTotalAmount == null ||
+      !Number.isFinite(ownerAmount) ||
+      !Number.isFinite(marketplaceFeeAmount) ||
+      !Number.isFinite(customerTotalAmount) ||
+      ownerAmount <= 0 ||
+      marketplaceFeeAmount <= 0 ||
+      customerTotalAmount <= 0
+    ) {
+      ctx.status = 409;
+      ctx.body = { error: "payment_breakdown_not_configured" };
+      return;
+    }
+
+    const chargeAmount = marketplaceFeeAmount;
+    const amountSource = "marketplace_fee";
 
     if (!chargeAmount || !Number.isFinite(chargeAmount) || !(chargeAmount > 0)) {
 
       ctx.status = 409;
-      ctx.body = { error: amountSource === "legacy_deposit" ? "deposit_not_configured" : "payment_amount_not_configured" };
+      ctx.body = { error: "payment_amount_not_configured" };
       return;
     }
 
@@ -199,9 +274,37 @@ export default {
     const amountCents = Math.round(chargeAmount * 100);
     if (!(amountCents > 0)) {
       ctx.status = 409;
-      ctx.body = { error: amountSource === "legacy_deposit" ? "deposit_invalid" : "payment_amount_invalid" };
+      ctx.body = { error: "payment_amount_invalid" };
       return;
     }
+
+    const paymentPageContext = (actualAmountCents: unknown, actualCurrency: unknown = currency) => ({
+      booking_request: {
+        id: br.id,
+        public_token: br.public_token || publicToken,
+        start_datetime: row?.start_datetime || null,
+        end_datetime: row?.end_datetime || null,
+        boat: {
+          id: boatId,
+          title: row?.boat_title || null,
+          slug: row?.boat_slug || null,
+        },
+        experience: row?.route_title || row?.route_slug || row?.route_duration_hours
+          ? {
+              title: row?.route_title || null,
+              slug: row?.route_slug || null,
+              duration_hours: row?.route_duration_hours ?? null,
+            }
+          : null,
+      },
+      ...paymentSplitPayload({
+        amount_cents: actualAmountCents,
+        currency: actualCurrency,
+        owner_amount: ownerAmount,
+        marketplace_fee_amount: marketplaceFeeAmount,
+        customer_total_amount: customerTotalAmount,
+      }),
+    });
 
 
     // terminal_succeeded_v1: if already succeeded for this booking_request, do NOT create new intents
@@ -400,6 +503,7 @@ export default {
         currency: succ0.currency,
         status: succ0.status,
         booking_request_id: succ0.booking_request_id,
+        ...paymentPageContext(succ0.amount_cents, succ0.currency),
       };
       return;
     }
@@ -427,6 +531,23 @@ export default {
 
     const active0 = await findActivePayment();
     if (active0) {
+      if (!amountCentsMatchesFee(active0.amount_cents, marketplaceFeeAmount)) {
+        ctx.status = 409;
+        ctx.body = {
+          error: "payment_fee_mismatch",
+          payment_id: active0.id,
+          booking_request_id: active0.booking_request_id,
+          payment_consistency: paymentSplitPayload({
+            amount_cents: active0.amount_cents,
+            currency: active0.currency,
+            owner_amount: ownerAmount,
+            marketplace_fee_amount: marketplaceFeeAmount,
+            customer_total_amount: customerTotalAmount,
+          }).payment_consistency,
+        };
+        return;
+      }
+
       const meta0 = (() => {
         const m: any = (active0 as any).metadata;
         if (!m) return {};
@@ -446,6 +567,7 @@ export default {
         currency: active0.currency,
         status: active0.status,
         booking_request_id: active0.booking_request_id,
+        ...paymentPageContext(active0.amount_cents, active0.currency),
       };
       return;
     }
@@ -481,6 +603,23 @@ export default {
             return;
           }
 
+          if (!amountCentsMatchesFee(existingByKey.amount_cents, marketplaceFeeAmount)) {
+            ctx.status = 409;
+            ctx.body = {
+              error: "payment_fee_mismatch",
+              payment_id: existingByKey.id,
+              booking_request_id: existingByKey.booking_request_id,
+              payment_consistency: paymentSplitPayload({
+                amount_cents: existingByKey.amount_cents,
+                currency: existingByKey.currency,
+                owner_amount: ownerAmount,
+                marketplace_fee_amount: marketplaceFeeAmount,
+                customer_total_amount: customerTotalAmount,
+              }).payment_consistency,
+            };
+            return;
+          }
+
           ctx.status = 200;
           ctx.body = {
             payment_id: existingByKey.id,
@@ -493,6 +632,43 @@ export default {
             status: existingByKey.status,
             booking_request_id: existingByKey.booking_request_id,
             reused: true,
+            ...paymentPageContext(existingByKey.amount_cents, existingByKey.currency),
+          };
+          return;
+        }
+
+        const conflictingDodoRows = await trx.raw(
+          `
+          select
+            id,
+            amount_cents,
+            currency,
+            booking_request_id
+          from public.payments
+          where provider = 'dodo'
+            and booking_request_id = ?
+            and status = 'pending'
+            and metadata->>'checkout_url' is not null
+          order by id desc
+          limit 1
+          `,
+          [br.id]
+        );
+
+        const conflictingDodo = conflictingDodoRows?.rows?.[0] || null;
+        if (conflictingDodo && !amountCentsMatchesFee(conflictingDodo.amount_cents, marketplaceFeeAmount)) {
+          ctx.status = 409;
+          ctx.body = {
+            error: "payment_fee_mismatch",
+            payment_id: conflictingDodo.id,
+            booking_request_id: conflictingDodo.booking_request_id,
+            payment_consistency: paymentSplitPayload({
+              amount_cents: conflictingDodo.amount_cents,
+              currency: conflictingDodo.currency,
+              owner_amount: ownerAmount,
+              marketplace_fee_amount: marketplaceFeeAmount,
+              customer_total_amount: customerTotalAmount,
+            }).payment_consistency,
           };
           return;
         }
@@ -539,6 +715,7 @@ export default {
             status: existingDodo.status,
             booking_request_id: existingDodo.booking_request_id,
             reused: true,
+            ...paymentPageContext(existingDodo.amount_cents, existingDodo.currency || currency),
           };
           return;
         }
@@ -700,6 +877,7 @@ export default {
           currency: currency.toLowerCase(),
           status: "pending",
           booking_request_id: br.id,
+          ...paymentPageContext(amountCents, currency),
         };
       });
       return;
@@ -782,6 +960,23 @@ export default {
 
         const active1 = await findActivePayment();
         if (active1) {
+          if (!amountCentsMatchesFee(active1.amount_cents, marketplaceFeeAmount)) {
+            ctx.status = 409;
+            ctx.body = {
+              error: "payment_fee_mismatch",
+              payment_id: active1.id,
+              booking_request_id: active1.booking_request_id,
+              payment_consistency: paymentSplitPayload({
+                amount_cents: active1.amount_cents,
+                currency: active1.currency,
+                owner_amount: ownerAmount,
+                marketplace_fee_amount: marketplaceFeeAmount,
+                customer_total_amount: customerTotalAmount,
+              }).payment_consistency,
+            };
+            return;
+          }
+
           const meta1 = (active1.metadata as any) || {};
           ctx.set("X-Payments-Intent-Impl", "single_active_intent_v1");
           ctx.status = 200;
@@ -794,6 +989,7 @@ export default {
             currency: active1.currency,
             status: active1.status,
             booking_request_id: active1.booking_request_id,
+            ...paymentPageContext(active1.amount_cents, active1.currency),
           };
           return;
         }
@@ -812,6 +1008,7 @@ export default {
       currency: currency.toUpperCase(),
       status: "created",
       booking_request_id: br.id,
+      ...paymentPageContext(amountCents, currency),
     };
   },
 

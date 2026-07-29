@@ -482,7 +482,7 @@ test(
   () => {
     assert.match(
       requestPage,
-      /money\(\s*ownerAmount/
+      /formatPaymentAmount\(\s*ownerAmount/
     );
 
     assert.doesNotMatch(

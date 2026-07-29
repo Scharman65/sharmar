@@ -14,12 +14,12 @@ const copy = {
       {
         title: "Reservation requests",
         text:
-          "Submitting a request does not automatically guarantee a confirmed booking. A booking becomes active only after owner confirmation and, where applicable, payment authorization or payment completion.",
+          "Submitting a request does not automatically guarantee a confirmed booking. The website payment covers only the Sharmar online booking fee; the trip price is paid directly to the owner during the trip.",
       },
       {
         title: "Owner confirmation",
         text:
-          "If the yacht owner or operator cannot confirm the selected date or trip details, the request may be declined or adjusted before payment is finalized.",
+          "If the yacht owner or operator cannot confirm the selected date or trip details, the request may be declined or adjusted before the booking is finalized.",
       },
       {
         title: "Guest cancellations",
@@ -54,12 +54,12 @@ const copy = {
       {
         title: "Заявки на бронирование",
         text:
-          "Отправка заявки не означает автоматическое подтверждение бронирования. Бронирование становится активным только после подтверждения владельцем и, если применимо, после авторизации или завершения оплаты.",
+          "Отправка заявки не означает автоматическое подтверждение бронирования. Оплата через сайт покрывает только комиссию Sharmar за онлайн-бронирование; стоимость поездки оплачивается напрямую владельцу во время поездки.",
       },
       {
         title: "Подтверждение владельцем",
         text:
-          "Если владелец или оператор яхты не может подтвердить выбранную дату или детали поездки, заявка может быть отклонена или изменена до финального оформления оплаты.",
+          "Если владелец или оператор яхты не может подтвердить выбранную дату или детали поездки, заявка может быть отклонена или изменена до финального оформления бронирования.",
       },
       {
         title: "Отмена со стороны гостя",
@@ -94,12 +94,12 @@ const copy = {
       {
         title: "Zahtjevi za rezervaciju",
         text:
-          "Slanje zahtjeva ne znači automatski potvrđenu rezervaciju. Rezervacija postaje aktivna tek nakon potvrde vlasnika i, gdje je primjenljivo, autorizacije ili završetka plaćanja.",
+          "Slanje zahtjeva ne znači automatski potvrđenu rezervaciju. Plaćanje preko sajta pokriva samo Sharmar naknadu za online rezervaciju; cijena vožnje plaća se direktno vlasniku tokom vožnje.",
       },
       {
         title: "Potvrda vlasnika",
         text:
-          "Ako vlasnik ili operater jahte ne može potvrditi izabrani datum ili detalje putovanja, zahtjev može biti odbijen ili prilagođen prije završetka plaćanja.",
+          "Ako vlasnik ili operater jahte ne može potvrditi izabrani datum ili detalje putovanja, zahtjev može biti odbijen ili prilagođen prije konačne rezervacije.",
       },
       {
         title: "Otkazivanje od strane gosta",
