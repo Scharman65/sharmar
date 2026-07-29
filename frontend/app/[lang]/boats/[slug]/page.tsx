@@ -337,34 +337,6 @@ export default async function BoatPage({ params }: Props) {
   requestParams.set("title", boat.title ?? slug);
   if (boat.documentId) requestParams.set("documentId", boat.documentId);
   if (Number.isFinite(boatId) && boatId > 0) requestParams.set("boatId", String(boatId));
-  if ((boat as any).currency) {
-    requestParams.set(
-      "currency",
-      String((boat as any).currency)
-    );
-  }
-
-  if ((boat as any).min_rental_hours) {
-    requestParams.set(
-      "minRentalHours",
-      String((boat as any).min_rental_hours)
-    );
-  }
-
-  if ((boat as any).price_per_hour) {
-    requestParams.set(
-      "pph",
-      String((boat as any).price_per_hour)
-    );
-  }
-
-  if ((boat as any).price_per_day) {
-    requestParams.set(
-      "ppd",
-      String((boat as any).price_per_day)
-    );
-  }
-
   const requestHref =
     `/${lang}/request?${requestParams.toString()}`;
   const primaryPrice =

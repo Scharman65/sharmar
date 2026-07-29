@@ -19,56 +19,49 @@ const availability = source(
 const requestApi = source(
   "frontend/app/api/request/route.ts"
 );
+const serverBookingPricing = source(
+  "frontend/lib/serverBookingPricing.ts"
+);
 const strapi = source(
   "frontend/lib/strapi.ts"
 );
 
 test(
-  "calendar derives the initial duration from min_rental_hours",
+  "calendar uses route-first selection state instead of boat minimum duration state",
   () => {
     assert.match(
       calendar,
-      /Math\.ceil\(Number\(boat\.min_rental_hours \?\? 1\)\)/
+      /const \[selectedRouteId, setSelectedRouteId\]/
     );
 
     assert.match(
       calendar,
-      /useState\(minimumRentalHours\)/
+      /buildBookingSelectionSummary/
     );
 
-    assert.doesNotMatch(
+    assert.match(
       calendar,
-      /useState\(1\);\s*const \[selectedExperienceId/
+      /selectRoute\(route/
     );
   }
 );
 
 test(
-  "calendar no longer hardcodes one-to-four-hour rental options",
+  "calendar filters starts through duration interval logic",
   () => {
-    assert.doesNotMatch(
+    assert.match(
       calendar,
-      /\{ label: "1h", slotCount: 1/
-    );
-
-    assert.doesNotMatch(
-      calendar,
-      /\{ label: "2h", slotCount: 2/
-    );
-
-    assert.doesNotMatch(
-      calendar,
-      /\{ label: "3h", slotCount: 3/
-    );
-
-    assert.doesNotMatch(
-      calendar,
-      /\{ label: "4h", slotCount: 4/
+      /getValidStartSlotsForDuration/
     );
 
     assert.match(
       calendar,
-      /hours >= safeMinimum/
+      /buildSlotRangeForDuration/
+    );
+
+    assert.doesNotMatch(
+      calendar,
+      /00:00/
     );
   }
 );
@@ -78,37 +71,85 @@ test(
   () => {
     assert.match(
       calendar,
-      /consecutive\.length < safeSlotCount\) return null/
+      /const canContinue = Boolean\(selectionSummary && guests > 0\)/
     );
 
     assert.match(
       calendar,
-      /const requestSlotRange = selectedDurationIsValid/
+      /canContinue && selectionSummary && selectedRoute && slotRange/
     );
 
     assert.match(
       calendar,
-      /\{requestSlotRange \? \(/
+      /className="booking-primary is-disabled"/
     );
   }
 );
 
 test(
-  "route cards display the customer total with marketplace fee",
+  "route cards and summary display marketplace fee breakdown",
   () => {
     assert.match(
       calendar,
-      /import \{ applyMarketplaceFee \} from "@\/lib\/pricing"/
+      /getRoutePriceBreakdown/
     );
 
     assert.match(
       calendar,
-      /const customerPrice =\s*applyMarketplaceFee\(price\)/
+      /copy\.bookingFee/
     );
 
     assert.match(
       calendar,
-      /customerPrice > 0/
+      /selectionSummary\?\.customerTotal/
+    );
+  }
+);
+
+test(
+  "booking flow layout keeps route cards inside a shrinkable selection column",
+  () => {
+    const bookingGridBlock =
+      calendar.match(/\.booking-grid\s*\{[^}]*\}/)?.[0] ?? "";
+
+    assert.match(
+      calendar,
+      /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(340px,\s*380px\)/
+    );
+
+    assert.match(
+      calendar,
+      /\.booking-steps,[\s\S]*?\.booking-summary\s*\{[\s\S]*?min-width:\s*0/
+    );
+
+    assert.match(
+      calendar,
+      /grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*210px\),\s*1fr\)\)/
+    );
+
+    assert.match(
+      calendar,
+      /\.route-card\s*\{[\s\S]*?width:\s*100%[\s\S]*?overflow-wrap:\s*anywhere/
+    );
+
+    assert.match(
+      calendar,
+      /\.route-image\s*\{[\s\S]*?width:\s*100%[\s\S]*?max-width:\s*100%/
+    );
+
+    assert.match(
+      calendar,
+      /@media \(max-width:\s*980px\)\s*\{[\s\S]*?\.booking-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/
+    );
+
+    assert.doesNotMatch(
+      bookingGridBlock,
+      /width:\s*100vw/
+    );
+
+    assert.doesNotMatch(
+      bookingGridBlock,
+      /position:\s*(?:absolute|fixed)/
     );
   }
 );
@@ -164,40 +205,40 @@ test(
 );
 
 test(
-  "request API loads and enforces exact rental duration",
+  "request API uses shared route pricing resolver before create side effects",
   () => {
     assert.match(
       requestApi,
-      /fields\[4\]", "min_rental_hours"/
+      /resolveBookingPricing/
     );
 
     assert.match(
       requestApi,
-      /hours < boatPricing\.minRentalHours/
+      /pricing\.routeId \? \{ experience: pricing\.routeId \} : \{\}/
     );
 
-    assert.match(
+    assert.doesNotMatch(
       requestApi,
-      /Rental duration must be exactly/
+      /Minimum route duration is/
     );
   }
 );
 
 test(
-  "eight-hour rental can use the configured daily owner price",
+  "shared pricing preserves generic boat minimum and daily price",
   () => {
     assert.match(
-      requestApi,
-      /hours === 8/
+      serverBookingPricing,
+      /Math\.abs\(requestedHours - boatPricing\.minRentalHours\)/
     );
 
     assert.match(
-      requestApi,
-      /ownerAmount = roundMoney\(boatPricing\.pricePerDay\)/
+      serverBookingPricing,
+      /boatPricing\.minRentalHours === 8[\s\S]*boatPricing\.pricePerDay/
     );
 
     assert.match(
-      requestApi,
+      serverBookingPricing,
       /calculateMarketplaceBreakdown\(ownerAmount\)/
     );
   }
@@ -208,51 +249,96 @@ const requestPage = source(
 );
 
 test(
-  "calendar passes the boat minimum duration to the request page",
+  "calendar passes route identifiers, duration, slot, and guests to the request page",
   () => {
     assert.match(
       calendar,
-      /params\.set\(\s*"minRentalHours"/
+      /buildBookingRequestParams/
+    );
+
+    assert.match(
+      calendar,
+      /guests/
     );
   }
 );
 
 test(
-  "request page uses daily owner price for an eight-hour rental",
+  "request page gets server-calculated quote instead of URL price",
   () => {
     assert.match(
       requestPage,
-      /const pricePerDayFromUrl = Number\(sp\.get\("ppd"\)\)/
+      /\/api\/request\/quote/
     );
 
     assert.match(
       requestPage,
-      /hours === 8 && PRICE_PER_DAY > 0/
+      /setQuote\(json\)/
     );
 
-    assert.match(
+    assert.doesNotMatch(
       requestPage,
-      /return PRICE_PER_DAY/
+      /sp\.get\("experiencePrice"\)/
     );
   }
 );
 
 test(
-  "request page rejects manual duration below boat minimum",
+  "request page blocks submit until quote is valid",
   () => {
     assert.match(
       requestPage,
-      /sp\.get\("minRentalHours"\)/
+      /Boolean\(quote\)/
     );
 
     assert.match(
       requestPage,
-      /hours < MINIMUM_RENTAL_HOURS/
+      /!quoteLoading/
     );
 
     assert.match(
       requestPage,
-      /copy\.minimumDuration/
+      /!quoteError/
+    );
+  }
+);
+
+test(
+  "request page maps quote errors to route-specific recovery copy",
+  () => {
+    assert.match(
+      requestPage,
+      /function quoteErrorMessage/
+    );
+
+    assert.match(
+      requestPage,
+      /experience_not_found/
+    );
+
+    assert.match(
+      requestPage,
+      /experience_boat_mismatch/
+    );
+
+    assert.match(
+      requestPage,
+      /invalid_experience_identifier/
+    );
+  }
+);
+
+test(
+  "request page locks selected slot fields after route quote context",
+  () => {
+    assert.match(
+      requestPage,
+      /readOnly=\{hasHoldSlot\}/
+    );
+
+    assert.match(
+      requestPage,
+      /if \(hasHoldSlot\) return;/
     );
   }
 );
@@ -267,11 +353,6 @@ test(
     assert.match(
       availability,
       /startMs > nowMs/
-    );
-
-    assert.match(
-      calendar,
-      /length >= minimumRentalHours/
     );
 
     assert.match(
@@ -306,7 +387,7 @@ test(
 
     assert.match(
       calendar,
-      /return `\$\{hours\} \$\{noun\}`/
+      /formatDuration\(selectedDuration, lang\)/
     );
   }
 );
@@ -327,26 +408,26 @@ test(
 );
 
 test(
-  "fixed rental terminology replaces hourly rental terminology",
+  "route-first terminology replaces fixed rental selector terminology",
   () => {
     assert.match(
       calendar,
-      /Аренда на/
+      /Выберите маршрут/
     );
 
     assert.match(
       calendar,
-      /Najam na/
+      /Choose route/
     );
 
     assert.match(
       calendar,
-      /-hour rental/
+      /Step 1/
     );
 
     assert.doesNotMatch(
       calendar,
-      />Hourly rental</
+      /Аренда на/
     );
   }
 );
@@ -377,33 +458,28 @@ test(
 );
 
 test(
-  "direct request link passes daily price and minimum duration",
+  "direct request link does not pass trusted price inputs",
   () => {
-    assert.match(
+    assert.doesNotMatch(
       publicBoatPage,
       /requestParams\.set\(\s*"minRentalHours"/
     );
 
-    assert.match(
+    assert.doesNotMatch(
       publicBoatPage,
       /requestParams\.set\(\s*"ppd"/
+    );
+
+    assert.doesNotMatch(
+      publicBoatPage,
+      /requestParams\.set\(\s*"pph"/
     );
   }
 );
 
 test(
-  "request page displays fixed eight-hour owner rate",
+  "request page displays route quote owner rate",
   () => {
-    assert.match(
-      requestPage,
-      /fixedBoatRate: "8-hour boat rate"/
-    );
-
-    assert.match(
-      requestPage,
-      /hours === 8/
-    );
-
     assert.match(
       requestPage,
       /money\(\s*ownerAmount/
@@ -411,11 +487,7 @@ test(
 
     assert.doesNotMatch(
       requestPage,
-      new RegExp(
-        "hasExperience\\s*\\?\\s*" +
-          "money\\(ownerAmount,\\s*currency\\)\\s*" +
-          ":\\s*`\\$\\{money\\(PRICE_PER_HOUR"
-      )
+      /PRICE_PER_DAY/
     );
   }
 );

@@ -7,7 +7,7 @@ function source(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
 
-test("request page enforces the fixed eight-hour rental", () => {
+test("request page uses route quote instead of fixed-duration URL pricing", () => {
   const requestPage = source("frontend/app/[lang]/request/page.tsx");
 
   assert.match(
@@ -16,26 +16,31 @@ test("request page enforces the fixed eight-hour rental", () => {
   );
   assert.match(
     requestPage,
-    /Math\.abs\(hours - MINIMUM_RENTAL_HOURS\) <= 1 \/ 60/
+    /\/api\/request\/quote/
   );
   assert.match(
     requestPage,
-    /if \(hours === 8 && PRICE_PER_DAY > 0\)/
+    /Boolean\(quote\)/
   );
   assert.match(
     requestPage,
     /ownerAmount > 0[\s\S]*marketplaceFeeAmount > 0[\s\S]*customerTotalAmount > 0/
   );
 
+  assert.doesNotMatch(requestPage, /sp\.get\("ppd"\)/);
+  assert.doesNotMatch(requestPage, /sp\.get\("minRentalHours"\)/);
+  assert.doesNotMatch(requestPage, /sp\.get\("experiencePrice"\)/);
   assert.doesNotMatch(requestPage, /const PRICE_PER_HOUR\s*=/);
   assert.doesNotMatch(requestPage, /const pricePerHourFromUrl\s*=/);
   assert.doesNotMatch(requestPage, /process\.env\.NEXT_PUBLIC_PRICE_PER_HOUR/);
   assert.doesNotMatch(requestPage, /hours\s*\*\s*PRICE_PER_HOUR/);
   assert.doesNotMatch(requestPage, /PRICE_PER_HOUR/);
+  assert.doesNotMatch(requestPage, /PRICE_PER_DAY/);
 });
 
 test("request API enforces eight hours and server-side daily price", () => {
   const requestApi = source("frontend/app/api/request/route.ts");
+  const serverBookingPricing = source("frontend/lib/serverBookingPricing.ts");
 
   assert.match(
     requestApi,
@@ -43,30 +48,29 @@ test("request API enforces eight hours and server-side daily price", () => {
   );
   assert.match(
     requestApi,
-    /Math\.abs\(hours - boatPricing\.minRentalHours\) > 1 \/ 60/
-  );
-  assert.match(requestApi, /Rental duration must be exactly/);
-  assert.match(
-    requestApi,
-    /hours === 8[\s\S]*boatPricing\.pricePerDay/
+    /resolveBookingPricing/
   );
   assert.match(
-    requestApi,
-    /ownerAmount = roundMoney\(boatPricing\.pricePerDay\);/
+    serverBookingPricing,
+    /Math\.abs\(requestedHours - boatPricing\.minRentalHours\)/
   );
   assert.match(
-    requestApi,
-    /Boat fixed-duration price is not configured\./
+    serverBookingPricing,
+    /boatPricing\.minRentalHours === 8[\s\S]*boatPricing\.pricePerDay/
   );
-  assert.match(requestApi, /getExperiencePricingForBoat/);
-  assert.match(requestApi, /selectedExperience\.durationHours/);
+  assert.match(
+    serverBookingPricing,
+    /boat_fixed_duration_price_missing/
+  );
+  assert.match(serverBookingPricing, /selectedExperience\.durationHours/);
+  assert.doesNotMatch(requestApi, /Minimum route duration is/);
 
   assert.doesNotMatch(
-    requestApi,
+    serverBookingPricing,
     /hours\s*\*\s*boatPricing\.pricePerHour/
   );
   assert.doesNotMatch(
-    requestApi,
+    serverBookingPricing,
     /Boat hourly price is not configured/
   );
 });

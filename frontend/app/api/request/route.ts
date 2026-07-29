@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { resend, BOOKING_FROM, BOOKING_TO } from "@/app/lib/email";
 import { bookingAdminEmail, bookingCustomerRequestEmail } from "@/app/lib/emailTemplates";
 import crypto from "node:crypto";
-import { calculateMarketplaceBreakdown } from "@/lib/pricing";
+import { resolveBookingPricing } from "@/lib/serverBookingPricing";
 import {
   hashProviderMessageId,
   notifyOwnerOfBookingRequest,
@@ -32,6 +32,7 @@ type Payload = {
   hp?: string;
   client_ts?: number;
   experienceId?: number;
+  experienceDocumentId?: string;
 };
 
 function logBookingEvent(e: Record<string, unknown>): void {
@@ -168,6 +169,15 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
   const hp = typeof body.hp === "string" ? body.hp : undefined;
   const client_ts = getNum(body.client_ts) ?? undefined;
   const experienceId = getNum(body.experienceId) ?? undefined;
+  const rawExperienceDocumentId = getStr(body.experienceDocumentId);
+  const experienceDocumentIdValue = rawExperienceDocumentId?.trim() ?? "";
+  if (
+    experienceDocumentIdValue &&
+    !/^[A-Za-z0-9_-]{8,80}$/.test(experienceDocumentIdValue)
+  ) {
+    return { ok: false, error: "Invalid experienceDocumentId." };
+  }
+  const experienceDocumentId = experienceDocumentIdValue || undefined;
 
   if (
     experienceId !== undefined &&
@@ -199,6 +209,7 @@ function parsePayload(body: unknown): { ok: true; data: Payload } | { ok: false;
       hp,
       client_ts,
       experienceId,
+      experienceDocumentId,
     },
   };
 }
@@ -387,107 +398,6 @@ function extractIdFromStrapiResponse(json: unknown): number {
   }
 
   return 0;
-}
-
-type BoatPricing = {
-  id: number;
-  currency: string;
-  pricePerHour: number | null;
-  pricePerDay: number | null;
-  minRentalHours: number;
-};
-
-async function getBoatPricingBySlug(slug: string): Promise<BoatPricing | null> {
-  const qs = new URLSearchParams();
-  qs.set("filters[slug][$eq]", slug);
-  qs.append("fields[0]", "id");
-  qs.append("fields[1]", "currency");
-  qs.append("fields[2]", "price_per_hour");
-  qs.append("fields[3]", "price_per_day");
-  qs.append("fields[4]", "min_rental_hours");
-
-  const json = await strapiFetch(`/api/boats?${qs.toString()}`);
-
-  if (!isRecord(json)) return null;
-  const data = json.data;
-
-  if (!Array.isArray(data) || data.length === 0) return null;
-  const first = data[0];
-
-  if (!isRecord(first)) return null;
-
-  const id = getNum(first.id);
-  if (!id) return null;
-
-  return {
-    id,
-    currency: getStr(first.currency) || "EUR",
-    pricePerHour: getNum(first.price_per_hour),
-    pricePerDay: getNum(first.price_per_day),
-    minRentalHours: Math.max(
-      1,
-      Math.ceil(getNum(first.min_rental_hours) || 1)
-    ),
-  };
-}
-
-type ExperiencePricing = {
-  id: number;
-  title: string | null;
-  durationHours: number;
-  price: number;
-  currency: string;
-};
-
-async function getExperiencePricingForBoat(
-  experienceId: number,
-  boatId: number
-): Promise<ExperiencePricing | null> {
-  const qs = new URLSearchParams();
-  qs.set("filters[id][$eq]", String(experienceId));
-  qs.set("filters[boat][id][$eq]", String(boatId));
-  qs.set("filters[is_active][$eq]", "true");
-  qs.set("filters[archived_at][$null]", "true");
-  qs.append("fields[0]", "id");
-  qs.append("fields[1]", "title");
-  qs.append("fields[2]", "duration_hours");
-  qs.append("fields[3]", "price");
-  qs.append("fields[4]", "currency");
-
-  const json = await strapiFetch(`/api/experiences?${qs.toString()}`);
-
-  if (!isRecord(json)) return null;
-  const data = json.data;
-  if (!Array.isArray(data) || data.length === 0) return null;
-
-  const first = data[0];
-  if (!isRecord(first)) return null;
-
-  const id = getNum(first.id);
-  const durationHours = getNum(first.duration_hours);
-  const price = getNum(first.price);
-
-  if (!id || !durationHours || durationHours <= 0 || !price || price <= 0) {
-    return null;
-  }
-
-  return {
-    id,
-    title: getStr(first.title),
-    durationHours,
-    price,
-    currency: getStr(first.currency) || "EUR",
-  };
-}
-
-function diffHoursIso(startIso: string, endIso: string): number {
-  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
-  if (!Number.isFinite(ms) || ms <= 0) return 0;
-  return ms / 3600000;
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 function isDuplicatePublicTokenError(err: unknown): boolean {
@@ -690,127 +600,27 @@ export async function POST(req: Request) {
   }
 
   try {
-    const boatPricing = await getBoatPricingBySlug(p.boatSlug);
+    const pricing = await resolveBookingPricing({
+      boatSlug: p.boatSlug,
+      experienceDocumentId: p.experienceDocumentId,
+      experienceId: p.experienceDocumentId ? null : p.experienceId ?? null,
+      slotStartUtc: start,
+      slotEndUtc: end,
+      locale: emailLocale,
+      requireExperience: false,
+    });
 
-    if (!boatPricing) {
-      logBookingEvent({ request_id: requestId, public_token: publicToken, boat_slug: p.boatSlug, result: "not_found", http_status: 404, latency_ms: Date.now() - t0, error_class: "BoatNotFound" });
+    if (!pricing.ok) {
       return NextResponse.json(
-        { ok: false, error: `Boat not found by slug: ${p.boatSlug}`, fallbackMailto: buildFallbackMailto(p) },
-        { status: 404, headers: { "cache-control": "no-store" } }
+        { ok: false, error: pricing.error, code: pricing.error, fallbackMailto: buildFallbackMailto(p) },
+        { status: pricing.status, headers: { "cache-control": "no-store" } }
       );
     }
 
-    let hours = diffHoursIso(start, end);
-
-    if (
-      !p.experienceId &&
-      Math.abs(hours - boatPricing.minRentalHours) > 1 / 60
-    ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            `Rental duration must be exactly ` +
-            `${boatPricing.minRentalHours} hours.`,
-          fallbackMailto: buildFallbackMailto(p),
-        },
-        {
-          status: 409,
-          headers: { "cache-control": "no-store" },
-        }
-      );
-    }
-
-    if (
-      p.experienceId &&
-      hours < boatPricing.minRentalHours
-    ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            `Minimum route duration is ` +
-            `${boatPricing.minRentalHours} hours.`,
-          fallbackMailto: buildFallbackMailto(p),
-        },
-        {
-          status: 409,
-          headers: { "cache-control": "no-store" },
-        }
-      );
-    }
-
-    let ownerAmount: number;
-    let requestCurrency = boatPricing.currency;
-    let selectedExperience: ExperiencePricing | null = null;
-
-    if (p.experienceId) {
-      selectedExperience = await getExperiencePricingForBoat(
-        p.experienceId,
-        boatPricing.id
-      );
-
-      if (!selectedExperience) {
-        return NextResponse.json(
-          { ok: false, error: "Experience not found.", fallbackMailto: buildFallbackMailto(p) },
-          { status: 404, headers: { "cache-control": "no-store" } }
-        );
-      }
-
-      const requestedHours = diffHoursIso(start, end);
-      const durationDiff = Math.abs(requestedHours - selectedExperience.durationHours);
-
-      if (durationDiff > 1 / 60) {
-        return NextResponse.json(
-          { ok: false, error: "Selected route duration does not match requested time range.", fallbackMailto: buildFallbackMailto(p) },
-          { status: 409, headers: { "cache-control": "no-store" } }
-        );
-      }
-
-      hours = selectedExperience.durationHours;
-      ownerAmount = roundMoney(selectedExperience.price);
-      requestCurrency = selectedExperience.currency;
-    } else {
-      if (hours <= 0) {
-        return NextResponse.json(
-          { ok: false, error: "Invalid rental duration.", fallbackMailto: buildFallbackMailto(p) },
-          { status: 400, headers: { "cache-control": "no-store" } }
-        );
-      }
-
-      if (
-        hours === 8 &&
-        boatPricing.pricePerDay &&
-        boatPricing.pricePerDay > 0
-      ) {
-        ownerAmount = roundMoney(boatPricing.pricePerDay);
-      } else {
-        return NextResponse.json(
-          {
-            ok: false,
-            error:
-              "Boat fixed-duration price is not configured.",
-            fallbackMailto: buildFallbackMailto(p),
-          },
-          {
-            status: 409,
-            headers: { "cache-control": "no-store" },
-          }
-        );
-      }
-    }
-
-    const breakdown = calculateMarketplaceBreakdown(ownerAmount);
-
-    if (!breakdown) {
-      return NextResponse.json(
-        { ok: false, error: "Failed to calculate marketplace fee.", fallbackMailto: buildFallbackMailto(p) },
-        { status: 500, headers: { "cache-control": "no-store" } }
-      );
-    }
-
-    const marketplaceFeeAmount = breakdown.marketplaceFeeAmount;
-    const customerTotalAmount = breakdown.customerTotalAmount;
+    const ownerAmount = pricing.ownerAmount;
+    const marketplaceFeeAmount = pricing.marketplaceFeeAmount;
+    const customerTotalAmount = pricing.customerTotalAmount;
+    const requestCurrency = pricing.currency;
 
     const people = p.peopleCount && p.peopleCount >= 1 ? Math.floor(p.peopleCount) : 1;
 
@@ -824,8 +634,8 @@ export async function POST(req: Request) {
         people_count: people,
         need_skipper: Boolean(p.needSkipper),
         notes: p.message && p.message.trim().length ? p.message.trim() : null,
-        boat: boatPricing.id,
-        ...(selectedExperience ? { experience: selectedExperience.id } : {}),
+        boat: pricing.boatId,
+        ...(pricing.routeId ? { experience: pricing.routeId } : {}),
 
         status: "new",
         public_token: publicToken,

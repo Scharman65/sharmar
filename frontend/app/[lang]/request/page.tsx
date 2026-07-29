@@ -1,15 +1,27 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { isLang, t, type Lang } from "@/i18n";
-import { calculateMarketplaceBreakdown, MARKETPLACE_FEE_RATE } from "@/lib/pricing";
+import { MARKETPLACE_FEE_RATE } from "@/lib/pricing";
 
 type ApiOk = { ok: true; id: number; token: string };
 type ApiFail = { ok: false; error: string; fallbackMailto?: string };
 type HoldOk = { ok: true; booking_id?: number | string; public_id?: string; expires_at?: string };
 type HoldFail = { ok?: false; error?: string; code?: string };
+type QuoteOk = {
+  ok: true;
+  routeId: number;
+  routeDocumentId?: string | null;
+  routeTitle?: string | null;
+  durationHours: number;
+  currency: string;
+  ownerAmount: number;
+  marketplaceFeeAmount: number;
+  customerTotalAmount: number;
+};
+type QuoteFail = { ok?: false; error?: string };
 
 type RequestPayload = {
   boatSlug: string;
@@ -25,12 +37,8 @@ type RequestPayload = {
   timeTo?: string;
 
   hours?: number;
-  totalPrice?: number;
-  ownerAmount?: number;
-  marketplaceFeeAmount?: number;
-  customerTotalAmount?: number;
-  currency?: string;
   experienceId?: number;
+  experienceDocumentId?: string;
 
   peopleCount?: number;
   needSkipper?: boolean;
@@ -58,6 +66,7 @@ function requestCopy(lang: Lang) {
       browseBoats: "Выбрать лодку",
       selectedSlotUnavailable: "Выбранный слот больше недоступен",
       chooseAnotherSlot: "Пожалуйста, выберите другой слот.",
+      quoteUnavailable: "Не удалось рассчитать цену выбранного маршрута. Вернитесь к лодке и выберите слот заново.",
       summaryBoat: "Лодка",
       summaryDate: "Дата",
       summaryTimeFrom: "Время с",
@@ -92,7 +101,7 @@ function requestCopy(lang: Lang) {
       ownerConfirms: "Владелец подтверждает перед финальным бронированием",
       ownerConfirmsText: "Владелец проверяет заявку до окончательного подтверждения бронирования.",
       captureAfterApproval: "Онлайн-подтверждение бронирования",
-      captureAfterApprovalText: "После оплаты заявка передаётся владельцу для подтверждения бронирования.",
+      captureAfterApprovalText: "После отправки заявки откроется безопасная оплата. Окончательный статус обновляется по результату платежа и подтверждению.",
       emailFallback: "Написать по email",
       preparing: "Подготовка безопасной оплаты...",
       continueAuthorization: "Перейти к бронированию",
@@ -115,6 +124,7 @@ function requestCopy(lang: Lang) {
       browseBoats: "Izaberi plovilo",
       selectedSlotUnavailable: "Odabrani termin više nije dostupan",
       chooseAnotherSlot: "Molimo izaberite drugi termin.",
+      quoteUnavailable: "Cijena odabrane rute nije izračunata. Vratite se na brod i ponovo izaberite termin.",
       summaryBoat: "Brod",
       summaryDate: "Datum",
       summaryTimeFrom: "Vrijeme od",
@@ -149,7 +159,7 @@ function requestCopy(lang: Lang) {
       ownerConfirms: "Vlasnik potvrđuje prije finalne rezervacije",
       ownerConfirmsText: "Vlasnik pregledava zahtjev prije konačne potvrde rezervacije.",
       captureAfterApproval: "Online potvrda rezervacije",
-      captureAfterApprovalText: "Nakon uplate zahtjev se šalje vlasniku na potvrdu rezervacije.",
+      captureAfterApprovalText: "Nakon slanja zahtjeva otvara se sigurna uplata. Konačni status se ažurira prema plaćanju i potvrdi.",
       emailFallback: "Pošalji email",
       preparing: "Priprema sigurnog plaćanja...",
       continueAuthorization: "Idi na rezervaciju",
@@ -171,6 +181,7 @@ function requestCopy(lang: Lang) {
     browseBoats: "Choose a boat",
     selectedSlotUnavailable: "Selected slot is no longer available",
     chooseAnotherSlot: "Please choose another slot.",
+    quoteUnavailable: "Could not calculate the selected route price. Go back to the boat and choose the slot again.",
     summaryBoat: "Boat",
     summaryDate: "Date",
     summaryTimeFrom: "Time from",
@@ -205,12 +216,48 @@ function requestCopy(lang: Lang) {
     ownerConfirms: "Owner confirms before final booking",
     ownerConfirmsText: "The owner reviews the request before the booking is final.",
     captureAfterApproval: "Online booking confirmation",
-    captureAfterApprovalText: "After payment, the request is sent to the owner for booking confirmation.",
+    captureAfterApprovalText: "After you submit the request, secure payment opens. Final status is updated from payment and confirmation.",
     emailFallback: "Email fallback",
     preparing: "Preparing secure payment...",
     continueAuthorization: "Continue to booking",
     dateAria: "Date (YYYY-MM-DD)",
   };
+}
+
+function quoteErrorMessage(code: string | null, lang: Lang, fallback: string): string {
+  if (!code) return fallback;
+
+  const messages: Record<Lang, Record<string, string>> = {
+    ru: {
+      invalid_experience_identifier: "Идентификатор маршрута повреждён. Вернитесь к лодке и выберите маршрут заново.",
+      experience_not_found: "Маршрут не найден или больше недоступен. Вернитесь к лодке и выберите маршрут заново.",
+      experience_unpublished: "Маршрут пока не опубликован. Выберите другой маршрут.",
+      experience_boat_mismatch: "Выбранный маршрут не относится к этой лодке. Вернитесь к лодке и выберите маршрут заново.",
+      invalid_slot: "Выбранный слот недоступен. Вернитесь к лодке и выберите другое время.",
+      route_duration_mismatch: "Время поездки не совпадает с длительностью маршрута. Выберите слот заново.",
+      boat_not_found: "Лодка не найдена. Вернитесь в каталог и выберите лодку заново.",
+    },
+    me: {
+      invalid_experience_identifier: "Identifikator rute je neispravan. Vratite se na plovilo i ponovo izaberite rutu.",
+      experience_not_found: "Ruta nije pronađena ili više nije dostupna. Vratite se na plovilo i ponovo izaberite rutu.",
+      experience_unpublished: "Ruta još nije objavljena. Izaberite drugu rutu.",
+      experience_boat_mismatch: "Izabrana ruta ne pripada ovom plovilu. Vratite se na plovilo i ponovo izaberite rutu.",
+      invalid_slot: "Izabrani termin nije dostupan. Vratite se na plovilo i izaberite drugo vrijeme.",
+      route_duration_mismatch: "Vrijeme putovanja se ne poklapa sa trajanjem rute. Ponovo izaberite termin.",
+      boat_not_found: "Plovilo nije pronađeno. Vratite se u katalog i ponovo izaberite plovilo.",
+    },
+    en: {
+      invalid_experience_identifier: "The route identifier is invalid. Go back to the boat and choose the route again.",
+      experience_not_found: "The route was not found or is no longer available. Go back to the boat and choose the route again.",
+      experience_unpublished: "This route is not published yet. Choose another route.",
+      experience_boat_mismatch: "The selected route does not belong to this boat. Go back to the boat and choose the route again.",
+      invalid_slot: "The selected slot is not available. Go back to the boat and choose another time.",
+      route_duration_mismatch: "The trip time no longer matches the route duration. Choose the slot again.",
+      boat_not_found: "The boat was not found. Return to the catalogue and choose the boat again.",
+    },
+  };
+
+  return messages[lang][code] ?? `${fallback} (${code})`;
 }
 
 
@@ -351,16 +398,17 @@ export default function RequestPage() {
 
   const boatSlug = sp.get("slug") ?? "";
   const boatTitle = sp.get("title") ?? boatSlug;
+  const boatDocumentId = sp.get("boatDocumentId") ?? sp.get("documentId") ?? "";
 
   const experienceIdFromUrl = Number(sp.get("experienceId"));
+  const experienceDocumentId = sp.get("experienceDocumentId") ?? "";
   const experienceTitle = sp.get("experienceTitle") ?? "";
-  const experienceDuration = Number(sp.get("experienceDuration"));
-  const experiencePrice = Number(sp.get("experiencePrice"));
-  const hasExperience =
-    Number.isFinite(experienceIdFromUrl) &&
+  const hasNumericExperienceId =
+    Number.isSafeInteger(experienceIdFromUrl) &&
     experienceIdFromUrl > 0;
+  const hasExperienceDocumentId = /^[A-Za-z0-9_-]{8,80}$/.test(experienceDocumentId.trim());
+  const hasExperience = hasExperienceDocumentId || hasNumericExperienceId;
 
-  const currency = sp.get("experienceCurrency") ?? sp.get("currency") ?? "EUR";
   const boatIdFromUrl = Number(sp.get("boatId"));
   const slotStartUtc = sp.get("slot_start_utc") ?? "";
   const slotEndUtc = sp.get("slot_end_utc") ?? "";
@@ -374,22 +422,6 @@ export default function RequestPage() {
     isIsoUtcTimestamp(slotStartUtc) &&
     isIsoUtcTimestamp(slotEndUtc);
 
-  const pricePerDayFromUrl = Number(sp.get("ppd"));
-  const minimumRentalHoursFromUrl = Number(
-    sp.get("minRentalHours")
-  );
-  const PRICE_PER_DAY =
-    Number.isFinite(pricePerDayFromUrl) &&
-    pricePerDayFromUrl > 0
-      ? pricePerDayFromUrl
-      : 0;
-
-  const MINIMUM_RENTAL_HOURS =
-    Number.isFinite(minimumRentalHoursFromUrl) &&
-    minimumRentalHoursFromUrl > 0
-      ? Math.ceil(minimumRentalHoursFromUrl)
-      : 1;
-
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -398,7 +430,12 @@ export default function RequestPage() {
   const [timeFrom, setTimeFrom] = useState(slotParts?.timeFrom ?? "10:00");
   const [timeTo, setTimeTo] = useState(slotParts?.timeTo ?? "18:00");
 
-  const [peopleCount, setPeopleCount] = useState<number>(1);
+  const guestsFromUrl = Number(sp.get("guests"));
+  const [peopleCount, setPeopleCount] = useState<number>(
+    Number.isFinite(guestsFromUrl) && guestsFromUrl > 0
+      ? Math.floor(guestsFromUrl)
+      : 1
+  );
   const [needSkipper, setNeedSkipper] = useState<boolean>(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -407,60 +444,90 @@ export default function RequestPage() {
   const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackMailto, setFallbackMailto] = useState<string | null>(null);
+  const [quote, setQuote] = useState<QuoteOk | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  useEffect(() => {
+    if (!boatSlug || !hasExperience || !hasHoldSlot) {
+      setQuote(null);
+      setQuoteError(null);
+      setQuoteLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const qs = new URLSearchParams({
+      boatSlug,
+      locale: lang === "me" ? "sr-Latn-ME" : lang,
+      slot_start_utc: slotStartUtc,
+      slot_end_utc: slotEndUtc,
+    });
+
+    if (boatDocumentId) qs.set("boatDocumentId", boatDocumentId);
+    if (hasExperienceDocumentId) qs.set("experienceDocumentId", experienceDocumentId.trim());
+    if (hasNumericExperienceId) qs.set("experienceId", String(experienceIdFromUrl));
+
+    setQuote(null);
+    setQuoteError(null);
+    setQuoteLoading(true);
+
+    fetch(`/api/request/quote?${qs.toString()}`, {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const json = (await res.json().catch(() => null)) as QuoteOk | QuoteFail | null;
+        if (!res.ok || !json || json.ok !== true) {
+          const fail = json as QuoteFail | null;
+          throw new Error(fail?.error || "quote_failed");
+        }
+        setQuote(json);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setQuoteError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setQuoteLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [
+    boatSlug,
+    boatDocumentId,
+    experienceIdFromUrl,
+    experienceDocumentId,
+    hasExperience,
+    hasExperienceDocumentId,
+    hasNumericExperienceId,
+    hasHoldSlot,
+    lang,
+    slotEndUtc,
+    slotStartUtc,
+  ]);
 
   const hours = useMemo(() => {
-    if (
-      hasExperience &&
-      Number.isFinite(experienceDuration) &&
-      experienceDuration > 0
-    ) {
-      return experienceDuration;
+    if (quote?.durationHours && Number.isFinite(quote.durationHours)) {
+      return quote.durationHours;
     }
 
     if (!timeFrom || !timeTo) return 0;
     return diffHours(timeFrom, timeTo);
-  }, [hasExperience, experienceDuration, timeFrom, timeTo]);
+  }, [quote, timeFrom, timeTo]);
 
-  const rawOwnerAmount = useMemo(() => {
-    if (hasExperience && Number.isFinite(experiencePrice) && experiencePrice > 0) {
-      return experiencePrice;
-    }
-    if (!hours) return 0;
-
-    const durationMatchesFixedRental =
-      Math.abs(hours - MINIMUM_RENTAL_HOURS) <= 1 / 60;
-
-    if (!durationMatchesFixedRental) {
-      return 0;
-    }
-
-    if (hours === 8 && PRICE_PER_DAY > 0) {
-      return PRICE_PER_DAY;
-    }
-
-    return 0;
-  }, [
-    hasExperience,
-    experiencePrice,
-    hours,
-    MINIMUM_RENTAL_HOURS,
-    PRICE_PER_DAY,
-  ]);
-
-  const marketplaceBreakdown = useMemo(() => {
-    return calculateMarketplaceBreakdown(rawOwnerAmount);
-  }, [rawOwnerAmount]);
-
-  const ownerAmount = marketplaceBreakdown?.ownerAmount ?? 0;
-  const marketplaceFeeAmount = marketplaceBreakdown?.marketplaceFeeAmount ?? 0;
-  const customerTotalAmount = marketplaceBreakdown?.customerTotalAmount ?? 0;
-
-  const totalPrice = customerTotalAmount;
+  const ownerAmount = quote?.ownerAmount ?? 0;
+  const marketplaceFeeAmount = quote?.marketplaceFeeAmount ?? 0;
+  const customerTotalAmount = quote?.customerTotalAmount ?? 0;
+  const currency = quote?.currency ?? "EUR";
+  const quoteErrorText = quoteErrorMessage(quoteError, lang, copy.quoteUnavailable);
 
   const timeOk =
-    hours > 0 &&
-    (hasExperience ||
-      Math.abs(hours - MINIMUM_RENTAL_HOURS) <= 1 / 60);
+    hasExperience &&
+    hasHoldSlot &&
+    Boolean(quote) &&
+    hours > 0;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -493,19 +560,8 @@ export default function RequestPage() {
       return;
     }
 
-    if (
-      !hasExperience &&
-      hours < MINIMUM_RENTAL_HOURS
-    ) {
-      setError(
-        copy.minimumDuration.replace(
-          "{hours}",
-          formatHourCount(
-            MINIMUM_RENTAL_HOURS,
-            lang
-          )
-        )
-      );
+    if (!quote) {
+      setError(quoteErrorText);
       inFlight.current = false;
       return;
     }
@@ -526,12 +582,8 @@ export default function RequestPage() {
       timeTo,
 
       hours,
-      totalPrice,
-      ownerAmount,
-      marketplaceFeeAmount,
-      customerTotalAmount,
-      currency,
-      experienceId: hasExperience ? experienceIdFromUrl : undefined,
+      experienceId: quote?.routeId ?? (hasNumericExperienceId ? experienceIdFromUrl : undefined),
+      experienceDocumentId: quote?.routeDocumentId ?? (hasExperienceDocumentId ? experienceDocumentId.trim() : undefined),
 
       peopleCount: Number.isFinite(peopleCount) ? peopleCount : 1,
       needSkipper,
@@ -621,17 +673,19 @@ export default function RequestPage() {
     Boolean(timeFrom) &&
     Boolean(timeTo) &&
     timeOk &&
+    !quoteLoading &&
+    !quoteError &&
     ownerAmount > 0 &&
     marketplaceFeeAmount > 0 &&
     customerTotalAmount > 0;
 
   const summaryRows = [
     { label: copy.summaryBoat, value: boatTitle || boatSlug || "—" },
-    ...(hasExperience ? [{ label: lang === "ru" ? "Маршрут" : lang === "me" ? "Ruta" : "Route", value: experienceTitle || `#${experienceIdFromUrl}` }] : []),
+    ...(hasExperience ? [{ label: lang === "ru" ? "Маршрут" : lang === "me" ? "Ruta" : "Route", value: quote?.routeTitle || experienceTitle || experienceDocumentId || `#${experienceIdFromUrl}` }] : []),
     { label: copy.summaryDate, value: date || "—" },
     { label: copy.summaryTimeFrom, value: timeFrom || "—" },
     { label: copy.summaryTimeTo, value: timeTo || "—" },
-    { label: copy.summaryDuration, value: hasExperience && Number.isFinite(experienceDuration) && experienceDuration > 0 ? formatDuration(experienceDuration, lang) : hours ? formatDuration(hours, lang) : "—" },
+    { label: copy.summaryDuration, value: hours ? formatDuration(hours, lang) : "—" },
     { label: copy.summaryPeople, value: Number.isFinite(peopleCount) && peopleCount > 0 ? String(peopleCount) : "—" },
     ...(needSkipper ? [{ label: copy.summarySkipper, value: copy.summarySkipperRequested }] : []),
   ];
@@ -748,6 +802,7 @@ export default function RequestPage() {
                     className="request-input"
                     value={date}
                     onChange={(e) => {
+                      if (hasHoldSlot) return;
                       const v = e.target.value;
                       const cleaned = v.replace(/[^\d-]/g, "").slice(0, 10);
                       setDate(cleaned);
@@ -758,6 +813,7 @@ export default function RequestPage() {
                     aria-label={copy.dateAria}
                     title="YYYY-MM-DD"
                     pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
+                    readOnly={hasHoldSlot}
                     required
                   />
                 </label>
@@ -767,9 +823,13 @@ export default function RequestPage() {
                   <input
                     className={`request-input ${timeOk ? "" : "request-input-error"}`}
                     value={timeFrom}
-                    onChange={(e) => setTimeFrom(e.target.value)}
+                    onChange={(e) => {
+                      if (hasHoldSlot) return;
+                      setTimeFrom(e.target.value);
+                    }}
                     type="time"
                     step={1800}
+                    readOnly={hasHoldSlot}
                     required
                   />
                 </label>
@@ -779,9 +839,13 @@ export default function RequestPage() {
                   <input
                     className={`request-input ${timeOk ? "" : "request-input-error"}`}
                     value={timeTo}
-                    onChange={(e) => setTimeTo(e.target.value)}
+                    onChange={(e) => {
+                      if (hasHoldSlot) return;
+                      setTimeTo(e.target.value);
+                    }}
                     type="time"
                     step={1800}
+                    readOnly={hasHoldSlot}
                     required
                   />
                 </label>
@@ -789,17 +853,11 @@ export default function RequestPage() {
 
               {!timeOk ? (
                 <div className="kicker field-note">
-                  {!hasExperience &&
-                  hours > 0 &&
-                  hours < MINIMUM_RENTAL_HOURS
-                    ? copy.minimumDuration.replace(
-                        "{hours}",
-                        formatHourCount(
-                          MINIMUM_RENTAL_HOURS,
-                          lang
-                        )
-                      )
-                    : copy.endAfterStart}
+                  {quoteLoading
+                    ? copy.preparing
+                    : quoteError
+                      ? quoteErrorText
+                      : copy.endAfterStart}
                 </div>
               ) : null}
 
@@ -843,43 +901,8 @@ export default function RequestPage() {
 
               <div className="price-lines">
                 <div>
-
-                  <span>
-
-                    {hasExperience
-
-                      ? experienceTitle
-
-                      : hours === 8 &&
-
-                          PRICE_PER_DAY > 0
-
-                        ? copy.fixedBoatRate
-
-                        : copy.boatRate}
-
-                  </span>
-
-                  <b>
-
-                    {hasExperience ||
-
-                    (hours === 8 &&
-
-                      PRICE_PER_DAY > 0)
-
-                      ? money(
-
-                          ownerAmount,
-
-                          currency
-
-                        )
-
-                      : `${money(PRICE_PER_DAY, currency)} / ${formatDuration(8, lang)}`}
-
-                  </b>
-
+                  <span>{quote?.routeTitle || experienceTitle || copy.boatRate}</span>
+                  <b>{ownerAmount ? money(ownerAmount, currency) : "—"}</b>
                 </div>
                 <div>
                   <span>{copy.summaryDuration}</span>
@@ -928,10 +951,10 @@ export default function RequestPage() {
 
             <div className="submit-row">
               <button
-                className="button request-submit"
+                className={`request-submit ${canSubmit ? "is-active" : "is-disabled"}`}
                 type="submit"
                 disabled={!canSubmit}
-                style={{ cursor: canSubmit ? "pointer" : "not-allowed" }}
+                aria-label={canSubmit ? copy.continueAuthorization : (quoteError ? quoteErrorText : copy.requiredFields)}
               >
                 {busy ? copy.preparing : copy.continueAuthorization}
               </button>
@@ -1217,8 +1240,30 @@ export default function RequestPage() {
 
         .request-submit {
           min-height: 48px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           padding-left: 18px;
           padding-right: 18px;
+          border-radius: 12px;
+          font-weight: 900;
+          text-decoration: none;
+        }
+
+        .request-submit.is-active {
+          border: 1px solid rgba(248, 214, 111, 0.9);
+          background: rgb(248, 214, 111);
+          color: rgb(25, 28, 31);
+          box-shadow: 0 12px 28px rgba(248, 214, 111, 0.18);
+          cursor: pointer;
+        }
+
+        .request-submit.is-disabled {
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.58);
+          box-shadow: none;
+          cursor: not-allowed;
         }
 
         @media (max-width: 820px) {
