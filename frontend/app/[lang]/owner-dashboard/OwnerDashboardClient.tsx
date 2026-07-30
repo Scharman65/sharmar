@@ -2217,16 +2217,19 @@ useEffect(() => {
             <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).profile}</h2>
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 14 }}>
               {[
-                ["firstName", lang === "ru" ? "Имя" : lang === "me" ? "Ime" : "First name"],
-                ["lastName", lang === "ru" ? "Фамилия" : lang === "me" ? "Prezime" : "Last name"],
-                ["companyName", lang === "ru" ? "Компания" : lang === "me" ? "Kompanija" : "Company"],
-                ["phone", lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone"],
-                ["whatsappNumber", "WhatsApp"],
-                ["country", lang === "ru" ? "Страна" : lang === "me" ? "Država" : "Country"],
-              ].map(([key, label]) => (
+                { key: "firstName", label: lang === "ru" ? "Имя" : lang === "me" ? "Ime" : "First name", name: "given-name", autoComplete: "given-name", inputMode: "text" as const },
+                { key: "lastName", label: lang === "ru" ? "Фамилия" : lang === "me" ? "Prezime" : "Last name", name: "family-name", autoComplete: "family-name", inputMode: "text" as const },
+                { key: "companyName", label: lang === "ru" ? "Компания" : lang === "me" ? "Kompanija" : "Company", name: "organization", autoComplete: "organization", inputMode: "text" as const },
+                { key: "phone", label: lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone", name: "tel", autoComplete: "tel", inputMode: "tel" as const },
+                { key: "whatsappNumber", label: "WhatsApp", name: "whatsapp-number", autoComplete: "tel", inputMode: "tel" as const },
+                { key: "country", label: lang === "ru" ? "Страна" : lang === "me" ? "Država" : "Country", name: "country-name", autoComplete: "country-name", inputMode: "text" as const },
+              ].map(({ key, label, name, autoComplete, inputMode }) => (
                 <label key={key} style={{ display: "grid", gap: 4 }}>
                   <span className="kicker" style={{ margin: 0 }}>{label}</span>
                   <input
+                    name={name}
+                    autoComplete={autoComplete}
+                    inputMode={inputMode}
                     value={(profileForm || profileToForm(data.ownerProfile))[key as keyof ProfileFormState]}
                     onChange={(event) => setProfileForm((prev) => ({
                       ...(prev || profileToForm(data.ownerProfile)),
