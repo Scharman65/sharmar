@@ -17,6 +17,13 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuthenticatedOwner(req);
   if (!auth.ok) return auth.response;
 
+  if (auth.auth.ownerProfile?.email_verified !== true) {
+    return jsonError("owner_email_not_verified", 409);
+  }
+  if (auth.auth.ownerProfile?.whatsapp_verified !== true) {
+    return jsonError("owner_whatsapp_not_verified", 409);
+  }
+
   let body: Record<string, unknown>;
   try {
     const parsed = await req.json();

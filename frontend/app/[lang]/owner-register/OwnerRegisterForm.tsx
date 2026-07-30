@@ -46,6 +46,7 @@ function pageCopy(lang: string): RegisterCopy {
       errors: {
         missing_required_fields: "Заполните все обязательные поля.",
         invalid_email: "Введите корректный email.",
+        invalid_whatsapp_number: "Введите WhatsApp в международном формате, например +38268123456.",
         password_too_short: "Пароль должен содержать минимум 8 символов.",
         password_mismatch: "Пароли не совпадают.",
         terms_required: "Необходимо принять условия сервиса.",
@@ -78,6 +79,7 @@ function pageCopy(lang: string): RegisterCopy {
       errors: {
         missing_required_fields: "Popunite sva obavezna polja.",
         invalid_email: "Unesite ispravan email.",
+        invalid_whatsapp_number: "Unesite WhatsApp u međunarodnom formatu, na primjer +38268123456.",
         password_too_short: "Lozinka mora imati najmanje 8 karaktera.",
         password_mismatch: "Lozinke se ne poklapaju.",
         terms_required: "Morate prihvatiti uslove korišćenja.",
@@ -109,6 +111,7 @@ function pageCopy(lang: string): RegisterCopy {
     errors: {
       missing_required_fields: "Fill in all required fields.",
       invalid_email: "Enter a valid email address.",
+      invalid_whatsapp_number: "Enter WhatsApp in international format, for example +38268123456.",
       password_too_short: "Password must be at least 8 characters.",
       password_mismatch: "Passwords do not match.",
       terms_required: "You must accept the service terms.",
@@ -282,7 +285,18 @@ export default function OwnerRegisterForm() {
 
           {formError ? <p style={{ color: "#b91c1c", margin: 0 }}>{formError}</p> : null}
 
-          <button className="button" type="submit" disabled={isLoading}>
+          <button
+            className="button"
+            type="submit"
+            disabled={isLoading}
+            style={{
+              background: isLoading ? "#475569" : "#0f766e",
+              border: "1px solid #0f766e",
+              color: "#ffffff",
+              fontWeight: 800,
+              opacity: 1,
+            }}
+          >
             {isLoading ? copy.registering : copy.register}
           </button>
 

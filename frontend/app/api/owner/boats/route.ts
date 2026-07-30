@@ -479,6 +479,20 @@ export async function POST(req: NextRequest) {
 
   const me = ownerAuth.auth.owner as StrapiUsersMe;
   const p = parsed.data;
+  if (
+    p.listingType === "rent" &&
+    p.instantBooking &&
+    (
+      ownerAuth.auth.ownerProfile?.email_verified !== true ||
+      ownerAuth.auth.ownerProfile?.whatsapp_verified !== true
+    )
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "owner_contact_verification_required" },
+      { status: 409, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   if (Array.isArray(p.imageIds) && p.imageIds.length > 0) {
     const mediaAllowed = await verifyOwnerMedia(me.id, p.imageIds);
     if (!mediaAllowed) {
@@ -650,6 +664,19 @@ export async function PATCH(req: NextRequest) {
   }
 
   const p = parsed.data;
+  if (
+    p.listingType === "rent" &&
+    p.instantBooking &&
+    (
+      ownerAuth.auth.ownerProfile?.email_verified !== true ||
+      ownerAuth.auth.ownerProfile?.whatsapp_verified !== true
+    )
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "owner_contact_verification_required" },
+      { status: 409, headers: { "cache-control": "no-store" } }
+    );
+  }
 
   const requestedImageIds = Array.isArray(p.imageIds) && p.imageIds.length > 0 ? p.imageIds : null;
   if (requestedImageIds) {

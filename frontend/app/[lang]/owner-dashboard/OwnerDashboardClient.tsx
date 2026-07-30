@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { MARKETPLACE_FEE_RATE, applyMarketplaceFee } from "@/lib/pricing";
 import { OwnerAvailabilityCalendar } from "@/components/owner/OwnerAvailabilityCalendar";
+import { OwnerContactVerificationPanel } from "@/components/owner/OwnerContactVerificationPanel";
 import {
   defaultPropulsionForVesselType,
   normalizePropulsion,
@@ -1943,6 +1944,9 @@ const boats = useMemo(() => data?.boats ?? [], [data]);
   const activeBookingsCount = Array.isArray(data?.activeBookings) ? data.activeBookings.length : 0;
   const activeHoldsCount = Array.isArray(data?.activeHolds) ? data.activeHolds.length : 0;
   const recentActivityCount = Array.isArray(data?.recentActivity) ? data.recentActivity.length : 0;
+  const contactsVerified =
+    data?.ownerProfile?.email_verified === true &&
+    data?.ownerProfile?.whatsapp_verified === true;
   const upcomingBookingsCount = ownerCalendarEvents.filter(
     (event) => event.displayType === "confirmed" && isUpcomingCalendarEvent(event)
   ).length;
@@ -2192,21 +2196,19 @@ useEffect(() => {
         </div>
 
         {!isLoading && !error && data?.ownerProfile ? (
-          <div className="card" style={{ marginTop: 18, padding: 18 }}>
+          <div id="owner-contact-verification" className="card" style={{ marginTop: 18, padding: 18 }}>
             <div style={{ fontWeight: 800, marginBottom: 10 }}>
               {lang === "ru" ? "Статус владельца" : lang === "me" ? "Status vlasnika" : "Owner status"}
             </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div>
-                Email: {data.ownerProfile.email_verified ? "✅" : "⏳"}
-              </div>
-              <div>
-                WhatsApp: {data.ownerProfile.whatsapp_verified ? "✅" : "⏳"} {data.ownerProfile.whatsapp_number || ""}
-              </div>
-              <div>
-                {copy.verification}: {verificationLabel(data.ownerProfile.verification_status, lang)}
-              </div>
+            <div>
+              {copy.verification}: {verificationLabel(data.ownerProfile.verification_status, lang)}
             </div>
+            <OwnerContactVerificationPanel
+              lang={lang}
+              ownerEmail={data.owner?.email}
+              profile={data.ownerProfile}
+              onVerified={refreshDashboard}
+            />
           </div>
         ) : null}
 
@@ -2505,6 +2507,16 @@ useEffect(() => {
                       href: `#${boatSetupAnchor(selectedBoat, "edit")}`,
                     },
                     {
+                      label: lang === "ru" ? "Email подтверждён" : lang === "me" ? "Email potvrđen" : "Email verified",
+                      done: data?.ownerProfile?.email_verified === true,
+                      href: "#owner-contact-verification",
+                    },
+                    {
+                      label: lang === "ru" ? "WhatsApp подтверждён" : lang === "me" ? "WhatsApp potvrđen" : "WhatsApp verified",
+                      done: data?.ownerProfile?.whatsapp_verified === true,
+                      href: "#owner-contact-verification",
+                    },
+                    {
                       label: copy.documents,
                       done: ownerHasRequiredDocuments(data),
                       href: "#owner-documents",
@@ -2625,11 +2637,20 @@ useEffect(() => {
                     ) : null}
 
                     {boat.documentId && !["submitted", "under_review", "approved", "published", "archived"].includes(boat.moderation_status || "draft") ? (
-                      <div id={boatSetupAnchor(boat, "submit-review")} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                      <div id={boatSetupAnchor(boat, "submit-review")} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                        {!contactsVerified ? (
+                          <p className="kicker" style={{ margin: 0, color: "#b45309", flexBasis: "100%" }}>
+                            {lang === "ru"
+                              ? "Сначала подтвердите email и WhatsApp."
+                              : lang === "me"
+                                ? "Prvo potvrdite email i WhatsApp."
+                                : "Verify email and WhatsApp first."}
+                          </p>
+                        ) : null}
                         <button
                           type="button"
                           className="button secondary"
-                          disabled={reviewBusy[boat.documentId] === true}
+                          disabled={reviewBusy[boat.documentId] === true || !contactsVerified}
                           onClick={() => submitBoatForReview(boat)}
                         >
                           {reviewBusy[boat.documentId] === true

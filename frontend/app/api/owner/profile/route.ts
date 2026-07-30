@@ -9,6 +9,7 @@ import {
   readJson,
   requireAuthenticatedOwner,
 } from "@/lib/auth/ownerApi";
+import { normalizeOwnerWhatsApp } from "@/lib/security/ownerContactVerification";
 
 const LANGS = new Set(["en", "ru", "me"]);
 
@@ -34,17 +35,29 @@ export async function PATCH(req: NextRequest) {
   if (!documentId || !serverToken) return jsonError("owner_profile_missing", 502);
 
   const preferredLanguage = asString(body.preferred_language);
+  const requestedWhatsApp = normalizeOwnerWhatsApp(body.whatsapp_number);
+  const currentWhatsApp = normalizeOwnerWhatsApp(auth.auth.ownerProfile?.whatsapp_number);
+
+  if (!requestedWhatsApp) return jsonError("invalid_whatsapp_number", 400);
+  if (
+    auth.auth.ownerProfile?.whatsapp_verified === true &&
+    currentWhatsApp &&
+    currentWhatsApp !== requestedWhatsApp
+  ) {
+    return jsonError("verified_whatsapp_change_requires_support", 409);
+  }
+
   const data = {
     first_name: cleanString(body.first_name, 80),
     last_name: cleanString(body.last_name, 80),
     company_name: cleanString(body.company_name, 120),
     phone: cleanString(body.phone, 80),
-    whatsapp_number: cleanString(body.whatsapp_number, 80),
+    whatsapp_number: requestedWhatsApp,
     country: cleanString(body.country, 80),
     preferred_language: preferredLanguage && LANGS.has(preferredLanguage) ? preferredLanguage : undefined,
   };
 
-  if (!data.first_name || !data.last_name || !data.whatsapp_number || !data.preferred_language) {
+  if (!data.first_name || !data.last_name || !data.preferred_language) {
     return jsonError("missing_required_profile_fields", 400);
   }
 

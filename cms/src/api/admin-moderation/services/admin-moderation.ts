@@ -1395,6 +1395,8 @@ async function moderateOwner(
       select: [
         "id",
         "verification_status",
+        "email_verified",
+        "whatsapp_verified",
         "documents_uploaded_at",
         "verified_at",
         "rejected_at",
@@ -1445,6 +1447,28 @@ async function moderateOwner(
     input.action === "approve" ||
     input.action === "verify"
   ) {
+    if (asBoolean(profile.email_verified) !== true) {
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ok: false,
+          code: "owner_email_not_verified",
+        },
+      };
+    }
+
+    if (asBoolean(profile.whatsapp_verified) !== true) {
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ok: false,
+          code: "owner_whatsapp_not_verified",
+        },
+      };
+    }
+
     const documents = await ownerDocumentCount(cms, profileId);
 
     if (documents < 1) {

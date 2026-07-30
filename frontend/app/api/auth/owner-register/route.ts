@@ -3,6 +3,8 @@ import { setOwnerSessionCookie } from "../owner-session/cookies";
 import { getOwnerInternalToken } from "@/lib/auth/ownerInternalAuth";
 import { getClientIp } from "@/lib/auth/ownerApi";
 import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
+import { sendOwnerVerificationEmail } from "@/lib/auth/ownerVerificationEmail";
+import { normalizeOwnerWhatsApp } from "@/lib/security/ownerContactVerification";
 
 type PreferredLanguage = "ru" | "me" | "en";
 
@@ -126,8 +128,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const whatsappNumber =
-    readString(body, "whatsapp_number");
+  const whatsappInput = readString(body, "whatsapp_number");
+  const whatsappNumber = normalizeOwnerWhatsApp(whatsappInput);
   const password = typeof body.password === "string" ? body.password : "";
   const confirmPassword = typeof body.confirm_password === "string" ? body.confirm_password : "";
   const preferredLanguage =
@@ -136,10 +138,11 @@ export async function POST(req: NextRequest) {
       : null;
   const acceptTerms = body.accept_terms === true;
 
-  if (!firstName || !lastName || !email || !whatsappNumber || !password || !confirmPassword || !preferredLanguage) {
+  if (!firstName || !lastName || !email || !whatsappInput || !password || !confirmPassword || !preferredLanguage) {
     return jsonError("missing_required_fields", 400);
   }
 
+  if (!whatsappNumber) return jsonError("invalid_whatsapp_number", 400);
   if (!EMAIL_RE.test(email)) return jsonError("invalid_email", 400);
   if (password.length < 8) return jsonError("password_too_short", 400);
   if (password !== confirmPassword) return jsonError("password_mismatch", 400);
@@ -208,11 +211,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const verificationEmail = await sendOwnerVerificationEmail({
+    userId,
+    email,
+    lang: preferredLanguage,
+  });
+
   const response = NextResponse.json(
     {
       ok: true,
       user_id: userId,
       owner_profile_created: profileJson.created === true,
+      verification_email_sent: verificationEmail.sent,
+      verification_email_code: verificationEmail.code,
     },
     { status: 200, headers: { "cache-control": "no-store" } }
   );
