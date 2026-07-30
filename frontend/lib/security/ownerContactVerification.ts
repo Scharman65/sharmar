@@ -217,17 +217,38 @@ export function nextOwnerContactVerificationStatus(input: {
 }
 
 function twilioVerifyConfig(env: NodeJS.ProcessEnv): {
-  accountSid: string;
-  authToken: string;
+  authUsername: string;
+  authPassword: string;
+  authMode: "api_key" | "auth_token";
   serviceSid: string;
 } | null {
+  const apiKeySid = asString(env.TWILIO_API_KEY_SID);
+  const apiKeySecret = asString(env.TWILIO_API_KEY_SECRET);
   const accountSid = asString(env.TWILIO_ACCOUNT_SID);
   const authToken = asString(env.TWILIO_AUTH_TOKEN);
   const serviceSid = asString(env.TWILIO_VERIFY_SERVICE_SID);
-  if (!/^AC[0-9a-fA-F]{32}$/.test(accountSid)) return null;
-  if (!authToken) return null;
+
   if (!/^VA[0-9a-fA-F]{32}$/.test(serviceSid)) return null;
-  return { accountSid, authToken, serviceSid };
+
+  if (/^SK[0-9a-fA-F]{32}$/.test(apiKeySid) && apiKeySecret) {
+    return {
+      authUsername: apiKeySid,
+      authPassword: apiKeySecret,
+      authMode: "api_key",
+      serviceSid,
+    };
+  }
+
+  if (/^AC[0-9a-fA-F]{32}$/.test(accountSid) && authToken) {
+    return {
+      authUsername: accountSid,
+      authPassword: authToken,
+      authMode: "auth_token",
+      serviceSid,
+    };
+  }
+
+  return null;
 }
 
 export function ownerWhatsAppVerificationReady(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -243,7 +264,7 @@ async function twilioVerifyRequest(input: {
   const config = twilioVerifyConfig(input.env);
   if (!config) return { ok: false, status: null, providerCode: "provider_not_configured" };
 
-  const auth = Buffer.from(`${config.accountSid}:${config.authToken}`).toString("base64");
+  const auth = Buffer.from(`${config.authUsername}:${config.authPassword}`).toString("base64");
   const fetchImpl = input.fetchImpl || fetch;
   const response = await fetchImpl(
     `https://verify.twilio.com/v2/Services/${encodeURIComponent(config.serviceSid)}/${input.path}`,
