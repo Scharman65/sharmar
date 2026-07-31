@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -200,12 +201,32 @@ function spawnLogged(command, args, options, logPath, prefix) {
 
 async function stopChild(child) {
   if (!child || child.exitCode !== null) return;
+
+  const gracefulExit = new Promise((resolve) => {
+    child.once("exit", () => resolve(true));
+  });
+
   child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    delay(5000),
+
+  const exitedGracefully = await Promise.race([
+    gracefulExit,
+    delay(5000).then(() => false),
   ]);
-  if (child.exitCode === null && !child.killed) child.kill("SIGKILL");
+
+  if (exitedGracefully || child.exitCode !== null) {
+    return;
+  }
+
+  const forcedExit = new Promise((resolve) => {
+    child.once("exit", () => resolve(true));
+  });
+
+  child.kill("SIGKILL");
+
+  await Promise.race([
+    forcedExit,
+    delay(5000).then(() => false),
+  ]);
 }
 
 async function waitForHttp(url, predicate = (res) => res.status < 500, timeoutMs = 90000) {
@@ -441,6 +462,10 @@ async function startStrapi(cmsDir, pgUrl, port, nextPort, dodoBaseUrl, extraEnv 
     SHARMAR_FRONTEND_NOTIFY_URL: `http://127.0.0.1:${nextPort}/api/internal/payment-paid-notify`,
     SHARMAR_INTERNAL_NOTIFY_SECRET: "test_internal_notify_secret",
     STRAPI_TELEMETRY_DISABLED: "true",
+    NO_UPDATE_NOTIFIER: "1",
+    npm_config_update_notifier: "false",
+    npm_config_fund: "false",
+    npm_config_audit: "false",
     BROWSER: "none",
     SHARMAR_NETWORK_LOG: networkLogPath,
     NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} --require ${join(outDir, "network-gate.cjs")}`.trim(),
@@ -457,6 +482,95 @@ async function startStrapi(cmsDir, pgUrl, port, nextPort, dodoBaseUrl, extraEnv 
   return child;
 }
 
+async function bootstrapCleanStrapiSchema(
+  cmsDir,
+  pgUrl,
+  port,
+  nextPort,
+  dodoBaseUrl
+) {
+  const databaseDir = join(cmsDir, "database");
+  const migrationsDir = join(databaseDir, "migrations");
+  const parkedDir = join(
+    databaseDir,
+    `migrations.project-parked-${process.pid}`
+  );
+
+  let bootstrapChild = null;
+  let migrationsParked = false;
+
+  if (existsSync(parkedDir)) {
+    rmSync(parkedDir, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  if (existsSync(migrationsDir)) {
+    renameSync(migrationsDir, parkedDir);
+    migrationsParked = true;
+  }
+
+  try {
+    log(
+      "clean schema bootstrap: project migrations parked"
+    );
+
+    bootstrapChild = await startStrapi(
+      cmsDir,
+      pgUrl,
+      port,
+      nextPort,
+      dodoBaseUrl
+    );
+
+    const requiredTables = [
+      "up_users",
+      "up_roles",
+      "up_users_role_lnk",
+      "owner_profiles",
+      "owner_profiles_user_lnk",
+      "boats",
+      "booking_requests",
+      "payments",
+    ];
+
+    for (const table of requiredTables) {
+      const result = await query(
+        pgUrl,
+        "select to_regclass($1) as table_name",
+        [`public.${table}`]
+      );
+
+      assert(
+        result.rows[0]?.table_name === table,
+        `clean schema bootstrap did not create ${table}`
+      );
+    }
+
+    log(
+      "clean schema bootstrap: standard schema verified"
+    );
+  } finally {
+    await stopChild(bootstrapChild);
+
+    if (migrationsParked) {
+      if (existsSync(migrationsDir)) {
+        rmSync(migrationsDir, {
+          recursive: true,
+          force: true,
+        });
+      }
+
+      renameSync(parkedDir, migrationsDir);
+
+      log(
+        "clean schema bootstrap: project migrations restored"
+      );
+    }
+  }
+}
+
 async function startNext(frontendDir, strapiPort, port) {
   const env = {
     ...process.env,
@@ -468,6 +582,10 @@ async function startNext(frontendDir, strapiPort, port) {
     SHARMAR_EMAIL_MOCK: "true",
     RESEND_API_KEY: "",
     NEXT_TELEMETRY_DISABLED: "1",
+    NO_UPDATE_NOTIFIER: "1",
+    npm_config_update_notifier: "false",
+    npm_config_fund: "false",
+    npm_config_audit: "false",
     SHARMAR_NETWORK_LOG: networkLogPath,
     NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} --require ${join(outDir, "network-gate.cjs")}`.trim(),
   };
@@ -515,10 +633,33 @@ async function main() {
   log("starting PostgreSQL 16 container");
   const pgUrl = await startPostgres();
 
+  const bootstrapPort = await freePort();
   const strapiPort = await freePort();
   const nextPort = await freePort();
-  log(`starting Strapi on ${strapiPort}`);
-  await startStrapi(cmsDst, pgUrl, strapiPort, nextPort, mock.baseUrl);
+
+  log(
+    `bootstrapping clean Strapi schema on ${bootstrapPort}`
+  );
+
+  await bootstrapCleanStrapiSchema(
+    cmsDst,
+    pgUrl,
+    bootstrapPort,
+    nextPort,
+    mock.baseUrl
+  );
+
+  log(
+    `starting Strapi with project migrations on ${strapiPort}`
+  );
+
+  await startStrapi(
+    cmsDst,
+    pgUrl,
+    strapiPort,
+    nextPort,
+    mock.baseUrl
+  );
   log(`starting Next on ${nextPort}`);
   await startNext(frontendDst, strapiPort, nextPort);
   await ensureRuntimeTables(pgUrl);

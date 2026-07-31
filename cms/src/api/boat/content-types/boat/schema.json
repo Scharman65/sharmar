@@ -451,6 +451,16 @@
           "localized": false
         }
       }
+    },
+    "timezone": {
+      "type": "text",
+      "default": "Europe/Podgorica",
+      "required": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
     }
   }
 }

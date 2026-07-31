@@ -19,13 +19,27 @@ module.exports = {
 
     await knex.raw(`
       alter table if exists public.up_users
-        add column if not exists must_change_password boolean not null default false;
+        add column if not exists must_change_password
+          boolean not null default false;
     `);
 
-    await knex.raw(`
-      update public.up_users
-      set must_change_password = false
-      where must_change_password is null;
-    `);
+    const hasUsers = await knex.schema.hasTable("up_users");
+
+    if (!hasUsers) {
+      return;
+    }
+
+    const hasMustChangePassword = await knex.schema.hasColumn(
+      "up_users",
+      "must_change_password"
+    );
+
+    if (!hasMustChangePassword) {
+      return;
+    }
+
+    await knex("up_users")
+      .whereNull("must_change_password")
+      .update({ must_change_password: false });
   },
 };
