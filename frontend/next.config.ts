@@ -5,6 +5,20 @@ const isDev = process.env.NODE_ENV !== "production";
 const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { turbopack: { root: __dirname } }),
 
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+        ],
+      },
+    ];
+  },
+
   images: {
     remotePatterns: [
       {
