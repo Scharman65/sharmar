@@ -254,7 +254,7 @@ export default async function OwnersPage({ params }: Props) {
         <section className="owner-section" aria-labelledby="countries-title">
           <div className="owner-section-head">
             <h2 id="countries-title">{copy.countriesTitle}</h2>
-            <p>Owner pages are available for Sharmar's current Mediterranean country layer.</p>
+            <p>Owner pages are available for Sharmar&apos;s current Mediterranean country layer.</p>
           </div>
           <div className="owner-grid">
             {COUNTRIES.map((country) => (

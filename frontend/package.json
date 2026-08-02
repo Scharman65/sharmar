@@ -7,7 +7,8 @@
     "prebuild": "node scripts/gen-version.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:owner-routes": "node scripts/test-owner-routes.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.1.0",

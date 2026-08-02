@@ -1138,6 +1138,55 @@ function boatSubmittedForReview(boat: OwnerBoat): boolean {
   return ["submitted", "under_review", "approved", "published"].includes(boat.moderation_status || "");
 }
 
+const OWNER_ROUTE_LIMIT = 3;
+
+function sameOwnerBoat(
+  left: OwnerBoat | null | undefined,
+  right: OwnerBoat | null | undefined,
+): boolean {
+  if (!left || !right) return false;
+
+  const leftDocumentId = String(left.documentId || "").trim();
+  const rightDocumentId = String(right.documentId || "").trim();
+
+  if (leftDocumentId && rightDocumentId) {
+    return leftDocumentId === rightDocumentId;
+  }
+
+  const leftId = Number(left.id);
+  const rightId = Number(right.id);
+
+  return (
+    Number.isFinite(leftId) &&
+    Number.isFinite(rightId) &&
+    leftId > 0 &&
+    leftId === rightId
+  );
+}
+
+function shouldShowOwnerRouteComposer(
+  boat: OwnerBoat,
+  selectedBoat: OwnerBoat | null | undefined,
+  routeCount: number,
+): boolean {
+  return (
+    Boolean(Number(boat.id) > 0) &&
+    sameOwnerBoat(boat, selectedBoat) &&
+    routeCount < OWNER_ROUTE_LIMIT
+  );
+}
+
+function shouldShowOwnerRouteLimitMessage(
+  boat: OwnerBoat,
+  selectedBoat: OwnerBoat | null | undefined,
+  routeCount: number,
+): boolean {
+  return (
+    sameOwnerBoat(boat, selectedBoat) &&
+    routeCount >= OWNER_ROUTE_LIMIT
+  );
+}
+
 export default function OwnerDashboardClient() {
   const params = useParams<{ lang?: string }>();
   const router = useRouter();
@@ -3041,7 +3090,11 @@ useEffect(() => {
                               </p>
                             )}
 
-                            {editingBoatDocumentId === boat.documentId && (boatExperiences[getBoatExperienceKey(boat)] || []).length < 3 ? (
+                            {shouldShowOwnerRouteComposer(
+                              boat,
+                              selectedBoat,
+                              (boatExperiences[getBoatExperienceKey(boat)] || []).length,
+                            ) ? (
                               <div style={{ display: "grid", gap: 10 }}>
                                 <input
                                   type="text"
@@ -3180,7 +3233,11 @@ useEffect(() => {
                                   {copy.saveRoute}
                                 </button>
                               </div>
-                            ) : editingBoatDocumentId === boat.documentId ? (
+                            ) : shouldShowOwnerRouteLimitMessage(
+                              boat,
+                              selectedBoat,
+                              (boatExperiences[getBoatExperienceKey(boat)] || []).length,
+                            ) ? (
                               <p className="kicker" style={{ margin: 0 }}>
                                 {copy.routeLimitReached}
                               </p>
