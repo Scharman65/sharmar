@@ -149,6 +149,57 @@ function shapeBoatRow(value: unknown): BoatRow | null {
   };
 }
 
+async function hydrateBoatMarinasFromRelationTable(
+  cms: StrapiLike,
+  rows: BoatRow[]
+): Promise<BoatRow[]> {
+  const missingIds = rows
+    .filter((row) => !(row.home_marina?.id || row.home_marina?.documentId || row.home_marina?.name))
+    .map((row) => row.id)
+    .filter((id): id is number => Number.isFinite(id));
+
+  if (!missingIds.length) return rows;
+
+  const placeholders = missingIds.map(() => "?").join(", ");
+  const result = await cms.db.connection.raw(
+    `
+      select
+        link.boat_id,
+        location.id,
+        location.document_id,
+        location.name
+      from public.boats_home_marina_lnk link
+      join public.locations location
+        on location.id = link.location_id
+      where link.boat_id in (${placeholders})
+      order by link.boat_id, link.id
+    `,
+    missingIds
+  );
+
+  const marinaByBoatId = new Map<
+    number,
+    { id: number | null; documentId: string | null; name: string | null }
+  >();
+
+  for (const value of rawRows(result)) {
+    const boatId = asNumber(value.boat_id);
+    if (!boatId || marinaByBoatId.has(boatId)) continue;
+
+    marinaByBoatId.set(boatId, {
+      id: asNumber(value.id),
+      documentId: asString(value.document_id),
+      name: asString(value.name),
+    });
+  }
+
+  return rows.map((row) => {
+    if (row.home_marina?.id || row.home_marina?.documentId || row.home_marina?.name) return row;
+    const fallback = marinaByBoatId.get(row.id);
+    return fallback ? { ...row, home_marina: fallback } : row;
+  });
+}
+
 function shapeExperienceRow(value: unknown): ExperienceRow | null {
   if (!isRecord(value)) return null;
 
@@ -408,9 +459,11 @@ async function loadBoatRows(
     limit: 100,
   });
 
-  return (Array.isArray(rows) ? rows : [])
+  const shapedRows = (Array.isArray(rows) ? rows : [])
     .map(shapeBoatRow)
     .filter((row): row is BoatRow => Boolean(row));
+
+  return hydrateBoatMarinasFromRelationTable(cms, shapedRows);
 }
 
 async function loadLinkedExperienceRows(
