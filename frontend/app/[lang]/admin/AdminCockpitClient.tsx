@@ -8,6 +8,7 @@ import {
   groupLogicalBoats,
   localeLabel,
   logicalDocumentCount,
+  resolveLogicalBoatSourceLocale,
   strapiLocaleFromLang,
   type LogicalBoat,
 } from "@/lib/adminUnifiedBoatWorkflow";
@@ -752,9 +753,19 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
   async function translateAndReview(boat: LogicalBoat) {
     if (pendingBoatAction) return;
-    const sourceLocale = strapiLocaleFromLang(lang);
-    const targetLocales = REQUIRED_ADMIN_LOCALES.filter((locale) => locale !== sourceLocale);
+    const preferredLocale = strapiLocaleFromLang(lang);
+    const sourceLocale = resolveLogicalBoatSourceLocale(boat, preferredLocale);
     const key = `translate:${boat.documentId}`;
+
+    if (!sourceLocale) {
+      setBoatMessages((current) => ({
+        ...current,
+        [boat.documentId]: adminErrorMessage(ui, "source_locale_not_found"),
+      }));
+      return;
+    }
+
+    const targetLocales = REQUIRED_ADMIN_LOCALES.filter((locale) => locale !== sourceLocale);
     setPendingBoatAction(key);
     setBoatMessages((current) => ({ ...current, [boat.documentId]: ui.loading }));
     try {

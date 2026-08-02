@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:owner-routes": "node scripts/test-owner-routes.mjs",
-    "test:owner-submit-review": "node scripts/test-owner-submit-review.mjs"
+    "test:owner-submit-review": "node scripts/test-owner-submit-review.mjs",
+    "test:admin-source-locale": "node scripts/test-admin-translation-source-locale.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.1.0",

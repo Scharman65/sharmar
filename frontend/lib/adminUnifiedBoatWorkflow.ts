@@ -110,6 +110,29 @@ export function strapiLocaleFromLang(lang: AdminLang): AdminLocale {
   return lang === "me" ? "sr-Latn-ME" : lang;
 }
 
+export function resolveLogicalBoatSourceLocale(
+  boat: LogicalBoat,
+  preferredLocale: AdminLocale,
+): AdminLocale | null {
+  if (boat.locales[preferredLocale]) return preferredLocale;
+
+  const primaryLocale = asText(boat.primary.locale);
+  if (
+    (primaryLocale === "en" ||
+      primaryLocale === "ru" ||
+      primaryLocale === "sr-Latn-ME") &&
+    boat.locales[primaryLocale]
+  ) {
+    return primaryLocale;
+  }
+
+  for (const locale of REQUIRED_ADMIN_LOCALES) {
+    if (boat.locales[locale]) return locale;
+  }
+
+  return null;
+}
+
 export function asText(value: unknown): string {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
