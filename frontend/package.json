@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:owner-routes": "node scripts/test-owner-routes.mjs"
+    "test:owner-routes": "node scripts/test-owner-routes.mjs",
+    "test:owner-submit-review": "node scripts/test-owner-submit-review.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.1.0",

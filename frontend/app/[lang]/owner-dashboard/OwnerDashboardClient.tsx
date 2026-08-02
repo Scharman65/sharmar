@@ -1605,41 +1605,6 @@ export default function OwnerDashboardClient() {
     }
   }
 
-  async function submitBoatForReview(boat: OwnerBoat) {
-    const documentId = boat.documentId;
-    if (!documentId) return;
-    setReviewBusy((prev) => ({ ...prev, [documentId]: true }));
-    setReviewMessage((prev) => {
-      const next = { ...prev };
-      delete next[documentId];
-      return next;
-    });
-    setReviewError((prev) => {
-      const next = { ...prev };
-      delete next[documentId];
-      return next;
-    });
-    try {
-      const res = await fetch("/api/owner/boats/submit-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({ documentId }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.code || "submit_for_review_failed");
-      setReviewMessage((prev) => ({ ...prev, [documentId]: pageCopy(lang).submittedForReview }));
-      await refreshDashboard();
-    } catch (err) {
-      setReviewError((prev) => ({
-        ...prev,
-        [documentId]: err instanceof Error ? err.message : "submit_for_review_failed",
-      }));
-    } finally {
-      setReviewBusy((prev) => ({ ...prev, [documentId]: false }));
-    }
-  }
-
   async function saveBoatEdit(boat: OwnerBoat): Promise<boolean> {
     const documentId = boat.documentId;
     if (!documentId) return false;
@@ -2699,18 +2664,31 @@ useEffect(() => {
                                 : "Verify email and WhatsApp first."}
                           </p>
                         ) : null}
-                        <button
-                          type="button"
-                          className="button secondary"
-                          disabled={reviewBusy[boat.documentId] === true || !contactsVerified}
-                          onClick={() => submitBoatForReview(boat)}
+                        <form
+                          method="POST"
+                          action="/api/owner/boats/submit-review"
+                          style={{ margin: 0 }}
                         >
-                          {reviewBusy[boat.documentId] === true
-                            ? pageCopy(lang).uploading
-                            : boat.moderation_status === "needs_changes" || boat.moderation_status === "rejected"
+                          <input
+                            type="hidden"
+                            name="documentId"
+                            value={boat.documentId}
+                          />
+                          <input
+                            type="hidden"
+                            name="returnTo"
+                            value={`/${lang}/owner-dashboard?createdBoat=${encodeURIComponent(boat.documentId)}#${boatSetupAnchor(boat, "submit-review")}`}
+                          />
+                          <button
+                            type="submit"
+                            className="button secondary"
+                            disabled={!contactsVerified}
+                          >
+                            {boat.moderation_status === "needs_changes" || boat.moderation_status === "rejected"
                               ? pageCopy(lang).resubmitForReview
                               : pageCopy(lang).submitForReview}
-                        </button>
+                          </button>
+                        </form>
                         {reviewMessage[boat.documentId] ? <p className="kicker" style={{ margin: 0, color: "#15803d" }}>{reviewMessage[boat.documentId]}</p> : null}
                         {reviewError[boat.documentId] ? <p className="kicker" style={{ margin: 0, color: "#b91c1c" }}>{reviewError[boat.documentId]}</p> : null}
                       </div>

@@ -24,16 +24,41 @@ export async function POST(req: NextRequest) {
     return jsonError("owner_whatsapp_not_verified", 409);
   }
 
+  const contentType = req.headers.get("content-type") || "";
+  const isNativeForm = contentType.includes("application/x-www-form-urlencoded")
+    || contentType.includes("multipart/form-data");
+
   let body: Record<string, unknown>;
   try {
-    const parsed = await req.json();
-    body = isRecord(parsed) ? parsed : {};
+    if (isNativeForm) {
+      const formData = await req.formData();
+      body = Object.fromEntries(formData.entries());
+    } else {
+      const parsed = await req.json();
+      body = isRecord(parsed) ? parsed : {};
+    }
   } catch {
     return jsonError("invalid_request", 400);
   }
 
   const documentId = asString(body.documentId);
-  if (!documentId) return jsonError("document_id_required", 400);
+  const returnTo = asString(body.returnTo);
+
+  const redirectWithResult = (result: "submitted" | "error", code?: string) => {
+    if (!isNativeForm || !returnTo) return null;
+
+    const target = new URL(returnTo, req.url);
+    target.searchParams.set("reviewResult", result);
+
+    if (code) target.searchParams.set("reviewCode", code);
+
+    return NextResponse.redirect(target, 303);
+  };
+
+  if (!documentId) {
+    return redirectWithResult("error", "document_id_required")
+      || jsonError("document_id_required", 400);
+  }
 
   const serverToken = getServerToken();
   if (!serverToken) return jsonError("server_token_missing", 500);
@@ -46,10 +71,16 @@ export async function POST(req: NextRequest) {
   const boats = isRecord(ownerBoatsRes.json) && Array.isArray(ownerBoatsRes.json.boats) ? ownerBoatsRes.json.boats : [];
   const ownedBoat = boats.find((item) => isRecord(item) && item.documentId === documentId);
 
-  if (!ownedBoat || !isRecord(ownedBoat)) return jsonError("boat_not_found_for_owner", 404);
+  if (!ownedBoat || !isRecord(ownedBoat)) {
+    return redirectWithResult("error", "boat_not_found_for_owner")
+      || jsonError("boat_not_found_for_owner", 404);
+  }
 
   const status = asString(ownedBoat.moderation_status) || "draft";
-  if (!SUBMITTABLE_STATUSES.has(status)) return jsonError("boat_not_submittable", 409);
+  if (!SUBMITTABLE_STATUSES.has(status)) {
+    return redirectWithResult("error", "boat_not_submittable")
+      || jsonError("boat_not_submittable", 409);
+  }
 
   const res = await fetch(`${getStrapiBase()}/api/boats/${encodeURIComponent(documentId)}?status=draft`, {
     method: "PUT",
@@ -68,8 +99,22 @@ export async function POST(req: NextRequest) {
   const json = await readJson(res);
 
   if (!res.ok) {
-    return NextResponse.json({ ok: false, code: "submit_for_review_failed", details: json }, { status: 502, headers: { "cache-control": "no-store" } });
+    return redirectWithResult("error", "submit_for_review_failed")
+      || NextResponse.json(
+        { ok: false, code: "submit_for_review_failed", details: json },
+        {
+          status: 502,
+          headers: { "cache-control": "no-store" },
+        },
+      );
   }
 
-  return NextResponse.json({ ok: true }, { status: 200, headers: { "cache-control": "no-store" } });
+  return redirectWithResult("submitted")
+    || NextResponse.json(
+      { ok: true },
+      {
+        status: 200,
+        headers: { "cache-control": "no-store" },
+      },
+    );
 }
