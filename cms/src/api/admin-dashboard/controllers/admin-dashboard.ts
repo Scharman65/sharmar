@@ -335,7 +335,12 @@ async function loadBoatOwnerLinks(warnings: string[]) {
         nullif(trim(concat(coalesce(op.first_name, ''), ' ', coalesce(op.last_name, ''))), '') as owner_display_name,
         op.phone as owner_phone,
         nullif(to_jsonb(u) ->> 'confirmed', '')::boolean as owner_confirmed,
-        nullif(to_jsonb(u) ->> 'blocked', '')::boolean as owner_blocked
+        nullif(to_jsonb(u) ->> 'blocked', '')::boolean as owner_blocked,
+        marina.id as home_marina_id,
+        marina.document_id as home_marina_document_id,
+        marina.name as home_marina_name,
+        marina.slug as home_marina_slug,
+        marina.locale as home_marina_locale
       from public.boats b
       left join public.up_users u
         on u.id = coalesce(b.owner_user_id, b.created_by_id)
@@ -343,6 +348,10 @@ async function loadBoatOwnerLinks(warnings: string[]) {
         on opul.user_id = u.id
       left join public.owner_profiles op
         on op.id = opul.owner_profile_id
+      left join public.boats_home_marina_lnk bhml
+        on bhml.boat_id = b.id
+      left join public.locations marina
+        on marina.id = bhml.location_id
       order by b.updated_at desc nulls last, b.id desc
       limit ?
       `,
@@ -362,6 +371,11 @@ async function loadBoatOwnerLinks(warnings: string[]) {
       owner_phone: nullableString(row.owner_phone),
       owner_confirmed: nullableBoolean(row.owner_confirmed),
       owner_blocked: nullableBoolean(row.owner_blocked),
+      home_marina_id: nullableNumber(row.home_marina_id),
+      home_marina_document_id: nullableString(row.home_marina_document_id),
+      home_marina_name: nullableString(row.home_marina_name),
+      home_marina_slug: nullableString(row.home_marina_slug),
+      home_marina_locale: nullableString(row.home_marina_locale),
     }));
   } catch (error) {
     warnings.push("Could not load boat owner links.");

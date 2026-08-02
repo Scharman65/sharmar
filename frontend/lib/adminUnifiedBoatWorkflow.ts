@@ -37,6 +37,11 @@ export type BoatOwnerLink = {
   owner_phone: string | null;
   owner_confirmed: boolean | null;
   owner_blocked: boolean | null;
+  home_marina_id: number | null;
+  home_marina_document_id: string | null;
+  home_marina_name: string | null;
+  home_marina_slug: string | null;
+  home_marina_locale: string | null;
 };
 
 const localeLabels: Record<AdminLocale, "EN" | "RU" | "ME"> = {
@@ -189,6 +194,11 @@ function normalizeBoatOwnerLink(item: unknown): BoatOwnerLink | null {
     owner_phone: asText(item.owner_phone) || null,
     owner_confirmed: asBoolean(item.owner_confirmed),
     owner_blocked: asBoolean(item.owner_blocked),
+    home_marina_id: asNumber(item.home_marina_id),
+    home_marina_document_id: asText(item.home_marina_document_id) || null,
+    home_marina_name: asText(item.home_marina_name) || null,
+    home_marina_slug: asText(item.home_marina_slug) || null,
+    home_marina_locale: asText(item.home_marina_locale) || null,
   };
 }
 
@@ -225,6 +235,28 @@ function applyOwnerLink<T extends JsonRecord>(boat: T, link: BoatOwnerLink): T {
     owner_blocked:
       link.owner_blocked ??
       (typeof boat.owner_blocked === "boolean" ? boat.owner_blocked : null),
+    home_marina_id:
+      link.home_marina_id ?? asNumber(boat.home_marina_id) ?? null,
+    home_marina_document_id:
+      (link.home_marina_document_id ?? asText(boat.home_marina_document_id)) || null,
+    marina_name:
+      (link.home_marina_name ??
+        asText(boat.marina_name) ??
+        asText(boat.home_marina_name)) || null,
+    marina_slug:
+      (link.home_marina_slug ??
+        asText(boat.marina_slug) ??
+        asText(boat.home_marina_slug)) || null,
+    home_marina_name:
+      (link.home_marina_name ??
+        asText(boat.home_marina_name) ??
+        asText(boat.marina_name)) || null,
+    home_marina_slug:
+      (link.home_marina_slug ??
+        asText(boat.home_marina_slug) ??
+        asText(boat.marina_slug)) || null,
+    home_marina_locale:
+      (link.home_marina_locale ?? asText(boat.home_marina_locale)) || null,
   };
 }
 

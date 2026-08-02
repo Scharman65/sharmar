@@ -437,3 +437,37 @@ test("RU, EN, and ME user-visible copy contains the required button text without
   assert.ok(cockpit.includes("Publish"));
   assert.ok(cockpit.includes("Objavi"));
 });
+
+test("protected summary marina is merged into boat rows", () => {
+  const rows = [
+    boat("en", { id: 2, documentId: "oceanis-doc", marina_name: "", home_marina_name: "" }),
+    boat("ru", { id: 1, documentId: "oceanis-doc", marina_name: "", home_marina_name: "" }),
+    boat("sr-Latn-ME", { id: 3, documentId: "oceanis-doc", marina_name: "", home_marina_name: "" }),
+  ];
+
+  const merged = mergeBoatOwnerLinks(rows, [
+    {
+      boat_id: 2,
+      boat_document_id: "oceanis-doc",
+      boat_locale: "en",
+      owner_user_id: 1,
+      created_by_id: null,
+      owner_profile_id: 1,
+      owner_email: "owner@example.com",
+      owner_username: "owner",
+      owner_display_name: "Owner",
+      owner_phone: null,
+      owner_confirmed: true,
+      owner_blocked: false,
+      home_marina_id: 23,
+      home_marina_document_id: "wcbpi4jzwqqje4l0yvbwote2",
+      home_marina_name: "Herceg Novi",
+      home_marina_slug: "herceg-novi",
+      home_marina_locale: "en",
+    },
+  ]);
+
+  const logicalBoats = groupLogicalBoats(merged, completeRoutes, "en");
+  assert.equal(logicalBoats[0].primary.marina_name, "Herceg Novi");
+  assert.equal(logicalBoats[0].blockers.includes("Marina is missing."), false);
+});
