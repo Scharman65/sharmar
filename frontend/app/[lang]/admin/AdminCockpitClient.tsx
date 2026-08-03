@@ -1217,7 +1217,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                     const hasBoat = route.linkedRows.length > 0;
                     const missingFields = Array.from(
                       new Set(route.rows.flatMap((row) => textArray(row.missing_required_fields)))
-                    );
+                    ).filter((field) => !(hasBoat && field.trim().toLowerCase() === "boat"));
                     const maxGuestsMissing = asNumber(primary.max_guests) === null;
                     const history = routeEvents(primary, events);
 

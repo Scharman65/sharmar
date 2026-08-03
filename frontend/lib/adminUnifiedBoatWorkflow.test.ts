@@ -479,3 +479,11 @@ test("routes admin groups locale rows into logical route cards", () => {
   assert.ok(cockpit.includes("Technical route records"));
   assert.equal(cockpit.includes("{routes.map((route, index) =>"), false);
 });
+
+test("linked logical route hides stale technical boat blocker", () => {
+  assert.ok(
+    cockpit.includes(
+      '.filter((field) => !(hasBoat && field.trim().toLowerCase() === "boat"))'
+    )
+  );
+});
