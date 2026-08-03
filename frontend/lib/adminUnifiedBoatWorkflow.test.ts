@@ -471,3 +471,11 @@ test("protected summary marina is merged into boat rows", () => {
   assert.equal(logicalBoats[0].primary.marina_name, "Herceg Novi");
   assert.equal(logicalBoats[0].blockers.includes("Marina is missing."), false);
 });
+
+
+test("routes admin groups locale rows into logical route cards", () => {
+  assert.ok(cockpit.includes("const logicalRoutes = useMemo"));
+  assert.ok(cockpit.includes("logicalRoutes.map((route)"));
+  assert.ok(cockpit.includes("Technical route records"));
+  assert.equal(cockpit.includes("{routes.map((route, index) =>"), false);
+});

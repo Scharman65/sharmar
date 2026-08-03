@@ -611,6 +611,54 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   const routes = useMemo(() => data?.experiences ?? [], [data?.experiences]);
   const events = useMemo(() => data?.moderationEvents ?? [], [data?.moderationEvents]);
   const logicalBoats = useMemo(() => groupLogicalBoats(boats, routes, lang), [boats, routes, lang]);
+  const logicalRoutes = useMemo(() => {
+    const preferredLocale = strapiLocaleFromLang(lang);
+    const groups = new Map<string, JsonRecord[]>();
+
+    for (const route of routes) {
+      const documentId = asText(route.documentId ?? route.document_id ?? route.id);
+      if (!documentId) continue;
+      const group = groups.get(documentId) ?? [];
+      group.push(route);
+      groups.set(documentId, group);
+    }
+
+    const score = (row: JsonRecord) => {
+      const linked = asText(row.boatDocumentId) ? 1000 : 0;
+      const draft = asText(row.publishedAt ?? row.published_at) ? 0 : 100;
+      const updated = Date.parse(asText(row.updated_at)) || 0;
+      return linked + draft + updated / 1_000_000_000_000;
+    };
+
+    return Array.from(groups.entries()).map(([documentId, rows]) => {
+      const sorted = [...rows].sort((a, b) => score(b) - score(a));
+      const primary =
+        sorted.find((row) => asText(row.locale) === preferredLocale && asText(row.boatDocumentId)) ??
+        sorted.find((row) => asText(row.locale) === preferredLocale) ??
+        sorted.find((row) => asText(row.boatDocumentId)) ??
+        sorted[0];
+
+      const localeRows = Object.fromEntries(
+        REQUIRED_ADMIN_LOCALES.map((locale) => [
+          locale,
+          sorted.find((row) => asText(row.locale) === locale && asText(row.boatDocumentId)) ??
+            sorted.find((row) => asText(row.locale) === locale) ??
+            null,
+        ])
+      ) as Record<(typeof REQUIRED_ADMIN_LOCALES)[number], JsonRecord | null>;
+
+      const linkedRows = sorted.filter((row) => asText(row.boatDocumentId));
+      const orphanPublished = sorted.some(
+        (row) => Boolean(asText(row.publishedAt ?? row.published_at)) && !asText(row.boatDocumentId)
+      );
+
+      return { documentId, rows: sorted, primary, localeRows, linkedRows, orphanPublished };
+    }).sort((a, b) => {
+      const aUpdated = Date.parse(asText(a.primary.updated_at)) || 0;
+      const bUpdated = Date.parse(asText(b.primary.updated_at)) || 0;
+      return bUpdated - aUpdated;
+    });
+  }, [routes, lang]);
   const documents = owners.flatMap((owner) =>
     docList(owner).map((document) => ({
       ...document,
@@ -1150,55 +1198,96 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
               {active === "routes" ? (
                 <section className="admin-list">
-                  <AdminCrudManager lang={lang} entity="experience" dashboardRows={routes} onRefresh={loadDashboard} />
-                  {routes.map((route, index) => {
-                    const hasBoat = Boolean(asText(route.boatDocumentId));
-                    const locales = textArray(route.available_locales);
-                    const missingFields = textArray(route.missing_required_fields);
-                    const history = routeEvents(route, events);
+                  <details className="advanced-area">
+                    <summary>
+                      {lang === "ru" ? "Технические записи маршрутов" : lang === "me" ? "Tehnički zapisi ruta" : "Technical route records"}
+                    </summary>
+                    <p className="admin-muted">
+                      {lang === "ru"
+                        ? "Сырые строки Strapi и сервисные действия. Основной список ниже сгруппирован по маршрутам."
+                        : lang === "me"
+                          ? "Sirovi Strapi redovi i servisne radnje. Glavna lista ispod je grupisana po rutama."
+                          : "Raw Strapi rows and maintenance actions. The main list below is grouped by route."}
+                    </p>
+                    <AdminCrudManager lang={lang} entity="experience" dashboardRows={routes} onRefresh={loadDashboard} />
+                  </details>
+
+                  {logicalRoutes.map((route) => {
+                    const primary = route.primary;
+                    const hasBoat = route.linkedRows.length > 0;
+                    const missingFields = Array.from(
+                      new Set(route.rows.flatMap((row) => textArray(row.missing_required_fields)))
+                    );
+                    const maxGuestsMissing = asNumber(primary.max_guests) === null;
+                    const history = routeEvents(primary, events);
+
                     return (
-                      <article className="admin-card" key={`${display(route.documentId ?? route.id, lang)}-${index}`}>
+                      <article className="admin-card logical-route-card" key={route.documentId}>
                         <div className="admin-row">
                           <div>
-                            <h2>{display(route.title, lang)}</h2>
-                            <p>{hasBoat ? display(route.boatTitle, lang) : ui.routeNotAssigned}</p>
+                            <p className="kicker">{hasBoat ? display(primary.boatTitle, lang) : ui.routeNotAssigned}</p>
+                            <h2>{display(primary.title, lang)}</h2>
+                            <p>{display(primary.short_description ?? primary.full_description, lang)}</p>
                           </div>
-                          <strong>{statusLabel(lang, route.moderation_status ?? route.state)}</strong>
+                          <div className="route-status-stack">
+                            <strong>{statusLabel(lang, primary.moderation_status ?? primary.state)}</strong>
+                            <span className="admin-muted">
+                              {REQUIRED_ADMIN_LOCALES.map((locale) => `${localeLabel(locale)} ${route.localeRows[locale] ? "✓" : "—"}`).join(" · ")}
+                            </span>
+                          </div>
                         </div>
-                        {!hasBoat ? <p className="admin-warning">{ui.cannotPublishRoute}</p> : null}
-                        {!route.translation_complete ? <p className="admin-warning">{ui.translationIncomplete}</p> : null}
-                        <dl className="admin-fields">
-                          <div><dt>{ui.labels.owner}</dt><dd>{display(route.owner_display_name ?? route.owner_email, lang)}</dd></div>
-                          <div><dt>{ui.labels.linkedBoat}</dt><dd>{hasBoat ? display(route.boatTitle, lang) : ui.routeNotAssigned}</dd></div>
-                          <div><dt>{ui.labels.sourceLanguage}</dt><dd>{display(route.locale, lang)}</dd></div>
-                          <div><dt>{ui.labels.availableLocales}</dt><dd>{locales.length ? locales.join(", ") : copy[lang].missing}</dd></div>
-                          <div><dt>{ui.labels.locale}</dt><dd>{display(route.locale, lang)}</dd></div>
-                          <div><dt>{ui.labels.duration}</dt><dd>{display(route.duration_hours, lang)}</dd></div>
-                          <div><dt>{ui.labels.price}</dt><dd>{display(route.price, lang)} {display(route.currency ?? "EUR", lang)}</dd></div>
-                          <div><dt>{ui.labels.maxGuests}</dt><dd>{display(route.max_guests, lang)}</dd></div>
-                          <div><dt>{ui.labels.cover}</dt><dd>{display((asNumber(route.cover_count) ?? 0) > 0, lang)}</dd></div>
-                          <div><dt>{ui.labels.gallery}</dt><dd>{display(route.gallery_count ?? route.cover_count, lang)}</dd></div>
-                          <div><dt>{ui.labels.publication}</dt><dd>{statusLabel(lang, route.state)}</dd></div>
-                          <div><dt>{ui.labels.status}</dt><dd>{statusLabel(lang, route.moderation_status)}</dd></div>
-                          <div><dt>{ui.labels.created}</dt><dd>{display(route.created_at, lang)}</dd></div>
-                          <div><dt>{ui.labels.updated}</dt><dd>{display(route.updated_at, lang)}</dd></div>
-                          <div><dt>{ui.labels.isActive}</dt><dd>{display(route.is_active, lang)}</dd></div>
-                          <div><dt>{ui.labels.boatStatus}</dt><dd>{statusLabel(lang, route.boatModerationStatus)}</dd></div>
-                          <div><dt>{ui.labels.boatPublication}</dt><dd>{statusLabel(lang, route.boatState)}</dd></div>
-                          <div><dt>{ui.labels.translationCompleteness}</dt><dd>{route.translation_complete ? "✓" : ui.translationIncomplete}</dd></div>
-                          <div><dt>{ui.labels.missingFields}</dt><dd>{missingFields.length ? missingFields.join(", ") : "✓"}</dd></div>
+
+                        {route.orphanPublished ? (
+                          <p className="admin-warning">
+                            {lang === "ru"
+                              ? "Есть старая опубликованная строка без связи с лодкой. Она скрыта из основного представления."
+                              : lang === "me"
+                                ? "Postoji stari objavljeni red bez veze sa plovilom. Skriven je iz glavnog prikaza."
+                                : "An old published row without a boat link exists and is hidden from the main view."}
+                          </p>
+                        ) : null}
+
+                        {!hasBoat || maxGuestsMissing || missingFields.length ? (
+                          <div className="admin-warning">
+                            <strong>{ui.labels.blockers}</strong>
+                            <ul>
+                              {!hasBoat ? <li>{ui.routeNotAssigned}</li> : null}
+                              {maxGuestsMissing ? <li>{ui.labels.maxGuests}</li> : null}
+                              {missingFields.map((field) => <li key={field}>{field}</li>)}
+                            </ul>
+                          </div>
+                        ) : null}
+
+                        <dl className="admin-fields compact">
+                          <div><dt>{ui.labels.owner}</dt><dd>{display(primary.owner_display_name ?? primary.owner_email, lang)}</dd></div>
+                          <div><dt>{ui.labels.linkedBoat}</dt><dd>{hasBoat ? display(primary.boatTitle, lang) : ui.routeNotAssigned}</dd></div>
+                          <div><dt>{ui.labels.duration}</dt><dd>{display(primary.duration_hours, lang)}</dd></div>
+                          <div><dt>{ui.labels.price}</dt><dd>{routePrice(primary, lang)}</dd></div>
+                          <div><dt>{ui.labels.maxGuests}</dt><dd>{display(primary.max_guests, lang)}</dd></div>
+                          <div><dt>{ui.labels.status}</dt><dd>{statusLabel(lang, primary.moderation_status)}</dd></div>
                         </dl>
-                        <dl className="admin-fields">
-                          <div><dt>{ui.labels.shortDescription}</dt><dd>{display(route.short_description, lang)}</dd></div>
-                          <div><dt>{ui.labels.fullDescription}</dt><dd>{display(route.full_description, lang)}</dd></div>
-                          <div><dt>{ui.labels.includedServices}</dt><dd>{display(route.included_services, lang)}</dd></div>
-                          <div><dt>{ui.labels.meetingPoint}</dt><dd>{display(route.meeting_point, lang)}</dd></div>
-                        </dl>
-                        {asText(route.boatDocumentId) ? (
-                          <a href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(asText(route.boatDocumentId))}`}>
+
+                        <div className="locale-grid">
+                          {REQUIRED_ADMIN_LOCALES.map((locale) => {
+                            const row = route.localeRows[locale];
+                            return (
+                              <div className="locale-row" key={locale}>
+                                <span>{localeLabel(locale)}</span>
+                                <strong>{row ? display(row.title, lang) : copy[lang].missing}</strong>
+                                <small className="admin-muted">
+                                  {row ? statusLabel(lang, row.moderation_status ?? row.state) : "—"}
+                                </small>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {hasBoat ? (
+                          <a href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(asText(primary.boatDocumentId))}`}>
                             {ui.actions.preview}
                           </a>
                         ) : null}
+
                         <details>
                           <summary>{ui.labels.moderationHistory}</summary>
                           {history.length ? (
@@ -1213,16 +1302,19 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                             <p className="admin-muted">{ui.empty}</p>
                           )}
                         </details>
+
                         <AdminModerationActions
                           lang={lang}
                           entityType="experience"
-                          documentId={asText(route.documentId)}
-                          status={asText(route.moderation_status)}
+                          documentId={route.documentId}
+                          status={asText(primary.moderation_status)}
                           onComplete={loadDashboard}
                         />
                       </article>
                     );
                   })}
+
+                  {!logicalRoutes.length ? <p className="admin-muted">{ui.empty}</p> : null}
                 </section>
               ) : null}
 
@@ -1419,6 +1511,20 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
         .route-review h3 {
           font-size: 18px;
           margin: 0 0 6px;
+        }
+        .logical-route-card {
+          display: grid;
+          gap: 14px;
+        }
+        .route-status-stack {
+          display: grid;
+          gap: 6px;
+          justify-items: end;
+          text-align: right;
+        }
+        .locale-row small {
+          display: block;
+          margin-top: 4px;
         }
         .compact {
           grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
