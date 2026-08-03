@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedOwner as getFreshOwnerAuth } from "@/lib/auth/ownerApi";
 import { verifyOwnerMedia } from "@/lib/auth/ownerMedia";
+import { validateRouteGuestLimit } from "@/lib/ownerExperienceCapacity";
 
 type JsonObject = Record<string, unknown>;
 
@@ -138,7 +139,10 @@ function parseCreateExperienceBody(body: unknown): { ok: true; data: ParsedCreat
   if (price == null || price <= 0 || price > 1000000) {
     return { ok: false, error: "price must be between 0 and 1000000" };
   }
-  if (maxGuests != null && (maxGuests < 1 || maxGuests > 200)) {
+  if (maxGuests == null) {
+    return { ok: false, error: "maxGuests is required" };
+  }
+  if (maxGuests < 1 || maxGuests > 200) {
     return { ok: false, error: "maxGuests is out of range" };
   }
   if (sortOrder == null || sortOrder < 0 || sortOrder > 10000) {
@@ -366,7 +370,7 @@ async function loadOwnedExperience(documentId: string, ownerId: number, serverTo
   if (boatId === null) return { ok: false as const, status: 409, error: "Experience boat relation is missing" };
   const ownerBoat = await getOwnerBoat(boatId, ownerId, serverToken);
   if (!ownerBoat.ok) return { ok: false as const, status: ownerBoat.status, error: ownerBoat.error };
-  return { ok: true as const, row, boatId };
+  return { ok: true as const, row, boatId, boat: ownerBoat.boat };
 }
 
 export async function PATCH(req: NextRequest) {
@@ -380,17 +384,41 @@ export async function PATCH(req: NextRequest) {
   const title = asString(body.title);
   const durationHours = asNumber(body.durationHours);
   const price = asNumber(body.price);
-  if (!documentId || !title || durationHours === null || durationHours <= 0 || durationHours > 24 || price === null || price <= 0) {
+  const maxGuests = asInteger(body.maxGuests);
+  if (!documentId || !title || durationHours === null || durationHours <= 0 || durationHours > 24 || price === null || price <= 0 || maxGuests === null) {
     return NextResponse.json({ ok: false, error: "Invalid experience fields" }, { status: 400, headers: { "cache-control": "no-store" } });
   }
   const owned = await loadOwnedExperience(documentId, freshAuth.auth.owner.id, serverToken);
   if (!owned.ok) return NextResponse.json({ ok: false, error: owned.error }, { status: owned.status, headers: { "cache-control": "no-store" } });
+  const guestLimit = validateRouteGuestLimit(
+    maxGuests,
+    owned.boat.capacity
+  );
+  if (!guestLimit.ok) {
+    return NextResponse.json(
+      { ok: false, error: guestLimit.error },
+      { status: 409, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   const coverId = extractNumberId(body.coverId);
   if (coverId) {
     const allowed = await verifyOwnerMedia(freshAuth.auth.owner.id, [coverId]);
     if (!allowed) return NextResponse.json({ ok: false, error: "Media files are not available for this owner" }, { status: 403 });
   }
-  const payload = { data: { title, slug: slugify(title), duration_hours: durationHours, price, short_description: asString(body.shortDescription), is_active: false, publishedAt: null, ...(coverId ? { cover: coverId } : {}) } };
+  const payload = {
+    data: {
+      title,
+      slug: slugify(title),
+      duration_hours: durationHours,
+      price,
+      short_description: asString(body.shortDescription),
+      max_guests: guestLimit.maxGuests,
+      is_active: false,
+      publishedAt: null,
+      ...(coverId ? { cover: coverId } : {}),
+    },
+  };
   const updated = await strapiJson(`/api/experiences/${encodeURIComponent(documentId)}?status=draft`, { method: "PUT", body: JSON.stringify(payload) }, serverToken);
   if (!updated.ok) return NextResponse.json({ ok: false, error: "Strapi update experience failed", status: updated.status, details: updated.json }, { status: 502 });
   return NextResponse.json({ ok: true, experience: isRecord(updated.json) ? updated.json.data ?? null : null }, { status: 200, headers: { "cache-control": "no-store" } });
@@ -469,6 +497,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const guestLimit = validateRouteGuestLimit(
+    p.maxGuests,
+    boatRes.boat.capacity
+  );
+  if (!guestLimit.ok) {
+    return NextResponse.json(
+      { ok: false, error: guestLimit.error },
+      { status: 409, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   const countRes = await countBoatExperiences(boatRes.boat, p.boatId, serverToken);
   if (!countRes.ok) {
     return NextResponse.json(
@@ -497,7 +536,7 @@ export async function POST(req: NextRequest) {
       full_description: p.fullDescription,
       included_services: p.includedServices,
       meeting_point: p.meetingPoint,
-      max_guests: p.maxGuests,
+      max_guests: guestLimit.maxGuests,
       sort_order: p.sortOrder,
       is_active: false,
       boat: p.boatId,
