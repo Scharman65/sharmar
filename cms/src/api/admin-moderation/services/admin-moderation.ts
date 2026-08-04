@@ -48,6 +48,7 @@ type BoatRow = {
   title: string | null;
   slug: string | null;
   moderation_status: string | null;
+  capacity: number | null;
   owner_user_id: number | null;
   created_by_id: number | null;
   home_marina?: { id?: number | null; documentId?: string | null; name?: string | null } | null;
@@ -63,6 +64,7 @@ type ExperienceRow = {
   duration_hours: number | null;
   price: number | null;
   currency: string | null;
+  max_guests: number | null;
   is_active: boolean | null;
   updatedAt: string | null;
   boat: BoatRow | null;
@@ -137,6 +139,7 @@ function shapeBoatRow(value: unknown): BoatRow | null {
     title: asString(value.title),
     slug: asString(value.slug),
     moderation_status: asString(value.moderation_status),
+    capacity: asNumber(value.capacity),
     owner_user_id: asNumber(value.owner_user_id),
     created_by_id: asNumber(value.created_by_id),
     home_marina: isRecord(value.home_marina)
@@ -218,6 +221,7 @@ function shapeExperienceRow(value: unknown): ExperienceRow | null {
     duration_hours: asNumber(value.duration_hours),
     price: asNumber(value.price),
     currency: asString(value.currency),
+    max_guests: asNumber(value.max_guests),
     is_active: asBoolean(value.is_active),
     updatedAt: asString(value.updatedAt ?? value.updated_at),
     boat: shapeBoatRow(value.boat),
@@ -448,6 +452,7 @@ async function loadBoatRows(
       "title",
       "slug",
       "moderation_status",
+      "capacity",
       "owner_user_id",
       "created_by_id",
     ],
@@ -492,6 +497,7 @@ async function loadLinkedExperienceRows(
           "title",
           "slug",
           "moderation_status",
+          "capacity",
           "owner_user_id",
           "created_by_id",
         ],
@@ -524,6 +530,7 @@ async function loadLinkedExperienceRows(
       "duration_hours",
       "price",
       "currency",
+      "max_guests",
       "is_active",
       "updatedAt",
     ],
@@ -537,6 +544,7 @@ async function loadLinkedExperienceRows(
           "title",
           "slug",
           "moderation_status",
+          "capacity",
           "owner_user_id",
           "created_by_id",
         ],
@@ -566,6 +574,7 @@ async function loadExperienceRows(
       "duration_hours",
       "price",
       "currency",
+      "max_guests",
       "is_active",
       "updatedAt",
     ],
@@ -579,6 +588,7 @@ async function loadExperienceRows(
           "title",
           "slug",
           "moderation_status",
+          "capacity",
           "owner_user_id",
           "created_by_id",
         ],
@@ -664,6 +674,47 @@ function incompleteExperiencePublishLocales(rows: ExperienceRow[]): Locale[] {
       row.currency !== "EUR"
     );
   });
+}
+
+function experienceGuestCapacityBlocker(
+  rows: ExperienceRow[]
+): string | null {
+  if (
+    rows.some(
+      (row) =>
+        row.max_guests === null ||
+        !Number.isInteger(row.max_guests) ||
+        row.max_guests < 1
+    )
+  ) {
+    return "route_max_guests_required";
+  }
+
+  if (
+    rows.some(
+      (row) =>
+        row.boat?.capacity === null ||
+        row.boat?.capacity === undefined ||
+        !Number.isInteger(row.boat.capacity) ||
+        row.boat.capacity < 1
+    )
+  ) {
+    return "route_boat_capacity_required";
+  }
+
+  if (
+    rows.some(
+      (row) =>
+        row.max_guests !== null &&
+        row.boat?.capacity !== null &&
+        row.boat?.capacity !== undefined &&
+        row.max_guests > row.boat.capacity
+    )
+  ) {
+    return "route_max_guests_exceeds_boat_capacity";
+  }
+
+  return null;
 }
 
 async function linkedBoatReadyForExperiencePublish(
@@ -795,6 +846,10 @@ async function planUnifiedBoatPublication(
     if (missingLocales.length) blockers.push(`route_required_locales_missing:${experienceDocumentId}`);
     if (incompleteLocales.length) blockers.push(`route_required_locales_incomplete:${experienceDocumentId}`);
     if (duplicateRouteLocales.length) blockers.push(`duplicate_route_localizations:${experienceDocumentId}`);
+    const capacityBlocker = experienceGuestCapacityBlocker(rows);
+    if (capacityBlocker) {
+      blockers.push(`${capacityBlocker}:${experienceDocumentId}`);
+    }
     if (!rows.every((row) => row.boat?.documentId === documentId)) {
       blockers.push(`invalid_boat_route_relation:${experienceDocumentId}`);
     }
@@ -1249,6 +1304,21 @@ async function moderateExperience(
       status: 409,
       body: { ok: false, code: "experience_boat_required" },
     };
+  }
+
+  if (input.action === "approve" || input.action === "publish") {
+    const capacityBlocker = experienceGuestCapacityBlocker(rows);
+
+    if (capacityBlocker) {
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ok: false,
+          code: capacityBlocker,
+        },
+      };
+    }
   }
 
   let ownerUserId: number | null =
