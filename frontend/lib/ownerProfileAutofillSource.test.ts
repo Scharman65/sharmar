@@ -10,7 +10,7 @@ const source = readFileSync(
   "utf8"
 );
 
-test("owner profile inputs use semantic autocomplete metadata", () => {
+test("owner profile inputs use deterministic autocomplete metadata", () => {
   const expectedMarkers = [
     'key: "firstName"',
     'name: "given-name"',
@@ -27,8 +27,8 @@ test("owner profile inputs use semantic autocomplete metadata", () => {
     'key: "whatsappNumber"',
     'name: "whatsapp-number"',
     'key: "country"',
-    'name: "country-name"',
-    'autoComplete: "country-name"',
+    'name: "sharmar-owner-country"',
+    'autoComplete: "off"',
   ];
 
   for (const marker of expectedMarkers) {
@@ -36,15 +36,75 @@ test("owner profile inputs use semantic autocomplete metadata", () => {
   }
 });
 
-test("country metadata cannot be interpreted as email autocomplete", () => {
-  const match = source.match(/\{\s*key:\s*"country",[\s\S]*?\n\s*\},/);
+test("country input is isolated from browser identity autofill", () => {
+  const match = source.match(
+    /\{\s*key:\s*"country",[\s\S]*?\n\s*\},/
+  );
+
   assert.ok(match, "country metadata block missing");
 
   const countryBlock = match[0];
-  assert.ok(countryBlock.includes('name: "country-name"'));
-  assert.ok(countryBlock.includes('autoComplete: "country-name"'));
-  assert.ok(countryBlock.includes('inputMode: "text"'));
-  assert.doesNotMatch(countryBlock, /autoComplete:\s*"email"/i);
+
+  assert.ok(
+    countryBlock.includes('name: "sharmar-owner-country"')
+  );
+  assert.ok(
+    countryBlock.includes('autoComplete: "off"')
+  );
+  assert.ok(
+    countryBlock.includes('inputMode: "text"')
+  );
+
+  assert.doesNotMatch(
+    countryBlock,
+    /name:\s*"country-name"/i
+  );
+
+  assert.doesNotMatch(
+    countryBlock,
+    /autoComplete:\s*"country-name"/i
+  );
+
+  assert.doesNotMatch(
+    countryBlock,
+    /autoComplete:\s*"email"/i
+  );
+});
+
+test("country values containing email syntax are sanitized", () => {
+  assert.ok(
+    source.includes(
+      'function sanitizeCountryValue(value: string | null | undefined): string'
+    )
+  );
+
+  assert.ok(
+    source.includes('return raw.includes("@") ? "" : raw;')
+  );
+
+  assert.ok(
+    source.includes(
+      'country: sanitizeCountryValue(profile?.country)'
+    )
+  );
+
+  assert.ok(
+    source.includes(
+      'country: sanitizeCountryValue(form.country)'
+    )
+  );
+
+  assert.ok(
+    source.includes(
+      'key === "country"'
+    )
+  );
+
+  assert.ok(
+    source.includes(
+      'sanitizeCountryValue(event.target.value)'
+    )
+  );
 });
 
 test("rendered owner profile input receives semantic attributes", () => {

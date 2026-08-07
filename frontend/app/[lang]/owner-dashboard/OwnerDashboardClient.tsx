@@ -1438,6 +1438,11 @@ export default function OwnerDashboardClient() {
     };
   }
 
+  function sanitizeCountryValue(value: string | null | undefined): string {
+    const raw = String(value ?? "");
+    return raw.includes("@") ? "" : raw;
+  }
+
   function profileToForm(profile: OwnerProfile | null | undefined): ProfileFormState {
     return {
       firstName: profile?.first_name ?? "",
@@ -1445,7 +1450,7 @@ export default function OwnerDashboardClient() {
       companyName: profile?.company_name ?? "",
       phone: profile?.phone ?? "",
       whatsappNumber: profile?.whatsapp_number ?? "",
-      country: profile?.country ?? "",
+      country: sanitizeCountryValue(profile?.country),
       preferredLanguage: profile?.preferred_language ?? (lang === "ru" || lang === "me" ? lang : "en"),
     };
   }
@@ -1563,7 +1568,7 @@ export default function OwnerDashboardClient() {
           company_name: form.companyName,
           phone: form.phone,
           whatsapp_number: form.whatsappNumber,
-          country: form.country,
+          country: sanitizeCountryValue(form.country),
           preferred_language: form.preferredLanguage,
         }),
       });
@@ -2236,7 +2241,7 @@ useEffect(() => {
                 { key: "companyName", label: lang === "ru" ? "Компания" : lang === "me" ? "Kompanija" : "Company", name: "organization", autoComplete: "organization", inputMode: "text" as const },
                 { key: "phone", label: lang === "ru" ? "Телефон" : lang === "me" ? "Telefon" : "Phone", name: "tel", autoComplete: "tel", inputMode: "tel" as const },
                 { key: "whatsappNumber", label: "WhatsApp", name: "whatsapp-number", autoComplete: "tel", inputMode: "tel" as const },
-                { key: "country", label: lang === "ru" ? "Страна" : lang === "me" ? "Država" : "Country", name: "country-name", autoComplete: "country-name", inputMode: "text" as const },
+                { key: "country", label: lang === "ru" ? "Страна" : lang === "me" ? "Država" : "Country", name: "sharmar-owner-country", autoComplete: "off", inputMode: "text" as const },
               ].map(({ key, label, name, autoComplete, inputMode }) => (
                 <label key={key} style={{ display: "grid", gap: 4 }}>
                   <span className="kicker" style={{ margin: 0 }}>{label}</span>
@@ -2247,7 +2252,9 @@ useEffect(() => {
                     value={(profileForm || profileToForm(data.ownerProfile))[key as keyof ProfileFormState]}
                     onChange={(event) => setProfileForm((prev) => ({
                       ...(prev || profileToForm(data.ownerProfile)),
-                      [key]: event.target.value,
+                      [key]: key === "country"
+                        ? sanitizeCountryValue(event.target.value)
+                        : event.target.value,
                     }))}
                   />
                 </label>
