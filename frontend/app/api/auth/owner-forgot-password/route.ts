@@ -24,6 +24,8 @@ import {
   RESET_TOKEN_TTL_MINUTES,
 } from "@/lib/security/ownerPassword";
 
+import { resendProviderErrorCode, resendSendSucceeded } from "@/lib/auth/resendSendResult";
+
 const NEUTRAL_BODY = { ok: true, code: "password_reset_if_registered" };
 
 function safeLang(value: unknown): "en" | "ru" | "me" {
@@ -92,13 +94,26 @@ async function sendResetEmail(to: string, message: { subject: string; text: stri
   }
 
   if (!resend) return false;
-  await resend.emails.send({
-    from: BOOKING_FROM,
+
+  const ownerPasswordResetFrom =
+    (process.env.OWNER_PASSWORD_RESET_EMAIL_FROM || "").trim() || BOOKING_FROM;
+
+  const result = await resend.emails.send({
+    from: ownerPasswordResetFrom,
     to,
     subject: message.subject,
     text: message.text,
     html: message.html,
   });
+
+  if (!resendSendSucceeded(result)) {
+    console.error("OWNER_PASSWORD_RESET_EMAIL_SEND_FAILED", {
+      code: resendProviderErrorCode(result.error),
+      hasEmailId: Boolean(result.data?.id),
+    });
+    return false;
+  }
+
   return true;
 }
 
