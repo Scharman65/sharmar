@@ -249,6 +249,14 @@ export async function POST(req: Request, ctx: RouteCtx) {
     return json(400, { ok: false, error: "invalid_action" });
   }
 
+  if (mapped === "owner-refund") {
+    return json(409, {
+      ok: false,
+      code: "external_refund_only",
+      error: "external_refund_only",
+    });
+  }
+
   const base =
     process.env.STRAPI_URL ||
     process.env.NEXT_PUBLIC_STRAPI_URL ||
@@ -261,9 +269,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
     return json(500, { ok: false, error: "missing_owner_action_token" });
   }
 
-  const url = mapped === "owner-refund"
-    ? `${String(base).replace(/\/+$/, "")}/api/booking-requests/${encodeURIComponent(cleanToken)}/${mapped}`
-    : `${String(base).replace(/\/+$/, "")}${mapped}`;
+  const url = `${String(base).replace(/\/+$/, "")}${mapped}`;
 
   try {
     const res = await fetch(url, {

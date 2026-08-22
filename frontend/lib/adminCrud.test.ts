@@ -13,6 +13,7 @@ function read(path: string): string {
 const contracts = read("lib/adminCrudContracts.ts");
 const routeHelper = read("lib/adminCrudRoute.ts");
 const cockpit = read("app/[lang]/admin/AdminCockpitClient.tsx");
+const boatControl = read("app/[lang]/admin/AdminBoatControlCenter.tsx");
 const manager = read("app/[lang]/admin/AdminCrudManager.tsx");
 const cmsRoutes = read("../cms/src/api/admin-crud/routes/admin-crud.ts");
 const cmsController = read("../cms/src/api/admin-crud/controllers/admin-crud.ts");
@@ -27,6 +28,10 @@ const ownerApi = read("lib/auth/ownerApi.ts");
 const ownerDashboard = read("app/api/owner/dashboard/route.ts");
 const ownerChangePassword = read("app/api/auth/owner-change-password/route.ts");
 const strapiClient = read("lib/strapi.ts");
+
+function compactWhitespace(source: string): string {
+  return source.replace(/\s+/g, " ").trim();
+}
 
 function blockBetween(source: string, start: string, end: string): string {
   const startIndex = source.indexOf(start);
@@ -108,7 +113,7 @@ test("schema and migration add true archive and forced-password fields additivel
   assert.ok(experienceSchema.includes('"archived_at"'));
   assert.ok(userExtension.includes("must_change_password"));
   assert.ok(archiveMigration.includes("add column if not exists archived_at"));
-  assert.ok(archiveMigration.includes("add column if not exists must_change_password boolean not null default false"));
+  assert.ok(compactWhitespace(archiveMigration).includes("add column if not exists must_change_password boolean not null default false"));
   assert.doesNotMatch(archiveMigration, /drop column|drop table|alter type/i);
 });
 
@@ -156,7 +161,7 @@ test("boats and experiences preserve moderation and publication contracts", () =
   assert.ok(experienceSchema.includes('"boat"'));
   assert.ok(cmsService.includes("validateExperienceBoat"));
   assert.ok(cmsService.includes("archived_at"));
-  assert.ok(cockpit.includes('entity="boat"'));
+  assert.ok((cockpit + boatControl).includes('entity="boat"'));
   assert.ok(cockpit.includes('entity="experience"'));
   assert.ok(manager.includes("Снять с публикации"));
 });

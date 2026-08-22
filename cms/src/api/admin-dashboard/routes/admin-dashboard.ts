@@ -8,5 +8,21 @@ export default {
         auth: false,
       },
     },
+    {
+      method: "GET",
+      path: "/admin-dashboard/marketplace-analytics",
+      handler: "admin-dashboard.marketplaceAnalytics",
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/admin-dashboard/booking-requests/:id/external-refund",
+      handler: "admin-dashboard.updateExternalRefund",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

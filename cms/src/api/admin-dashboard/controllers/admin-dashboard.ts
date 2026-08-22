@@ -55,6 +55,92 @@ function nullableBoolean(value) {
   return Boolean(value);
 }
 
+function invalidAdminToken(ctx) {
+  const expectedTokens = adminTokens();
+
+  if (!expectedTokens.length) {
+    ctx.status = 503;
+    ctx.body = {
+      ok: false,
+      error: "admin_token_missing",
+    };
+    return true;
+  }
+
+  const providedToken = requestToken(ctx);
+
+  if (
+    !providedToken ||
+    !expectedTokens.some((expectedToken) =>
+      tokenMatches(providedToken, expectedToken)
+    )
+  ) {
+    ctx.status = 401;
+    ctx.body = {
+      ok: false,
+      error: "admin_unauthorized",
+    };
+    return true;
+  }
+
+  return false;
+}
+
+function parsePeriod(value) {
+  const raw = String(value || "30").trim().toLowerCase();
+  if (raw === "all") return "all";
+  if (raw === "7") return 7;
+  if (raw === "30") return 30;
+  if (raw === "90") return 90;
+  return null;
+}
+
+function parseRecentLimit(value) {
+  if (value == null || value === "") return 25;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 100) return null;
+  return number;
+}
+
+function parseExternalRefundStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  return status === "none" || status === "required" || status === "completed"
+    ? status
+    : null;
+}
+
+type ExternalRefundStatus = "none" | "required" | "completed";
+type ExternalRefundTransition =
+  | { ok: true; idempotent: boolean }
+  | { ok: false; code: "external_refund_transition_invalid" | "external_refund_status_completed_terminal" };
+
+type ExternalRefundTransitionErrorCode =
+  Extract<ExternalRefundTransition, { ok: false }>["code"];
+
+type ExternalRefundUpdateResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code:
+        | ExternalRefundTransitionErrorCode
+        | "external_refund_transaction_unavailable"
+        | "booking_request_not_found"
+        | "external_refund_transition_conflict";
+    };
+
+export function resolveExternalRefundTransition(
+  current: ExternalRefundStatus,
+  next: ExternalRefundStatus
+): ExternalRefundTransition {
+  if (current === next) return { ok: true, idempotent: true };
+  if (current === "completed") return { ok: false, code: "external_refund_status_completed_terminal" };
+  if (current === "none" && next === "required") return { ok: true, idempotent: false };
+  if (current === "required" && (next === "completed" || next === "none")) {
+    return { ok: true, idempotent: false };
+  }
+  return { ok: false, code: "external_refund_transition_invalid" };
+}
+
 
 function jsonArray(value) {
   if (Array.isArray(value)) return value;
@@ -99,6 +185,9 @@ function mapBookingRequest(row) {
     marketplace_fee_amount: nullableNumber(row.marketplace_fee_amount),
     customer_total_amount: nullableNumber(row.customer_total_amount),
     currency: nullableString(row.currency),
+    external_refund_status: nullableString(row.external_refund_status) || "none",
+    external_refund_marked_at: nullableString(row.external_refund_marked_at),
+    external_refund_completed_at: nullableString(row.external_refund_completed_at),
     created_at: nullableString(row.created_at),
     updated_at: nullableString(row.updated_at),
   };
@@ -125,6 +214,9 @@ async function loadBookingRequests(warnings: string[]) {
         br.marketplace_fee_amount,
         br.customer_total_amount,
         br.currency,
+        br.external_refund_status,
+        br.external_refund_marked_at,
+        br.external_refund_completed_at,
         br.created_at,
         br.updated_at
       from public.booking_requests br
@@ -168,6 +260,9 @@ async function loadBookingRequests(warnings: string[]) {
         marketplace_fee_amount,
         customer_total_amount,
         currency,
+        external_refund_status,
+        external_refund_marked_at,
+        external_refund_completed_at,
         created_at,
         updated_at
       from public.booking_requests
@@ -189,20 +284,34 @@ async function loadPayments(warnings: string[]) {
     const result = await strapi.db.connection.raw(
       `
       select
-        id,
-        provider,
-        status,
-        booking_request_id,
-        amount_cents,
-        currency,
-        provider_intent_id,
-        metadata ->> 'provider_status' as provider_status,
-        metadata ->> 'last_event_type' as last_event_type,
-        metadata ->> 'webhook_received_at' as webhook_received_at,
-        created_at,
-        updated_at
-      from public.payments
-      order by created_at desc nulls last, id desc
+        p.id,
+        p.provider,
+        p.provider_intent_id,
+        p.amount_cents,
+        p.currency,
+        p.status,
+        p.booking_request_id,
+        min(b.document_id) as boat_document_id,
+        min(b.title) as boat_title,
+        min(marina.name) as marina_name,
+        p.metadata ->> 'provider_status' as provider_status,
+        p.metadata ->> 'last_event_type' as last_event_type,
+        p.metadata ->> 'webhook_received_at' as webhook_received_at,
+        p.created_at,
+        p.updated_at
+      from public.payments p
+      left join public.booking_requests br
+        on br.id = p.booking_request_id
+      left join public.booking_requests_boat_lnk bl
+        on bl.booking_request_id = br.id
+      left join public.boats b
+        on b.id = bl.boat_id
+      left join public.boats_home_marina_lnk bml
+        on bml.boat_id = b.id
+      left join public.locations marina
+        on marina.id = bml.location_id
+      group by p.id
+      order by p.created_at desc nulls last, p.id desc
       limit ?
       `,
       [ROW_LIMIT]
@@ -214,11 +323,15 @@ async function loadPayments(warnings: string[]) {
       return {
         id: nullableNumber(row.id),
         provider: nullableString(row.provider),
+        provider_intent_id: nullableString(row.provider_intent_id),
+        provider_payment_id: nullableString(row.provider_intent_id),
+        amount_cents: amountCents == null ? null : Math.trunc(amountCents),
+        currency: nullableString(row.currency),
         status: nullableString(row.status),
         booking_request_id: nullableNumber(row.booking_request_id),
-        amount: amountCents == null ? null : amountCents / 100,
-        currency: nullableString(row.currency),
-        provider_payment_id: nullableString(row.provider_intent_id),
+        boat_document_id: nullableString(row.boat_document_id),
+        boat_title: nullableString(row.boat_title),
+        marina_name: nullableString(row.marina_name),
         provider_status: nullableString(row.provider_status),
         last_event_type: nullableString(row.last_event_type),
         webhook_received_at: nullableString(row.webhook_received_at),
@@ -385,32 +498,7 @@ async function loadBoatOwnerLinks(warnings: string[]) {
 
 export default {
   async summary(ctx) {
-    const expectedTokens = adminTokens();
-
-    if (!expectedTokens.length) {
-      ctx.status = 503;
-      ctx.body = {
-        ok: false,
-        error: "admin_token_missing",
-      };
-      return;
-    }
-
-    const providedToken = requestToken(ctx);
-
-    if (
-      !providedToken ||
-      !expectedTokens.some((expectedToken) =>
-        tokenMatches(providedToken, expectedToken)
-      )
-    ) {
-      ctx.status = 401;
-      ctx.body = {
-        ok: false,
-        error: "admin_unauthorized",
-      };
-      return;
-    }
+    if (invalidAdminToken(ctx)) return;
 
     const warnings: string[] = [];
     const [bookingRequests, payments, owners, boatOwnerLinks, totalBookingRequests, totalPayments, totalOwners] = await Promise.all([
@@ -422,6 +510,8 @@ export default {
       countTable("public.payments", warnings, "payments"),
       countTable("public.owner_profiles", warnings, "owners"),
     ]);
+    const bookingRequestComplete = totalBookingRequests !== null && bookingRequests.length >= totalBookingRequests;
+    const paymentsComplete = totalPayments !== null && payments.length >= totalPayments;
 
     ctx.set("cache-control", "no-store");
     ctx.status = 200;
@@ -436,7 +526,199 @@ export default {
         totalPayments: totalPayments ?? payments.length,
         totalOwners: totalOwners ?? owners.length,
       },
+      collectionCompleteness: {
+        bookingRequests: {
+          rowLimit: ROW_LIMIT,
+          returned: bookingRequests.length,
+          total: totalBookingRequests,
+          complete: bookingRequestComplete,
+        },
+        payments: {
+          rowLimit: ROW_LIMIT,
+          returned: payments.length,
+          total: totalPayments,
+          complete: paymentsComplete,
+        },
+      },
       warnings,
+    };
+  },
+
+  async marketplaceAnalytics(ctx) {
+    if (invalidAdminToken(ctx)) return;
+
+    const period = parsePeriod(ctx.query?.period);
+    if (!period) {
+      ctx.status = 400;
+      ctx.body = {
+        ok: false,
+        code: "invalid_period",
+      };
+      return;
+    }
+
+    const recentLimit = parseRecentLimit(ctx.query?.recentLimit);
+    if (recentLimit === null) {
+      ctx.status = 400;
+      ctx.body = {
+        ok: false,
+        code: "invalid_recent_limit",
+      };
+      return;
+    }
+
+    const result = await strapi
+      .service("api::admin-dashboard.marketplace-analytics")
+      .build({ period, recentLimit });
+
+    ctx.set("cache-control", "no-store");
+    ctx.status = 200;
+    ctx.body = result;
+  },
+
+  async updateExternalRefund(ctx) {
+    if (invalidAdminToken(ctx)) return;
+
+    const id = Number(ctx.params?.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      ctx.status = 400;
+      ctx.body = { ok: false, code: "invalid_booking_request_id" };
+      return;
+    }
+
+    const data = ctx.request.body && typeof ctx.request.body === "object" && ctx.request.body.data
+      ? ctx.request.body.data
+      : ctx.request.body;
+    const keys = data && typeof data === "object" ? Object.keys(data) : [];
+    if (keys.length !== 1 || keys[0] !== "external_refund_status") {
+      ctx.status = 400;
+      ctx.body = { ok: false, code: "invalid_external_refund_payload" };
+      return;
+    }
+
+    const status = parseExternalRefundStatus(data.external_refund_status);
+    if (!status) {
+      ctx.status = 400;
+      ctx.body = { ok: false, code: "invalid_external_refund_status" };
+      return;
+    }
+
+    let row: any = null;
+    let previousStatus: ExternalRefundStatus = "none";
+    let transitionIdempotent = false;
+
+    const transitionResult: ExternalRefundUpdateResult = await strapi.db.transaction(
+      async ({ trx } = {}): Promise<ExternalRefundUpdateResult> => {
+      if (!trx) {
+        return { ok: false, code: "external_refund_transaction_unavailable" };
+      }
+
+      const current = await trx("public.booking_requests")
+        .select(
+          "id",
+          "status",
+          "external_refund_status",
+          "external_refund_marked_at",
+          "external_refund_completed_at"
+        )
+        .where({ id })
+        .forUpdate()
+        .first();
+
+      if (!current) return { ok: false, code: "booking_request_not_found" };
+
+      previousStatus = parseExternalRefundStatus(current.external_refund_status) || "none";
+      const transition = resolveExternalRefundTransition(previousStatus, status);
+      if (!transition.ok) return transition;
+      transitionIdempotent = transition.idempotent;
+
+      if (transition.idempotent) {
+        row = current;
+      }
+
+      const patch =
+        status === "none"
+          ? {
+              external_refund_status: "none",
+              external_refund_marked_at: null,
+              external_refund_completed_at: null,
+            }
+          : status === "required"
+            ? {
+                external_refund_status: "required",
+                external_refund_marked_at: trx.raw("coalesce(external_refund_marked_at, now())"),
+                external_refund_completed_at: null,
+              }
+            : {
+                external_refund_status: "completed",
+                external_refund_marked_at: trx.raw("coalesce(external_refund_marked_at, now())"),
+                external_refund_completed_at: trx.fn.now(),
+              };
+
+      if (!transition.idempotent) {
+        const updated = await trx("public.booking_requests")
+          .where({ id })
+          .andWhereRaw("coalesce(external_refund_status, 'none') = ?", [previousStatus])
+          .update({
+            ...patch,
+            updated_at: trx.fn.now(),
+          })
+          .returning([
+            "id",
+            "status",
+            "external_refund_status",
+            "external_refund_marked_at",
+            "external_refund_completed_at",
+          ]);
+
+        row = Array.isArray(updated) ? updated[0] : null;
+        if (!row) return { ok: false, code: "external_refund_transition_conflict" };
+      }
+
+      await strapi.db.query("api::moderation-event.moderation-event").create({
+        data: {
+          entity_type: "booking_request",
+          entity_id: id,
+          action: transition.idempotent
+            ? "external_refund_marker_idempotent"
+            : "external_refund_marker_update",
+          previous_status: previousStatus,
+          new_status: status,
+          actor: "sharmar-admin",
+          occurred_at: new Date().toISOString(),
+          metadata: {
+            bookingRequestId: id,
+            previousStatus,
+            newStatus: status,
+            externalRefundStatus: status,
+            idempotent: transition.idempotent,
+          },
+        },
+      });
+
+      return { ok: true };
+    });
+
+    if ("code" in transitionResult) {
+      ctx.status = transitionResult.code === "booking_request_not_found" ? 404 : 409;
+      ctx.body = { ok: false, code: transitionResult.code };
+      return;
+    }
+
+    ctx.set("cache-control", "no-store");
+    ctx.status = 200;
+    ctx.body = {
+      ok: true,
+      previous_status: previousStatus,
+      new_status: status,
+      idempotent: transitionIdempotent,
+      booking_request: {
+        id: row.id,
+        status: row.status || null,
+        external_refund_status: row.external_refund_status || "none",
+        external_refund_marked_at: row.external_refund_marked_at || null,
+        external_refund_completed_at: row.external_refund_completed_at || null,
+      },
     };
   },
 };

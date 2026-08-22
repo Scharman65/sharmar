@@ -87,6 +87,22 @@
     "decision_note": {
       "type": "text"
     },
+    "external_refund_status": {
+      "type": "enumeration",
+      "enum": [
+        "none",
+        "required",
+        "completed"
+      ],
+      "required": true,
+      "default": "none"
+    },
+    "external_refund_marked_at": {
+      "type": "datetime"
+    },
+    "external_refund_completed_at": {
+      "type": "datetime"
+    },
     "public_token": {
       "type": "string"
     },

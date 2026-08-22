@@ -423,6 +423,40 @@ function rowSearchText(row: JsonRecord): string {
     .toLowerCase();
 }
 
+function preferredLocale(lang: Lang): string {
+  return lang === "me" ? "sr-Latn-ME" : lang;
+}
+
+function boatTechnicalRowScore(row: JsonRecord, lang: Lang): number {
+  const localeScore = asText(row.locale) === preferredLocale(lang) ? 1_000_000 : 0;
+  const isPublished = Boolean(asText(row.publishedAt ?? row.published_at)) || asText(row.state) === "published";
+  const publishedScore = isPublished ? 100_000 : 0;
+  const updatedScore = Date.parse(asText(row.updated_at ?? row.updatedAt)) || 0;
+  return localeScore + publishedScore + updatedScore / 1_000_000_000_000;
+}
+
+function deduplicateRowsForEntity(entity: AdminCrudEntity, rows: JsonRecord[], lang: Lang): JsonRecord[] {
+  if (entity !== "boat") return rows;
+
+  const byDocumentId = new Map<string, JsonRecord>();
+  const withoutDocumentId: JsonRecord[] = [];
+
+  for (const row of rows) {
+    const documentId = asText(row.documentId);
+    if (!documentId) {
+      withoutDocumentId.push(row);
+      continue;
+    }
+
+    const current = byDocumentId.get(documentId);
+    if (!current || boatTechnicalRowScore(row, lang) > boatTechnicalRowScore(current, lang)) {
+      byDocumentId.set(documentId, row);
+    }
+  }
+
+  return [...byDocumentId.values(), ...withoutDocumentId];
+}
+
 type CrudCopy = (typeof copy)[Lang];
 
 function actionLabel(ui: CrudCopy, entity: AdminCrudEntity, action: AdminCrudAction): string {
@@ -500,8 +534,8 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
   }, [dashboardRows, entity]);
 
   const rows = useMemo(
-    () => remoteRows ?? dashboardRows,
-    [dashboardRows, remoteRows]
+    () => deduplicateRowsForEntity(entity, remoteRows ?? dashboardRows, lang),
+    [dashboardRows, entity, lang, remoteRows]
   );
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();

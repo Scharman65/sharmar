@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { Lang } from "@/i18n";
@@ -12,6 +11,7 @@ import {
   strapiLocaleFromLang,
   type LogicalBoat,
 } from "@/lib/adminUnifiedBoatWorkflow";
+import AdminBoatControlCenter from "./AdminBoatControlCenter";
 import AdminCrudManager from "./AdminCrudManager";
 import AdminModerationActions from "./AdminModerationActions";
 
@@ -31,6 +31,9 @@ type DashboardData = {
   owners?: JsonRecord[];
   boats?: JsonRecord[];
   experiences?: JsonRecord[];
+  bookingRequests?: JsonRecord[];
+  payments?: JsonRecord[];
+  feeSettings?: JsonRecord;
   moderationEvents?: JsonRecord[];
   warnings?: string[];
 };
@@ -559,36 +562,6 @@ function adminErrorMessage(ui: (typeof copy)[Lang], code: string | undefined): s
   return code ? errors[code] ?? `${ui.loadError} (${code}).` : ui.loadError;
 }
 
-function mediaList(row: JsonRecord): string[] {
-  const cover = asText(row.cover_url);
-  const images = Array.isArray(row.image_urls)
-    ? row.image_urls.map(asText).filter(Boolean)
-    : [];
-  return Array.from(new Set([cover, ...images].filter(Boolean)));
-}
-
-function routeMediaList(row: JsonRecord): string[] {
-  const cover = asText(row.cover_url);
-  const images = Array.isArray(row.gallery_urls)
-    ? row.gallery_urls.map(asText).filter(Boolean)
-    : [];
-  return Array.from(new Set([cover, ...images].filter(Boolean)));
-}
-
-function localeStatus(row: JsonRecord | null, lang: Lang): string {
-  if (!row) return "—";
-  const status = asText(row.publishedAt) ? "published" : asText(row.state) || "draft";
-  const titleReady = Boolean(asText(row.title));
-  const slugReady = Boolean(asText(row.slug));
-  return `${statusLabel(lang, status)} · ${titleReady && slugReady ? "✓" : "—"}`;
-}
-
-function primaryPrice(row: JsonRecord, lang: Lang): string {
-  const price = asNumber(row.price_per_day ?? row.price_per_hour ?? row.sale_price);
-  const currency = asText(row.currency) || "EUR";
-  return price === null ? display(null, lang) : `${price} ${currency}`;
-}
-
 function routePrice(row: JsonRecord, lang: Lang): string {
   const price = asNumber(row.price);
   const currency = asText(row.currency) || "EUR";
@@ -609,6 +582,8 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   const owners = useMemo(() => data?.owners ?? [], [data?.owners]);
   const boats = useMemo(() => data?.boats ?? [], [data?.boats]);
   const routes = useMemo(() => data?.experiences ?? [], [data?.experiences]);
+  const bookingRequests = useMemo(() => data?.bookingRequests ?? [], [data?.bookingRequests]);
+  const payments = useMemo(() => data?.payments ?? [], [data?.payments]);
   const events = useMemo(() => data?.moderationEvents ?? [], [data?.moderationEvents]);
   const logicalBoats = useMemo(() => groupLogicalBoats(boats, routes, lang), [boats, routes, lang]);
   const logicalRoutes = useMemo(() => {
@@ -1076,124 +1051,19 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
               ) : null}
 
               {active === "boats" ? (
-                <section className="admin-list">
-                  {logicalBoats.map((boat) => {
-                    const primary = boat.locales[strapiLocaleFromLang(lang)] ?? boat.primary;
-                    const photos = mediaList(primary);
-                    const message = boatMessages[boat.documentId];
-                    return (
-                      <article className="admin-card boat-review-card" key={boat.documentId}>
-                        <div className="admin-row">
-                          <div>
-                            <h2>{display(primary.title, lang)}</h2>
-                            <p>{display(primary.owner_display_name ?? primary.owner_email, lang)}</p>
-                          </div>
-                          <strong>{boat.ready ? "✓" : statusLabel(lang, primary.moderation_status)}</strong>
-                        </div>
-
-                        {photos.length ? (
-                          <div className="media-strip" aria-label={ui.labels.photos}>
-	                            {photos.slice(0, 6).map((url) => (
-	                              <img key={url} src={url} alt="" />
-	                            ))}
-                          </div>
-                        ) : null}
-
-                        <dl className="admin-fields">
-                          <div><dt>{ui.labels.marina}</dt><dd>{display(primary.marina_name, lang)}</dd></div>
-                          <div><dt>{ui.labels.description}</dt><dd>{display(primary.description, lang)}</dd></div>
-                          <div><dt>{ui.labels.price}</dt><dd>{primaryPrice(primary, lang)}</dd></div>
-                          <div><dt>{ui.labels.capacityYear}</dt><dd>{display(primary.capacity, lang)} / {display(primary.year, lang)}</dd></div>
-                          <div><dt>{ui.labels.photos}</dt><dd>{display(photos.length || ((asNumber(primary.cover_count) ?? 0) + (asNumber(primary.images_count) ?? 0)), lang)}</dd></div>
-                          <div><dt>{ui.labels.routesCount}</dt><dd>{display(boat.routes.length, lang)}</dd></div>
-                        </dl>
-
-                        <div className="locale-grid" aria-label={ui.labels.locales}>
-                          {REQUIRED_ADMIN_LOCALES.map((locale) => (
-                            <div className="locale-row" key={locale}>
-                              <span>{localeLabel(locale)}</span>
-                              <strong>{localeStatus(boat.locales[locale], lang)}</strong>
-                            </div>
-                          ))}
-                        </div>
-
-                        {boat.routes.length ? (
-                          <div className="route-stack">
-                            {boat.routes.map((route) => {
-                              const routePrimary = route.locales[strapiLocaleFromLang(lang)] ?? route.primary;
-                              const routePhotos = routeMediaList(routePrimary);
-                              return (
-                                <section className="route-review" key={route.documentId}>
-                                  <div className="admin-row">
-                                    <div>
-                                      <h3>{display(routePrimary.title, lang)}</h3>
-                                      <p>{display(routePrimary.short_description ?? routePrimary.full_description, lang)}</p>
-                                    </div>
-                                    <strong>{route.ready ? "✓" : "—"}</strong>
-                                  </div>
-                                  {routePhotos.length ? (
-                                    <div className="media-strip small" aria-label={ui.labels.gallery}>
-	                                      {routePhotos.slice(0, 4).map((url) => (
-	                                        <img key={url} src={url} alt="" />
-	                                      ))}
-                                    </div>
-                                  ) : null}
-                                  <dl className="admin-fields compact">
-                                    <div><dt>{ui.labels.duration}</dt><dd>{display(routePrimary.duration_hours, lang)}</dd></div>
-                                    <div><dt>{ui.labels.price}</dt><dd>{routePrice(routePrimary, lang)}</dd></div>
-                                    <div><dt>{ui.labels.maxGuests}</dt><dd>{display(routePrimary.max_guests, lang)}</dd></div>
-                                    <div><dt>{ui.labels.locales}</dt><dd>{REQUIRED_ADMIN_LOCALES.map((locale) => `${localeLabel(locale)} ${route.locales[locale] ? "✓" : "—"}`).join(" · ")}</dd></div>
-                                  </dl>
-                                </section>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-
-                        <div className={boat.ready ? "admin-success" : "admin-warning"}>
-                          {boat.ready ? ui.translateReviewReady : (
-                            <>
-                              <strong>{ui.labels.blockers}</strong>
-                              <ul>
-                                {boat.blockers.map((blocker) => (
-                                  <li key={blocker}>{blocker}</li>
-                                ))}
-                              </ul>
-                            </>
-                          )}
-                        </div>
-
-                        {message ? <p className={message === ui.publishDone || message === ui.translateReviewReady ? "admin-success" : "admin-warning"} role="status">{message}</p> : null}
-
-                        <div className="boat-action-row">
-                          <button
-                            type="button"
-                            onClick={() => void translateAndReview(boat)}
-                            disabled={Boolean(pendingBoatAction)}
-                          >
-                            {pendingBoatAction === `translate:${boat.documentId}` ? ui.loading : ui.actions.translateReview}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void publishLogicalBoat(boat)}
-                            disabled={Boolean(pendingBoatAction) || !boat.ready}
-                          >
-                            {pendingBoatAction === `publish:${boat.documentId}` ? ui.loading : ui.actions.unifiedPublish}
-                          </button>
-                          <a href={`/${lang}/admin/translations/preview?boatDocumentId=${encodeURIComponent(boat.documentId)}`}>
-                            {ui.actions.openFullEditor}
-                          </a>
-                        </div>
-
-                        <details className="advanced-area">
-                          <summary>{ui.labels.advanced}</summary>
-                          <AdminCrudManager lang={lang} entity="boat" dashboardRows={boat.rows} onRefresh={loadDashboard} />
-                        </details>
-                      </article>
-                    );
-                  })}
-                  {!logicalBoats.length ? <p className="admin-muted">{ui.empty}</p> : null}
-                </section>
+                <AdminBoatControlCenter
+                  lang={lang}
+                  logicalBoats={logicalBoats}
+                  rawBoats={boats}
+                  bookingRequests={bookingRequests}
+                  payments={payments}
+                  owners={owners}
+                  boatMessages={boatMessages}
+                  pendingBoatAction={pendingBoatAction}
+                  onTranslateAndReview={translateAndReview}
+                  onPublish={publishLogicalBoat}
+                  onRefresh={loadDashboard}
+                />
               ) : null}
 
               {active === "routes" ? (

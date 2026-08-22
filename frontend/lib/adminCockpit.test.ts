@@ -18,6 +18,8 @@ const sessionApi = read("app/api/admin/session/route.ts");
 const sessionHelper = read("lib/adminSession.ts");
 const sessionCore = read("lib/adminSessionCore.ts");
 const dashboardApi = read("app/api/admin/dashboard/route.ts");
+const marketplaceAnalyticsApi = read("app/api/admin/marketplace-analytics/route.ts");
+const externalRefundApi = read("app/api/admin/booking-requests/[id]/external-refund/route.ts");
 const moderationApi = read("app/api/admin/moderation/route.ts");
 const previewApi = read("app/api/admin/translations/preview/route.ts");
 const saveDraftApi = read("app/api/admin/translations/save-draft/route.ts");
@@ -73,7 +75,7 @@ test("logout clears the HttpOnly admin session", () => {
 });
 
 test("protected admin APIs require server session instead of browser-supplied token", () => {
-  [dashboardApi, moderationApi, previewApi, saveDraftApi].forEach((source) => {
+  [dashboardApi, marketplaceAnalyticsApi, externalRefundApi, moderationApi, previewApi, saveDraftApi].forEach((source) => {
     assert.ok(source.includes("requireAdminSession(") || source.includes("getAdminSessionStatus()"));
     assert.doesNotMatch(source, /req\.headers\.get\("x-admin-token"\)/);
   });
@@ -88,7 +90,7 @@ test("translation-only session cannot moderate and moderation writes remain fail
 });
 
 test("admin write routes include same-origin CSRF checks", () => {
-  [sessionApi, moderationApi, previewApi, saveDraftApi].forEach((source) => {
+  [sessionApi, externalRefundApi, moderationApi, previewApi, saveDraftApi].forEach((source) => {
     assert.ok(source.includes("sameOriginRequest(req)"));
     assert.ok(source.includes("csrf_check_failed"));
   });
@@ -211,4 +213,32 @@ test("double-submit protection is present on client moderation and translation a
 test("server does not accept trusted browser role or arbitrary owner relation", () => {
   assert.doesNotMatch(moderationApi, /role|isAdmin|owner_user_id|ownerProfileIdFromBrowser/i);
   assert.ok(moderationApi.includes("actor:"));
+});
+
+test("dashboard boat and experience loading fetch every Strapi page and fail closed on page errors", () => {
+  const experienceBlock = dashboardApi.slice(
+    dashboardApi.indexOf("const experiences = enrichExperiences"),
+    dashboardApi.indexOf("const draftBoats"),
+  );
+
+  assert.ok(dashboardApi.includes("function getPagination"));
+  assert.ok(dashboardApi.includes("pageCount"));
+  assert.ok(dashboardApi.includes("function boatQuery(locale: StrapiLocale, status: RowStatus, page = 1)"));
+  assert.ok(dashboardApi.includes("function experienceQuery(locale: StrapiLocale, status: RowStatus, page = 1)"));
+  assert.ok(dashboardApi.includes("`pagination[page]=${page}`"));
+  assert.ok(dashboardApi.includes("const pageNumbers = Array.from"));
+  assert.ok(dashboardApi.includes("Promise.all(pageNumbers.map"));
+  assert.ok(dashboardApi.includes("pagination.page !== page"));
+  assert.ok(dashboardApi.includes("pagination.pageCount !== firstPagination.pageCount"));
+  assert.ok(dashboardApi.includes("pagination.total !== firstPagination.total"));
+  assert.ok(dashboardApi.includes("if (boatResult.failed > 0)"));
+  assert.ok(dashboardApi.includes("if (experienceResult.failed > 0)"));
+  assert.ok(dashboardApi.includes('"Partial boat page failure; refusing partial dashboard response."'));
+  assert.ok(dashboardApi.includes('"Partial experience page failure; refusing partial dashboard response."'));
+  assert.ok(dashboardApi.includes('code: "strapi_boat_query_failed"'));
+  assert.ok(dashboardApi.includes('code: "strapi_experience_query_failed"'));
+  assert.ok(dashboardApi.includes("fallbackAnalyticsAvailable"));
+  assert.ok(dashboardApi.includes("cms_preview_collections_incomplete"));
+  assert.ok(experienceBlock.includes("experienceResult.rows.map"));
+  assert.doesNotMatch(experienceBlock, /\.slice\(0,\s*50\)/);
 });

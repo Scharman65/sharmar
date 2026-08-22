@@ -67,6 +67,10 @@ function parseDate(value: any): Date | null {
   return d;
 }
 
+function isCleanSucceededPayment(status: string): boolean {
+  return status.trim().toLowerCase() === "succeeded";
+}
+
 export default factories.createCoreController(
   "api::booking-request.booking-request",
   ({ strapi }) => ({
@@ -484,33 +488,15 @@ export default factories.createCoreController(
           );
           const b = (b0 && (b0.rows?.[0] || (Array.isArray(b0[0]) ? b0[0][0] : null))) || null;
 
-          const pi = await stripe.paymentIntents.retrieve(intentId, { expand: ["latest_charge"] });
-          const providerStatus = String((pi && pi.status) || "").toLowerCase();
-          const ch: any = (pi && (pi as any).latest_charge) ? (pi as any).latest_charge : null;
-          const chStatus = ch ? String(ch.status || "").toLowerCase() : "";
-          const chPaid = !!(ch && (ch.paid === true));
-          const hasSuccessfulCharge = providerStatus === "succeeded";
+          const hasSuccessfulCharge = isCleanSucceededPayment(paymentStatus);
+          const providerStatus = paymentStatus || null;
 
           let action = "none";
           let actionRef: string | null = null;
 
           if (hasSuccessfulCharge) {
-            action = "refund";
-
-            if (b && String(b.refund_id || "").trim()) {
-              actionRef = String(b.refund_id || "").trim();
-            } else {
-              const refund = await stripe.refunds.create(
-                { payment_intent: intentId, metadata: { public_token: token, action: "request_decline" } },
-                { idempotencyKey: "request_decline_refund:" + intentId }
-              );
-              actionRef = String((refund && refund.id) || "").trim() || null;
-              if (!actionRef) {
-                ctx.status = 502;
-                ctx.body = { error: "refund_failed_no_id", provider_intent_id: intentId };
-                return;
-              }
-            }
+            action = "external_refund_required";
+            actionRef = "external_refund_required";
 
             if (b) {
               await trx.raw(
@@ -520,10 +506,9 @@ export default factories.createCoreController(
                         owner_decision_at = coalesce(owner_decision_at, now()),
                         declined_at = coalesce(declined_at, now()),
                         confirmed_at = null,
-                        decline_reason = coalesce(decline_reason, ?),
-                        refund_id = coalesce(refund_id, ?)
+                        decline_reason = coalesce(decline_reason, ?)
                   where id = ?`,
-                [note, actionRef, b.id]
+                [note, b.id]
               );
             }
           } else {
@@ -563,11 +548,14 @@ export default factories.createCoreController(
           await trx.raw(
             `update public.booking_requests
                 set status = 'declined'::text,
+                    external_refund_status = case when ? then 'required'::text else coalesce(external_refund_status, 'none') end,
+                    external_refund_marked_at = case when ? then coalesce(external_refund_marked_at, now()) else external_refund_marked_at end,
+                    external_refund_completed_at = case when ? then null else external_refund_completed_at end,
                     updated_at = now(),
                     decided_at = case when decided_at is null then now() else decided_at end,
                     decision_note = coalesce(decision_note, ?)
               where id = ?`,
-            [note, existing.id]
+            [hasSuccessfulCharge, hasSuccessfulCharge, hasSuccessfulCharge, note, existing.id]
           );
 
           result.request_decline.action = action;
@@ -749,141 +737,18 @@ export default factories.createCoreController(
       const token = String(ctx.params?.token || "").trim();
       if (!token) return ctx.badRequest("Missing token");
 
-      const body = ctx.request.body;
-      const reqData = (body && body.data && typeof body.data === "object") ? body.data : (body || {});
-      const reason = (typeof reqData?.decline_reason === "string" && reqData.decline_reason.trim())
-        ? reqData.decline_reason.trim()
-        : ((typeof reqData?.refund_reason === "string" && reqData.refund_reason.trim())
-          ? reqData.refund_reason.trim()
-          : "owner refund after confirmation");
-
-      const knex = strapi.db.connection;
-
       const br = await strapi.db
         .query("api::booking-request.booking-request")
         .findOne({ where: { public_token: token } });
 
       if (!br) return ctx.notFound("Booking request not found");
 
-      const brStatus = String(br.status || "").toLowerCase();
-      if (brStatus === "declined") {
-        ctx.status = 200;
-        ctx.body = {
-          ok: true,
-          status: "declined",
-          booking_request: br,
-          public_token: token,
-          refund: { attempted: false, reason: "already_declined" },
-        };
-        return;
-      }
-
-      if (brStatus !== "confirmed") {
-        return ctx.conflict("Only confirmed booking requests can be refunded by owner");
-      }
-
-      const pay = await knex
-        .select("provider_intent_id", "status", "booking_id")
-        .from("public.payments")
-        .where({ provider: "stripe", booking_request_id: br.id })
-        .orderByRaw("coalesce(updated_at, created_at) desc nulls last, id desc")
-        .first();
-
-      const intentId = String((pay && pay.provider_intent_id) || "").trim();
-      if (!intentId) return ctx.conflict("payment_intent_id not found for booking_request");
-
-      const payStatus = String((pay && pay.status) || "").toLowerCase();
-      if (payStatus !== "succeeded") {
-        return ctx.conflict("Only succeeded payments can be refunded");
-      }
-
-      const result: any = {
-        attempted: true,
-        provider_intent_id: intentId,
-        payment_status_before: payStatus,
+      ctx.status = 409;
+      ctx.body = {
+        ok: false,
+        code: "external_refund_only",
+        error: "external_refund_only",
       };
-
-      await knex.transaction(async (trx) => {
-        await trx.raw("select pg_advisory_xact_lock(hashtext(?))", ["owner_refund:" + intentId]);
-
-        const b0 = await trx.raw(
-          "select id, status, payment_intent_id, refund_id from public.bookings where payment_intent_id = ? limit 1",
-          [intentId]
-        );
-        const b = (b0 && (b0.rows?.[0] || (Array.isArray(b0[0]) ? b0[0][0] : null))) || null;
-        if (!b) {
-          ctx.status = 409;
-          ctx.body = { error: "booking_not_found_for_intent", provider_intent_id: intentId };
-          return;
-        }
-
-        const bst = String(b.status || "").toLowerCase();
-        if (!(bst === "deposit_paid" || bst === "confirmed")) {
-          ctx.status = 409;
-          ctx.body = { error: "booking_not_refundable_in_current_state", status: b.status, provider_intent_id: intentId };
-          return;
-        }
-
-        let refundId = String(b.refund_id || "").trim() || null;
-
-        if (!refundId) {
-          const stripe = strapi.service("api::payment.payment").getStripeClient();
-          const pi = await stripe.paymentIntents.retrieve(intentId);
-          const providerStatus = String((pi && pi.status) || "").toLowerCase();
-
-          if (providerStatus !== "succeeded") {
-            ctx.status = 409;
-            ctx.body = { error: "payment_intent_not_succeeded", provider_intent_id: intentId, provider_status: providerStatus };
-            return;
-          }
-
-          const idem = "owner_refund:" + intentId;
-          const r = await stripe.refunds.create(
-            { payment_intent: intentId, metadata: { public_token: token, action: "owner_refund" } },
-            { idempotencyKey: idem }
-          );
-          refundId = String((r && r.id) || "").trim() || null;
-
-          if (!refundId) {
-            ctx.status = 502;
-            ctx.body = { error: "refund_failed_no_id", provider_intent_id: intentId };
-            return;
-          }
-        }
-
-        await trx.raw(
-          `update public.bookings
-              set status = 'expired'::text,
-                  owner_decision = 'declined'::text,
-                  owner_decision_at = coalesce(owner_decision_at, now()),
-                  declined_at = coalesce(declined_at, now()),
-                  confirmed_at = null,
-                  decline_reason = coalesce(decline_reason, ?),
-                  refund_id = coalesce(refund_id, ?)
-            where id = ?`,
-          [reason, refundId, b.id]
-        );
-
-        await trx.raw(
-          `update public.booking_requests
-              set status = 'declined'::text,
-                  updated_at = now(),
-                  decided_at = case when decided_at is null then now() else decided_at end,
-                  decision_note = coalesce(decision_note, ?)
-            where id = ?`,
-          [reason, br.id]
-        );
-
-        result.refund_id = refundId;
-        result.booking_id = b.id;
-      });
-
-      const out = await strapi.db
-        .query("api::booking-request.booking-request")
-        .findOne({ where: { id: br.id } });
-
-      ctx.status = 200;
-      ctx.body = { ok: true, status: "declined", booking_request: out, public_token: token, refund: result };
     },
 
     async ownerDecline(ctx) {
@@ -929,8 +794,6 @@ export default factories.createCoreController(
       const intentId = String((pay && pay.provider_intent_id) || "").trim();
       if (!intentId) return ctx.conflict("payment_intent_id not found for booking_request");
 
-      // We do refund-first (Stripe), then mark declined in DB.
-      // NOTE: This holds an advisory tx lock while calling Stripe (rare action; acceptable).
       await knex.transaction(async (trx) => {
         await trx.raw("select pg_advisory_xact_lock(hashtext(?))", ["owner_decision:" + intentId]);
 
@@ -961,36 +824,8 @@ export default factories.createCoreController(
           return;
         }
 
-        // If refund already exists, just mark declined (idempotent recovery)
-        let refundId = String(b.refund_id || "").trim() || null;
-
-        if (!refundId) {
-          const stripe = strapi.service("api::payment.payment").getStripeClient();
-          const idem = "owner_decline_refund:" + intentId;
-
-          // refund_guard_v1: refund only if there is a successful charge for this PaymentIntent
-          const pi = await stripe.paymentIntents.retrieve(intentId, { expand: ["latest_charge"] });
-          const ch: any = (pi && (pi as any).latest_charge) ? (pi as any).latest_charge : null;
-          const chStatus = ch ? String(ch.status || "").toLowerCase() : "";
-          const chPaid = !!(ch && (ch.paid === true));
-          const hasSuccessfulCharge = (chStatus === "succeeded") || chPaid;
-
-          if (!hasSuccessfulCharge) {
-            refundId = "skipped_no_successful_charge";
-          } else {
-            const r = await stripe.refunds.create(
-              { payment_intent: intentId, metadata: { public_token: token, action: "owner_decline" } },
-              { idempotencyKey: idem }
-            );
-            refundId = String((r && r.id) || "").trim() || null;
-          }
-
-          if (!refundId) {
-            ctx.status = 502;
-            ctx.body = { error: "refund_failed_no_id", provider_intent_id: intentId };
-            return;
-          }
-        }
+        const paymentStatus = String((pay && pay.status) || "").toLowerCase();
+        const requiresExternalRefund = isCleanSucceededPayment(paymentStatus);
 
         await trx.raw(
           `update public.bookings
@@ -999,20 +834,22 @@ export default factories.createCoreController(
                   owner_decision_at = coalesce(owner_decision_at, now()),
                   declined_at = coalesce(declined_at, now()),
                   confirmed_at = null,
-                  decline_reason = coalesce(decline_reason, ?),
-                  refund_id = coalesce(refund_id, ?)
+                  decline_reason = coalesce(decline_reason, ?)
             where id = ?`,
-          [reason, refundId, b.id]
+          [reason, b.id]
         );
 
         await trx.raw(
           `update public.booking_requests
               set status = \x27declined\x27::text,
+                  external_refund_status = case when ? then \x27required\x27::text else coalesce(external_refund_status, \x27none\x27) end,
+                  external_refund_marked_at = case when ? then coalesce(external_refund_marked_at, now()) else external_refund_marked_at end,
+                  external_refund_completed_at = case when ? then null else external_refund_completed_at end,
                   updated_at = now(),
                   decided_at = case when decided_at is null then now() else decided_at end,
                   decision_note = coalesce(decision_note, ?)
             where id = ?`,
-          [reason, br.id]
+          [requiresExternalRefund, requiresExternalRefund, requiresExternalRefund, reason, br.id]
         );
       });
 

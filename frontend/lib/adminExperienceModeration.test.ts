@@ -63,7 +63,7 @@ test("Experience detail renders review fields, linked boat, owner, media, status
     "owner_display_name",
     "owner_email",
     "moderationHistory",
-    "routeEvents(route, events)",
+    "routeEvents(primary, events)",
   ].forEach((text) => assert.ok(cockpit.includes(text) || dashboardApi.includes(text), `${text} missing`));
 });
 

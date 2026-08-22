@@ -26,6 +26,7 @@ type CmsAdminSummary = {
   owners?: unknown[];
   boatOwnerLinks?: unknown[];
   warnings?: unknown[];
+  collectionCompleteness?: unknown;
 };
 
 function getStrapiBase(): string {
@@ -67,6 +68,12 @@ function asBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
+function collectionComplete(value: unknown, key: "bookingRequests" | "payments"): boolean {
+  const record = isRecord(value) ? value : null;
+  const collection = record && isRecord(record[key]) ? record[key] : null;
+  return asBoolean(collection?.complete) === true;
+}
+
 function getAttributes(item: unknown): JsonObject | null {
   if (!isRecord(item)) return null;
   const attributes = isRecord(item.attributes) ? item.attributes : {};
@@ -88,11 +95,28 @@ function getFirstRelated(value: unknown): JsonObject | null {
   return getAttributes(value);
 }
 
-function getTotal(json: unknown): number | null {
+function getPagination(json: unknown): { page: number; pageCount: number; total: number } | null {
   const pagination = isRecord(json) && isRecord(json.meta) && isRecord(json.meta.pagination)
     ? json.meta.pagination
     : null;
-  return pagination ? asNumber(pagination.total) : null;
+  if (!pagination) return null;
+  const page = asNumber(pagination.page);
+  const pageCount = asNumber(pagination.pageCount);
+  const total = asNumber(pagination.total);
+  if (
+    page === null ||
+    pageCount === null ||
+    total === null ||
+    !Number.isInteger(page) ||
+    !Number.isInteger(pageCount) ||
+    !Number.isInteger(total) ||
+    page < 1 ||
+    pageCount < 0 ||
+    total < 0
+  ) {
+    return null;
+  }
+  return { page, pageCount, total };
 }
 
 function rowsFromJson(json: unknown): unknown[] {
@@ -141,12 +165,12 @@ async function cmsAdminSummaryGet(adminToken: string): Promise<{ ok: boolean; st
   return { ok: res.ok, status: res.status, json };
 }
 
-function boatQuery(locale: StrapiLocale, status: RowStatus): string {
+function boatQuery(locale: StrapiLocale, status: RowStatus, page = 1): string {
   return withQuery("/api/boats", [
     `locale=${encodeURIComponent(locale)}`,
     `status=${status}`,
     `pagination[pageSize]=${PAGE_SIZE}`,
-    "pagination[page]=1",
+    `pagination[page]=${page}`,
     "sort[0]=createdAt:desc",
     "fields[0]=title",
     "fields[1]=slug",
@@ -189,12 +213,12 @@ function boatQuery(locale: StrapiLocale, status: RowStatus): string {
   ]);
 }
 
-function experienceQuery(locale: StrapiLocale, status: RowStatus): string {
+function experienceQuery(locale: StrapiLocale, status: RowStatus, page = 1): string {
   return withQuery("/api/experiences", [
     `locale=${encodeURIComponent(locale)}`,
     `status=${status}`,
     `pagination[pageSize]=${PAGE_SIZE}`,
-    "pagination[page]=1",
+    `pagination[page]=${page}`,
     "sort[0]=createdAt:desc",
     "fields[0]=title",
     "fields[1]=documentId",
@@ -495,49 +519,127 @@ function normalizeOwnerDocuments(item: unknown): unknown {
 }
 
 async function fetchRowsByStatus(
-  pathForLocaleStatus: (locale: StrapiLocale, status: RowStatus) => string,
+  pathForLocaleStatus: (locale: StrapiLocale, status: RowStatus, page?: number) => string,
   serverToken: string,
   warnings: string[]
 ): Promise<{ rows: Array<{ item: unknown; status: RowStatus }>; totals: Record<RowStatus, number | null>; failed: number; attempted: number }> {
   const rows: Array<{ item: unknown; status: RowStatus }> = [];
   const totals: Record<RowStatus, number> = { draft: 0, published: 0 };
   const seen = new Set<string>();
-  let failed = 0;
-  let attempted = 0;
+  const queries = STRAPI_LOCALES.flatMap((locale) =>
+    (["draft", "published"] as const).map((status) => ({ locale, status }))
+  );
 
-  for (const locale of STRAPI_LOCALES) {
-    for (const status of ["draft", "published"] as const) {
-      const path = pathForLocaleStatus(locale, status);
-      attempted += 1;
+  const results = await Promise.all(queries.map(async ({ locale, status }) => {
+    const firstPath = pathForLocaleStatus(locale, status, 1);
+    const first = await strapiGet(firstPath, serverToken);
+    if (!first.ok) {
+      return {
+        locale,
+        status,
+        failed: 1,
+        attempted: 1,
+        rows: [] as unknown[],
+        total: 0,
+        warning: `Could not load ${locale} ${status} rows from ${firstPath.split("?")[0]}: Strapi ${first.status}`,
+      };
+    }
+
+    const firstPagination = getPagination(first.json);
+    if (!firstPagination || firstPagination.page !== 1) {
+      return {
+        locale,
+        status,
+        failed: 1,
+        attempted: 1,
+        rows: [] as unknown[],
+        total: 0,
+        warning: `Could not load ${locale} ${status} rows from ${firstPath.split("?")[0]}: invalid pagination metadata`,
+      };
+    }
+
+    const pageNumbers = Array.from(
+      { length: Math.max(0, firstPagination.pageCount - 1) },
+      (_, index) => index + 2
+    );
+    const rest = await Promise.all(pageNumbers.map(async (page) => {
+      const path = pathForLocaleStatus(locale, status, page);
       const res = await strapiGet(path, serverToken);
       if (!res.ok) {
-        failed += 1;
-        warnings.push(`Could not load ${locale} ${status} rows from ${path.split("?")[0]}: Strapi ${res.status}`);
-        continue;
+        return {
+          ok: false as const,
+          path,
+          status: res.status,
+          json: res.json,
+          warning: `Could not load ${locale} ${status} rows from ${path.split("?")[0]} page ${page}: Strapi ${res.status}`,
+        };
       }
-
-      const total = getTotal(res.json);
-      if (total !== null) totals[status] += total;
-
-      const pageRows = rowsFromJson(res.json);
-      if (total === null) totals[status] += pageRows.length;
-
-      for (const item of pageRows) {
-        const row = getAttributes(item) ?? {};
-        const id = asNumber(row.id);
-        const documentId = asString(row.documentId);
-        const rowLocale = asString(row.locale) ?? locale;
-        const key = id !== null
-          ? `id:${id}:${rowLocale}:${status}`
-          : `document:${documentId ?? "unknown"}:${rowLocale}:${status}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        rows.push({ item, status });
+      const pagination = getPagination(res.json);
+      if (!pagination || pagination.page !== page || pagination.pageCount !== firstPagination.pageCount) {
+        return {
+          ok: false as const,
+          path,
+          status: res.status,
+          json: res.json,
+          warning: `Could not load ${locale} ${status} rows from ${path.split("?")[0]} page ${page}: invalid pagination metadata`,
+        };
       }
-
-      if (total !== null && total > PAGE_SIZE) {
-        warnings.push(`${path.split("?")[0]} ${locale} ${status} count is capped at ${PAGE_SIZE} displayed rows.`);
+      if (pagination.total !== firstPagination.total) {
+        return {
+          ok: false as const,
+          path,
+          status: res.status,
+          json: res.json,
+          warning: `Could not load ${locale} ${status} rows from ${path.split("?")[0]} page ${page}: inconsistent pagination total`,
+        };
       }
+      return { ok: true as const, path, status: res.status, json: res.json, warning: "" };
+    }));
+
+    const failedPage = rest.find((page) => !page.ok);
+    if (failedPage) {
+      return {
+        locale,
+        status,
+        failed: 1,
+        attempted: 1 + pageNumbers.length,
+        rows: [] as unknown[],
+        total: firstPagination.total,
+        warning: failedPage.warning,
+      };
+    }
+
+    return {
+      locale,
+      status,
+      failed: 0,
+      attempted: 1 + pageNumbers.length,
+      rows: [first.json, ...rest.map((page) => page.json)].flatMap(rowsFromJson),
+      total: firstPagination.total,
+      warning: "",
+    };
+  }));
+
+  let failed = 0;
+  let attempted = 0;
+  for (const result of results) {
+    failed += result.failed;
+    attempted += result.attempted;
+    if (result.warning) warnings.push(result.warning);
+    if (result.failed > 0) continue;
+    totals[result.status] += result.total;
+
+    for (const item of result.rows) {
+      const row = getAttributes(item) ?? {};
+      const id = asNumber(row.id);
+      const documentId = asString(row.documentId);
+      const rowLocale = asString(row.locale) ?? result.locale;
+      const key = id !== null
+        ? `id:${id}:${rowLocale}:${result.status}`
+        : `document:${documentId ?? "unknown"}:${rowLocale}:${result.status}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ item, status: result.status });
     }
   }
 
@@ -623,11 +725,34 @@ export async function GET() {
     );
   }
 
-  if (boatResult.failed > 0 && boatResult.rows.length === 0) {
+  const noBoatRowsLoaded = boatResult.failed > 0 && boatResult.rows.length === 0;
+  if (boatResult.failed > 0) {
+    warnings.push(
+      noBoatRowsLoaded
+        ? "No boat rows loaded."
+        : "Partial boat page failure; refusing partial dashboard response."
+    );
     return NextResponse.json(
       {
         ok: false,
         code: "strapi_boat_query_failed",
+        warnings,
+      },
+      { status: 502, headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  const noExperienceRowsLoaded = experienceResult.failed > 0 && experienceResult.rows.length === 0;
+  if (experienceResult.failed > 0) {
+    warnings.push(
+      noExperienceRowsLoaded
+        ? "No experience rows loaded."
+        : "Partial experience page failure; refusing partial dashboard response."
+    );
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "strapi_experience_query_failed",
         warnings,
       },
       { status: 502, headers: { "cache-control": "no-store" } }
@@ -643,8 +768,7 @@ export async function GET() {
     experienceResult.rows.map(({ item, status }) => normalizeExperience(item, status)),
     moderationEvents,
     boats
-  )
-    .slice(0, 50);
+  );
 
   const draftBoats = boatResult.totals.draft ?? boats.filter((boat) => boat.state === "draft").length;
   const publishedBoats = boatResult.totals.published ?? boats.filter((boat) => boat.state === "published").length;
@@ -684,6 +808,9 @@ export async function GET() {
   const logicalPublishedBoats = uniqueModerationBoats.filter((boat) => boat.state === "published").length;
   const logicalDraftExperiences = uniqueModerationExperiences.filter((experience) => experience.state !== "published").length;
   const logicalPublishedExperiences = uniqueModerationExperiences.filter((experience) => experience.state === "published").length;
+  const fallbackAnalyticsAvailable =
+    collectionComplete(cmsSummary.collectionCompleteness, "bookingRequests") &&
+    collectionComplete(cmsSummary.collectionCompleteness, "payments");
 
   return NextResponse.json(
     {
@@ -719,6 +846,14 @@ export async function GET() {
       experiences,
       bookingRequests: Array.isArray(cmsSummary?.bookingRequests) ? cmsSummary.bookingRequests : [],
       payments: Array.isArray(cmsSummary?.payments) ? cmsSummary.payments : [],
+      collectionCompleteness: isRecord(cmsSummary.collectionCompleteness)
+        ? cmsSummary.collectionCompleteness
+        : null,
+      fallbackAnalytics: {
+        available: fallbackAnalyticsAvailable,
+        reason: fallbackAnalyticsAvailable ? null : "cms_preview_collections_incomplete",
+        canonicalMarketplaceAnalyticsPath: "/api/admin/marketplace-analytics",
+      },
       moderationEvents,
       owners: Array.isArray(cmsSummary?.owners)
         ? cmsSummary.owners.map(normalizeOwnerDocuments)
@@ -726,6 +861,7 @@ export async function GET() {
       feeSettings: {
         defaultMarketplaceFeeRate: MARKETPLACE_FEE_RATE,
         defaultMarketplaceFeePercent: MARKETPLACE_FEE_RATE * 100,
+        canonicalMarketplaceAnalyticsPath: "/api/admin/marketplace-analytics",
         source: "frontend/lib/pricing.ts",
         bookingFields: ["owner_amount", "marketplace_fee_amount", "customer_total_amount"],
         notes: [
