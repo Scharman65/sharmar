@@ -165,6 +165,25 @@ async function cmsAdminSummaryGet(adminToken: string): Promise<{ ok: boolean; st
   return { ok: res.ok, status: res.status, json };
 }
 
+async function cmsModerationEventsGet(adminToken: string): Promise<{ ok: boolean; status: number; json: unknown }> {
+  const res = await fetch(`${getStrapiBase()}/api/admin-dashboard/moderation-events`, {
+    method: "GET",
+    headers: { "x-admin-token": adminToken },
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  let json: unknown = null;
+
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  return { ok: res.ok, status: res.status, json };
+}
+
 function boatQuery(locale: StrapiLocale, status: RowStatus, page = 1): string {
   return withQuery("/api/boats", [
     `locale=${encodeURIComponent(locale)}`,
@@ -277,24 +296,6 @@ function mediaUrls(value: unknown): string[] {
         : `${getStrapiBase()}${url.startsWith("/") ? url : `/${url}`}`;
     })
     .filter((url): url is string => Boolean(url));
-}
-
-function moderationEventQuery(): string {
-  return withQuery("/api/moderation-events", [
-    "pagination[pageSize]=50",
-    "pagination[page]=1",
-    "sort[0]=occurred_at:desc",
-    "fields[0]=entity_type",
-    "fields[1]=entity_document_id",
-    "fields[2]=entity_id",
-    "fields[3]=action",
-    "fields[4]=previous_status",
-    "fields[5]=new_status",
-    "fields[6]=comment",
-    "fields[7]=actor",
-    "fields[8]=occurred_at",
-    "fields[9]=metadata",
-  ]);
 }
 
 function normalizeBoat(item: unknown, status: RowStatus) {
@@ -686,7 +687,7 @@ export async function GET() {
   const [boatResult, experienceResult, eventResult, cmsSummaryResult] = await Promise.all([
     fetchRowsByStatus(boatQuery, serverToken, warnings),
     fetchRowsByStatus(experienceQuery, serverToken, warnings),
-    strapiGet(moderationEventQuery(), serverToken),
+    cmsModerationEventsGet(cmsAdminToken),
     cmsAdminSummaryGet(cmsAdminToken),
   ]);
 

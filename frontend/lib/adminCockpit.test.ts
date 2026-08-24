@@ -164,7 +164,7 @@ test("boat moderation is connected to protected actions and CMS audit events", (
       cockpit.includes('action: "publish_logical_boat"')
   );
   assert.ok(moderationApi.includes("/api/admin-moderation/action"));
-  assert.ok(dashboardApi.includes("moderationEventQuery"));
+  assert.ok(dashboardApi.includes("cmsModerationEventsGet"));
   assert.ok(dashboardApi.includes("moderationEvents,"));
   assert.ok(cmsModeration.includes("createAuditEvent"));
   assert.ok(cmsStateMachine.includes("approve"));
