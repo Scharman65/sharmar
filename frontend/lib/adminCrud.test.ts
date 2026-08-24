@@ -214,3 +214,25 @@ test("RU, EN, and ME CRUD localization exists without visible fallback leakage",
   assert.ok(meBlock.includes("Kreiraj vlasnika"));
   assert.doesNotMatch(enBlock, /[А-Яа-яЁё]/);
 });
+
+test("technical CRUD does not expose boat or experience moderation lifecycle buttons", () => {
+  const managerSource = read("../frontend/app/[lang]/admin/AdminCrudManager.tsx");
+
+  const technicalLifecycleBlock =
+    managerSource.match(
+      /\{\(entity === "boat" \|\| entity === "experience"\)[\s\S]*?\) : null\}/
+    )?.[0] ?? "";
+
+  assert.equal(
+    technicalLifecycleBlock,
+    "",
+    "boat/experience technical lifecycle action block must not exist"
+  );
+
+  assert.ok(
+    managerSource.includes(
+      'asText(row.verification_status) === "documents_uploaded"'
+    ),
+    "owner verification action must remain intact"
+  );
+});

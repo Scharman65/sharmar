@@ -765,6 +765,25 @@ export default {
     if (!entity) return { status: 400, body: { ok: false, code: "invalid_entity_type" } };
     const normalized = normalizeInput(rawInput, "update");
     if (!normalized.ok) return normalized;
+
+    if (
+      (entity === "boat" || entity === "experience") &&
+      (
+        normalized.input.action === "unpublish" ||
+        normalized.input.action === "archive" ||
+        normalized.input.action === "restore"
+      )
+    ) {
+      return {
+        status: 409,
+        body: {
+          ok: false,
+          code: "moderation_workflow_required",
+          entity,
+          action: normalized.input.action,
+        },
+      };
+    }
     if (normalized.input.action === "archive" && !(entity === "owner" || entity === "boat" || entity === "experience")) {
       return { status: 409, body: { ok: false, code: "archive_schema_decision_required", ARCHIVE_SCHEMA_DECISION_REQUIRED } };
     }

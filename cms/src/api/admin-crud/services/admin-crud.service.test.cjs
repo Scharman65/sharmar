@@ -62,3 +62,11 @@ test("audit events are created without storing secret values", () => {
   assert.ok(source.includes("idempotencyKeyDigest"));
   assert.doesNotMatch(source, /password.*metadata|token.*metadata|session.*metadata/i);
 });
+
+test("boat and experience lifecycle actions fail closed in admin CRUD and must use moderation workflow", () => {
+  assert.ok(source.includes('"moderation_workflow_required"'));
+  assert.ok(source.includes('entity === "boat" || entity === "experience"'));
+  assert.ok(source.includes('normalized.input.action === "unpublish"'));
+  assert.ok(source.includes('normalized.input.action === "archive"'));
+  assert.ok(source.includes('normalized.input.action === "restore"'));
+});

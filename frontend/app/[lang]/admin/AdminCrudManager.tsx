@@ -882,13 +882,6 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
               </details>
               <div className="crud-row-actions">
                 <button type="button" onClick={() => openAction(row, "update")}>{actionLabel(ui, entity, "update")}</button>
-                {(entity === "boat" || entity === "experience") ? (
-                  <>
-                    <button type="button" onClick={() => openAction(row, "unpublish")}>{ui.unpublish}</button>
-                    <button type="button" onClick={() => openAction(row, "archive")}>{ui.archive}</button>
-                    <button type="button" onClick={() => openAction(row, "restore")}>{ui.restore}</button>
-                  </>
-                ) : null}
                 {entity === "owner" ? (
                   <>
                     {asText(row.verification_status) === "documents_uploaded" ? (
