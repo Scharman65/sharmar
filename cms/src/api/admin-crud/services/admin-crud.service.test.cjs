@@ -70,3 +70,15 @@ test("boat and experience lifecycle actions fail closed in admin CRUD and must u
   assert.ok(source.includes('normalized.input.action === "archive"'));
   assert.ok(source.includes('normalized.input.action === "restore"'));
 });
+
+
+test("dependency semantics use logical counts, owner scope, and published-state protection", () => {
+  assert.ok(source.includes("count(distinct document_id)::int as count"));
+  assert.ok(source.includes("count(distinct e.document_id)::int as count"));
+  assert.ok(source.includes("count(distinct l.booking_request_id)::int as count"));
+  assert.ok(source.includes("count(distinct p.id)::int as count"));
+  assert.ok(source.includes("from public.dodo_webhook_events de join public.payments p on p.provider_intent_id = de.provider_intent_id"));
+  assert.ok(source.includes("published_entity_present"));
+  assert.doesNotMatch(source, /from public.booking_requests where owner_user_id/);
+  assert.doesNotMatch(source, /from public.dodo_events/);
+});

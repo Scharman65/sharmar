@@ -431,22 +431,28 @@ async function evaluateDependencies(entity: AdminCrudEntity, id: string) {
       [profileId]
     )) : [];
     const userId = asNumber(userRows[0]?.user_id);
-    dependentCounts.boats = userId ? await safeCount("select count(*)::int as count from public.boats where owner_user_id = ? or created_by_id = ?", [userId, userId]) : null;
-    dependentCounts.bookingRequests = userId ? await safeCount("select count(*)::int as count from public.booking_requests where owner_user_id = ?", [userId]) : null;
-    dependentCounts.payments = await safeCount("select count(*)::int as count from public.payments");
-    dependentCounts.dodoEvents = await safeCount("select count(*)::int as count from public.dodo_events");
+    dependentCounts.boats = userId ? await safeCount("select count(distinct document_id)::int as count from public.boats where owner_user_id = ? or created_by_id = ?", [userId, userId]) : null;
+    dependentCounts.bookingRequests = userId ? await safeCount("select count(distinct l.booking_request_id)::int as count from public.booking_requests_boat_lnk l join public.boats b on b.id = l.boat_id where b.owner_user_id = ? or b.created_by_id = ?", [userId, userId]) : null;
+    dependentCounts.payments = userId ? await safeCount("select count(distinct p.id)::int as count from public.payments p join public.booking_requests_boat_lnk l on l.booking_request_id = p.booking_request_id join public.boats b on b.id = l.boat_id where b.owner_user_id = ? or b.created_by_id = ?", [userId, userId]) : null;
+    dependentCounts.dodoEvents = userId ? await safeCount("select count(distinct de.id)::int as count from public.dodo_webhook_events de join public.payments p on p.provider_intent_id = de.provider_intent_id join public.booking_requests_boat_lnk l on l.booking_request_id = p.booking_request_id join public.boats b on b.id = l.boat_id where b.owner_user_id = ? or b.created_by_id = ?", [userId, userId]) : null;
+    const ownerPublishedCount = profileId ? await safeCount("select count(*)::int as count from public.owner_profiles where id = ? and published_at is not null", [profileId]) : null;
+    publishedDependency = ownerPublishedCount === null ? true : ownerPublishedCount > 0;
   }
 
   if (entity === "boat") {
-    dependentCounts.routes = await safeCount("select count(*)::int as count from public.experiences where document_id in (select e.document_id from public.experiences e join public.experiences_boat_lnk l on l.experience_id = e.id join public.boats b on b.id = l.boat_id where b.document_id = ?)", [id]);
-    dependentCounts.bookingRequests = await safeCount("select count(*)::int as count from public.booking_requests_boat_lnk l join public.boats b on b.id = l.boat_id where b.document_id = ?", [id]);
-    dependentCounts.payments = await safeCount("select count(*)::int as count from public.payments p join public.booking_requests br on br.id = p.booking_request_id join public.booking_requests_boat_lnk l on l.booking_request_id = br.id join public.boats b on b.id = l.boat_id where b.document_id = ?", [id]);
-    dependentCounts.availability = await safeCount("select count(*)::int as count from public.boat_blackouts bb join public.boats b on b.id = bb.boat_id where b.document_id = ?", [id]);
+    dependentCounts.routes = await safeCount("select count(distinct e.document_id)::int as count from public.experiences e join public.experiences_boat_lnk l on l.experience_id = e.id join public.boats b on b.id = l.boat_id where b.document_id = ?", [id]);
+    dependentCounts.bookingRequests = await safeCount("select count(distinct l.booking_request_id)::int as count from public.booking_requests_boat_lnk l join public.boats b on b.id = l.boat_id where b.document_id = ?", [id]);
+    dependentCounts.payments = await safeCount("select count(distinct p.id)::int as count from public.payments p join public.booking_requests_boat_lnk l on l.booking_request_id = p.booking_request_id join public.boats b on b.id = l.boat_id where b.document_id = ?", [id]);
+    dependentCounts.availability = await safeCount("select count(distinct bb.id)::int as count from public.boat_blackouts bb join public.boats b on b.id = bb.boat_id where b.document_id = ?", [id]);
+    const boatPublishedCount = await safeCount("select count(*)::int as count from public.boats where document_id = ? and published_at is not null", [id]);
+    publishedDependency = boatPublishedCount === null ? true : boatPublishedCount > 0;
   }
 
   if (entity === "experience") {
-    dependentCounts.bookingRequests = await safeCount("select count(*)::int as count from public.booking_requests_experience_lnk l join public.experiences e on e.id = l.experience_id where e.document_id = ?", [id]);
-    dependentCounts.payments = await safeCount("select count(*)::int as count from public.payments p join public.booking_requests br on br.id = p.booking_request_id join public.booking_requests_experience_lnk l on l.booking_request_id = br.id join public.experiences e on e.id = l.experience_id where e.document_id = ?", [id]);
+    dependentCounts.bookingRequests = await safeCount("select count(distinct l.booking_request_id)::int as count from public.booking_requests_experience_lnk l join public.experiences e on e.id = l.experience_id where e.document_id = ?", [id]);
+    dependentCounts.payments = await safeCount("select count(distinct p.id)::int as count from public.payments p join public.booking_requests_experience_lnk l on l.booking_request_id = p.booking_request_id join public.experiences e on e.id = l.experience_id where e.document_id = ?", [id]);
+    const experiencePublishedCount = await safeCount("select count(*)::int as count from public.experiences where document_id = ? and published_at is not null", [id]);
+    publishedDependency = experiencePublishedCount === null ? true : experiencePublishedCount > 0;
   }
 
   if (entity === "document" || entity === "media") {
@@ -466,6 +472,7 @@ async function evaluateDependencies(entity: AdminCrudEntity, id: string) {
     }
   }
 
+  if (publishedDependency) blockingReasons.push("published_entity_present");
   if (sharedMediaCount > 0) blockingReasons.push("shared_media_present");
 
   const canDelete = blockingReasons.length === 0;

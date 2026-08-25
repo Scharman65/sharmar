@@ -546,6 +546,65 @@ export default {
     };
   },
 
+  async moderationEvents(ctx) {
+    const configuredToken = String(
+      process.env.PAYMENTS_ADMIN_TOKEN ||
+        process.env.SHARMAR_OWNER_ACTION_TOKEN ||
+        ""
+    ).trim();
+
+    const requestToken = String(
+      ctx.request.headers["x-admin-token"] || ""
+    ).trim();
+
+    if (!configuredToken) {
+      ctx.status = 503;
+      ctx.body = {
+        ok: false,
+        code: "admin_token_missing",
+      };
+      return;
+    }
+
+    if (!tokenMatches(requestToken, configuredToken)) {
+      ctx.status = 401;
+      ctx.body = {
+        ok: false,
+        code: "unauthorized",
+      };
+      return;
+    }
+
+    const rows = await strapi.db
+      .query("api::moderation-event.moderation-event")
+      .findMany({
+        select: [
+          "id",
+          "entity_type",
+          "entity_document_id",
+          "entity_id",
+          "action",
+          "previous_status",
+          "new_status",
+          "comment",
+          "actor",
+          "occurred_at",
+          "metadata",
+        ],
+        orderBy: {
+          occurred_at: "desc",
+        },
+        limit: 50,
+      });
+
+    ctx.set("cache-control", "no-store");
+    ctx.status = 200;
+    ctx.body = {
+      ok: true,
+      data: Array.isArray(rows) ? rows : [],
+    };
+  },
+
   async marketplaceAnalytics(ctx) {
     if (invalidAdminToken(ctx)) return;
 

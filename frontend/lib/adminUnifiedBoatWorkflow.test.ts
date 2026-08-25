@@ -618,57 +618,33 @@ test("documents_uploaded owner verification blocks logical boat readiness", () =
 });
 
 
-test("legacy CMS owner link without verification status keeps legacy readiness fallback", () => {
+test("missing owner verification status fails closed and blocks logical boat readiness", () => {
   const legacyRows = ["ru", "en", "sr-Latn-ME"].map((locale) => {
     const row = boat(locale);
     delete row.owner_verification_status;
     return row;
   });
-
-  const mergedRows = mergeBoatOwnerLinks(legacyRows, [
-    {
-      boat_id: 1,
-      boat_document_id: "oceanis-doc",
-      boat_locale: "ru",
-      owner_user_id: 42,
-      created_by_id: null,
-      owner_profile_id: 7,
-      owner_email: "legacy-owner@example.test",
-      owner_username: "legacy-owner",
-      owner_display_name: "Legacy Owner",
-      owner_phone: null,
-      owner_confirmed: true,
-      owner_blocked: false,
-      home_marina_id: null,
-      home_marina_document_id: null,
-      home_marina_name: null,
-      home_marina_slug: null,
-      home_marina_locale: null,
-    },
-  ]);
-
-  assert.equal(
-    mergedRows.some((row) =>
-      Object.prototype.hasOwnProperty.call(
-        row,
-        "owner_verification_status"
-      )
-    ),
-    false
-  );
-
-  const logicalBoats = groupLogicalBoats(
-    mergedRows,
-    completeRoutes,
-    "ru"
-  );
-
+  const mergedRows = mergeBoatOwnerLinks(legacyRows, [{
+    boat_id: 1,
+    boat_document_id: "oceanis-doc",
+    boat_locale: "ru",
+    owner_user_id: 42,
+    created_by_id: null,
+    owner_profile_id: 7,
+    owner_email: "legacy-owner@example.test",
+    owner_username: "legacy-owner",
+    owner_display_name: "Legacy Owner",
+    owner_phone: null,
+    owner_confirmed: true,
+    owner_blocked: false,
+    home_marina_id: null,
+    home_marina_document_id: null,
+    home_marina_name: null,
+    home_marina_slug: null,
+    home_marina_locale: null,
+  }]);
+  const logicalBoats = groupLogicalBoats(mergedRows, completeRoutes, "ru");
   assert.equal(logicalBoats.length, 1);
-  assert.equal(
-    logicalBoats[0].blockers.includes(
-      "Владелец не подтвержден."
-    ),
-    false
-  );
-  assert.equal(logicalBoats[0].ready, true);
+  assert.equal(logicalBoats[0].ready, false);
+  assert.ok(logicalBoats[0].blockers.includes("Владелец не подтвержден."));
 });

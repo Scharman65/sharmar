@@ -479,10 +479,6 @@ export function groupLogicalBoats(boats: JsonRecord[], routes: JsonRecord[], lan
       .filter(([, routeRows]) => routeRows.some((route) => asText(route.boatDocumentId) === documentId))
       .map(([routeDocumentId, routeRows]) => buildRoute(routeDocumentId, routeRows, documentId, lang));
     const blockers: string[] = [];
-    const ownerVerificationStatusAvailable = rows.some((row) =>
-      Object.prototype.hasOwnProperty.call(row, "owner_verification_status")
-    );
-
     for (const locale of REQUIRED_ADMIN_LOCALES) {
       const label = localeLabel(locale);
       const row = locales[locale];
@@ -497,8 +493,7 @@ export function groupLogicalBoats(boats: JsonRecord[], routes: JsonRecord[], lan
       blockers.push(labels.ownerMissing);
     }
     if (
-      (ownerVerificationStatusAvailable &&
-        asText(primary.owner_verification_status) !== "approved") ||
+      asText(primary.owner_verification_status) !== "approved" ||
       primary.owner_confirmed === false ||
       primary.owner_blocked === true
     ) {
