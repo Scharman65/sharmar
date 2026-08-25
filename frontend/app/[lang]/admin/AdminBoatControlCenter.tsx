@@ -299,6 +299,30 @@ const systemLabels: Record<Lang, Record<AdminMarketplaceSystemHealth, string>> =
   me: { green: "Sistem je u redu", yellow: "Problemi sa podacima", red: "Blokirano", gray: "Nema podataka" },
 };
 
+const stateFilterLabels: Record<Lang, Record<"green" | "yellow" | "red" | "blue" | "gray", string>> = {
+  ru: {
+    green: "Система в порядке",
+    yellow: "Требует внимания",
+    red: "Заблокировано",
+    blue: "Новый запрос",
+    gray: "Нет данных",
+  },
+  en: {
+    green: "System OK",
+    yellow: "Needs attention",
+    red: "Blocked",
+    blue: "New request",
+    gray: "No data",
+  },
+  me: {
+    green: "Sistem je u redu",
+    yellow: "Zahtijeva pažnju",
+    red: "Blokirano",
+    blue: "Novi zahtjev",
+    gray: "Nema podataka",
+  },
+};
+
 const bookingLabels: Record<Lang, Record<AdminMarketplaceBookingHealth, string>> = {
   ru: { red: "Ошибка/отмена", yellow: "Ожидает действия", green: "Оплачено или подтверждено", blue: "Новый запрос", gray: "Нет активности" },
   en: { red: "Error/cancel", yellow: "Waiting for action", green: "Paid or confirmed", blue: "New request", gray: "No activity" },
@@ -733,7 +757,6 @@ export default function AdminBoatControlCenter({
     <section className="boat-control-center" aria-label={ui.title}>
       <div className="admin-card control-top">
         <div>
-          <p className="kicker">Sharmar</p>
           <h2>{ui.title}</h2>
         </div>
         <div className="control-filters">
@@ -768,7 +791,7 @@ export default function AdminBoatControlCenter({
             <select value={state} onChange={(event) => setState(event.target.value)}>
               <option value="all">{ui.all}</option>
               {(["green", "yellow", "red", "blue", "gray"] as const).map((option) => (
-                <option value={option} key={option}>{option}</option>
+                <option value={option} key={option}>{stateFilterLabels[lang][option]}</option>
               ))}
             </select>
           </label>
@@ -1156,8 +1179,8 @@ export default function AdminBoatControlCenter({
           border-color: #9fd8ff;
           background: rgba(159, 216, 255, 0.16);
         }
-        .metric-strip span,
-        .financial-strip span {
+        .metric-strip > span,
+        .financial-strip > span {
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 8px;
           padding: 8px 10px;

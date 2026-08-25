@@ -905,7 +905,6 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
     <main className="admin-cockpit">
       <section className="admin-card admin-hero">
         <div>
-          <p className="kicker">Sharmar</p>
           <h1>{ui.title}</h1>
           <p>{ui.intro}</p>
           <p className="admin-muted">{ui.sessionOnly}</p>
@@ -1285,10 +1284,29 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
         .admin-nav {
           display: flex;
           flex-wrap: wrap;
-          gap: 8px;
+          gap: 6px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.025);
+          padding: 6px;
+        }
+        .admin-nav button {
+          min-height: 38px;
+          border: 1px solid transparent;
+          border-radius: 8px;
+          background: transparent;
+          color: rgba(246, 243, 237, 0.78);
+          padding: 8px 11px;
+        }
+        .admin-nav button:hover:not(:disabled) {
+          border-color: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.06);
+          color: #f6f3ed;
         }
         .admin-nav button.active {
-          background: #9fd8ff;
+          border-color: rgba(159, 216, 255, 0.36);
+          background: rgba(159, 216, 255, 0.14);
+          color: #dff3ff;
         }
         .admin-grid {
           display: grid;

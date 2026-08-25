@@ -44,6 +44,18 @@ a { color: inherit; }
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+body:has(.admin-cockpit) .header {
+  position: static;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #090b0d;
+}
+
+body:has(.admin-cockpit) .header-inner {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
 .header-inner {
   max-width: var(--maxw);
   margin: 0 auto;
