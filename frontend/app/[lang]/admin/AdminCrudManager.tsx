@@ -28,6 +28,22 @@ type PendingAction = {
   expectedUpdatedAt: string | null;
 } | null;
 
+type DependencySnapshot = {
+  canDelete: boolean;
+  canArchive: boolean;
+  blockingReasons: string[];
+  dependentCounts: Record<string, number | null>;
+  sharedMediaCount: number;
+  financialDependency: boolean;
+  publishedDependency: boolean;
+};
+
+type DependencyLoadState = {
+  loading: boolean;
+  error: boolean;
+  data: DependencySnapshot | null;
+};
+
 const PAGE_SIZE = 10;
 
 type CrudCopyShape = {
@@ -60,6 +76,9 @@ type CrudCopyShape = {
   restore: string;
   deleteForever: string;
   dependencyCheck: string;
+  dependencyLoading: string;
+  dependencyUnavailable: string;
+  dependencyClear: string;
   deleteBlocked: string;
   bookingDependency: string;
   paymentDependency: string;
@@ -125,6 +144,9 @@ const copy = {
     restore: "Восстановить",
     deleteForever: "Удалить навсегда",
     dependencyCheck: "Проверка зависимостей",
+    dependencyLoading: "Проверяем реальные зависимости...",
+    dependencyUnavailable: "Не удалось получить зависимости",
+    dependencyClear: "Блокирующих зависимостей нет",
     deleteBlocked: "Удаление невозможно",
     bookingDependency: "Есть связанные бронирования",
     paymentDependency: "Есть связанные платежи",
@@ -217,6 +239,9 @@ const copy = {
     restore: "Restore",
     deleteForever: "Delete permanently",
     dependencyCheck: "Dependency check",
+    dependencyLoading: "Checking real dependencies...",
+    dependencyUnavailable: "Could not load dependencies",
+    dependencyClear: "No blocking dependencies",
     deleteBlocked: "Deletion is blocked",
     bookingDependency: "Linked bookings exist",
     paymentDependency: "Linked payments exist",
@@ -309,6 +334,9 @@ const copy = {
     restore: "Vrati",
     deleteForever: "Trajno obriši",
     dependencyCheck: "Provjera zavisnosti",
+    dependencyLoading: "Provjeravamo stvarne zavisnosti...",
+    dependencyUnavailable: "Nije moguće učitati zavisnosti",
+    dependencyClear: "Nema blokirajućih zavisnosti",
     deleteBlocked: "Brisanje nije moguće",
     bookingDependency: "Postoje povezana bukiranja",
     paymentDependency: "Postoje povezana plaćanja",
@@ -490,6 +518,7 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [dependencyStates, setDependencyStates] = useState<Record<string, DependencyLoadState>>({});
   const [createOpen, setCreateOpen] = useState(false);
   const [boatForm, setBoatForm] = useState({ title: "", slug: "", capacity: "2" });
   const [ownerForm, setOwnerForm] = useState({ name: "", email: "", phone: "", preferred_language: lang, notes: "" });
@@ -561,6 +590,51 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       title: rowTitle(entity, row, lang),
       expectedUpdatedAt: asText(row.updated_at ?? row.updatedAt),
     });
+  }
+
+  async function loadDependencies(row: JsonRecord) {
+    if (!(entity === "owner" || entity === "boat" || entity === "experience")) return;
+
+    const id = rowId(entity, row);
+    const key = `${entity}:${id}`;
+
+    setDependencyStates((current) => ({
+      ...current,
+      [key]: { loading: true, error: false, data: current[key]?.data ?? null },
+    }));
+
+    try {
+      const response = await fetch(
+        `${ADMIN_CRUD_ROUTES[entity]}/${encodeURIComponent(id)}/dependencies`,
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+        }
+      );
+
+      const json = await response.json().catch(() => null) as {
+        dependencies?: DependencySnapshot;
+      } | null;
+
+      if (!response.ok || !json?.dependencies) {
+        setDependencyStates((current) => ({
+          ...current,
+          [key]: { loading: false, error: true, data: null },
+        }));
+        return;
+      }
+
+      setDependencyStates((current) => ({
+        ...current,
+        [key]: { loading: false, error: false, data: json.dependencies ?? null },
+      }));
+    } catch {
+      setDependencyStates((current) => ({
+        ...current,
+        [key]: { loading: false, error: true, data: null },
+      }));
+    }
   }
 
   async function runPendingAction() {
@@ -859,6 +933,9 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
       <div className="admin-list">
         {visibleRows.map((row) => {
           const id = rowId(entity, row);
+          const dependencyKey = `${entity}:${id}`;
+          const dependencyState = dependencyStates[dependencyKey];
+          const archived = Boolean(asText(row.archived_at ?? row.archivedAt));
           return (
             <article className="admin-card" key={`${entity}-${id}`}>
               <div className="admin-row">
@@ -874,12 +951,36 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
                 <div><dt>{ui.fields.routes}</dt><dd>{asNumber(row.experiences_count) ?? "—"}</dd></div>
                 <div><dt>{ui.fields.media}</dt><dd>{asNumber(row.images_count ?? row.gallery_count ?? row.cover_count) ?? "—"}</dd></div>
               </dl>
-              <details>
-                <summary>{ui.dependencyCheck}</summary>
-                <p>{ui.noRawJson}</p>
-                <p>{ui.bookingDependency} · {ui.paymentDependency} · {ui.dodoDependency}</p>
-                <p>{ui.sharedMedia}</p>
-              </details>
+              {entity === "owner" || entity === "boat" || entity === "experience" ? (
+                <details
+                  onToggle={(event) => {
+                    if (event.currentTarget.open && !dependencyState) {
+                      void loadDependencies(row);
+                    }
+                  }}
+                >
+                  <summary>{ui.dependencyCheck}</summary>
+
+                  {dependencyState?.loading ? (
+                    <p>{ui.dependencyLoading}</p>
+                  ) : dependencyState?.error ? (
+                    <p className="admin-warning">{ui.dependencyUnavailable}</p>
+                  ) : dependencyState?.data ? (
+                    <>
+                      <p className={dependencyState.data.canDelete ? "" : "admin-warning"}>
+                        {dependencyState.data.canDelete ? ui.dependencyClear : ui.deleteBlocked}
+                      </p>
+                      <div className="dependency-counts">
+                        {Object.entries(dependencyState.data.dependentCounts).map(([key, value]) => (
+                          <span key={key}>
+                            <strong>{key}</strong>: {value === null ? "?" : value}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </details>
+              ) : null}
               <div className="crud-row-actions">
                 <button type="button" onClick={() => openAction(row, "update")}>{actionLabel(ui, entity, "update")}</button>
                 {entity === "owner" ? (
@@ -893,8 +994,11 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
                         {saving ? ui.loading : ui.verifyOwner}
                       </button>
                     ) : null}
-                    <button type="button" onClick={() => openAction(row, "archive")}>{ui.archive}</button>
-                    <button type="button" onClick={() => openAction(row, "restore")}>{ui.restore}</button>
+                    {!archived ? (
+                      <button type="button" onClick={() => openAction(row, "archive")}>{ui.archive}</button>
+                    ) : (
+                      <button type="button" onClick={() => openAction(row, "restore")}>{ui.restore}</button>
+                    )}
                   </>
                 ) : null}
                 {entity === "document" ? (
@@ -903,7 +1007,11 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
                     <button type="button" onClick={() => openAction(row, "unlink_document")}>{ui.unlinkDocument}</button>
                   </>
                 ) : null}
-                <button type="button" className="danger" onClick={() => openAction(row, "delete")}>{ui.deleteForever as string}</button>
+                {entity === "document" || entity === "media" ? (
+                  <button type="button" className="danger" onClick={() => openAction(row, "delete")}>
+                    {ui.deleteForever as string}
+                  </button>
+                ) : null}
               </div>
             </article>
           );
@@ -1109,6 +1217,19 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
         }
         .crud-row-actions {
           margin-top: 10px;
+        }
+        .dependency-counts {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 8px;
+        }
+        .dependency-counts span {
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 7px;
+          background: rgba(255, 255, 255, 0.025);
+          padding: 6px 8px;
+          font-size: 12px;
         }
         .crud-row-actions button,
         .crud-toolbar button,

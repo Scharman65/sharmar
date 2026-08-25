@@ -664,7 +664,7 @@ export default function AdminBoatControlCenter({
     label: string,
     className?: string,
   ) => (
-    <span className={className}>
+    <span className={`metric-card ${className ?? ""}`.trim()}>
       <b>{serverValue ?? (previewAvailable ? previewValue : "—")}</b>
       <span className="metric-label">{label}</span>
       {serverValue === undefined && !previewAvailable ? <small>{ui.previewUnavailable}</small> : null}
@@ -797,7 +797,7 @@ export default function AdminBoatControlCenter({
           </label>
         </div>
         <div className="metric-strip">
-          <span><b>{view.boatRows.length}</b><span className="metric-label">{ui.logicalBoats}</span></span>
+          <span className="metric-card"><b>{view.boatRows.length}</b><span className="metric-label">{ui.logicalBoats}</span></span>
           {metric(canonicalSummary?.bookingRequests, view.counters.requests, bookingPreviewComplete, ui.requests)}
           {metric(canonicalSummary?.confirmedBookings, view.counters.confirmed, bookingPreviewComplete, ui.confirmed)}
           {metric(canonicalSummary?.paidBookings, view.counters.paid, financialPreviewComplete, ui.paid)}
@@ -1179,7 +1179,7 @@ export default function AdminBoatControlCenter({
           border-color: #9fd8ff;
           background: rgba(159, 216, 255, 0.16);
         }
-        .metric-strip > span,
+        .metric-strip > :global(.metric-card),
         .financial-strip > span {
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 8px;
@@ -1202,7 +1202,7 @@ export default function AdminBoatControlCenter({
           gap: 10px;
           align-items: stretch;
         }
-        .metric-strip > span {
+        .metric-strip > :global(.metric-card) {
           display: grid;
           align-content: start;
           gap: 5px;
@@ -1214,7 +1214,7 @@ export default function AdminBoatControlCenter({
           background: rgba(255, 255, 255, 0.035);
           padding: 12px;
         }
-        .metric-strip > span b {
+        .metric-strip > :global(.metric-card) b {
           font-size: 24px;
         }
         .metric-label {

@@ -215,6 +215,32 @@ test("RU, EN, and ME CRUD localization exists without visible fallback leakage",
   assert.doesNotMatch(enBlock, /[А-Яа-яЁё]/);
 });
 
+
+test("dependency UI uses real read-only endpoints and permanent delete is hidden for archive-capable entities", () => {
+  assert.match(
+    manager,
+    /`\$\{ADMIN_CRUD_ROUTES\[entity\]\}\/\$\{encodeURIComponent\(id\)\}\/dependencies`/
+  );
+  assert.match(manager, /json\?\.dependencies/);
+  assert.match(manager, /dependencyState\.data\.dependentCounts/);
+  assert.match(manager, /dependencyState\.data\.canDelete/);
+
+  assert.doesNotMatch(
+    manager,
+    /<p>\{ui\.bookingDependency\} · \{ui\.paymentDependency\} · \{ui\.dodoDependency\}<\/p>/
+  );
+
+  assert.match(
+    manager,
+    /\{entity === "document" \|\| entity === "media" \? \(/
+  );
+
+  assert.match(
+    manager,
+    /\{!archived \? \([\s\S]*?openAction\(row, "archive"\)[\s\S]*?openAction\(row, "restore"\)/
+  );
+});
+
 test("technical CRUD does not expose boat or experience moderation lifecycle buttons", () => {
   const managerSource = read("../frontend/app/[lang]/admin/AdminCrudManager.tsx");
 
