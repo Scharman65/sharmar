@@ -35,6 +35,7 @@ export type BoatOwnerLink = {
   owner_username: string | null;
   owner_display_name: string | null;
   owner_phone: string | null;
+  owner_verification_status?: string | null;
   owner_confirmed: boolean | null;
   owner_blocked: boolean | null;
   home_marina_id: number | null;
@@ -192,6 +193,9 @@ function normalizeBoatOwnerLink(item: unknown): BoatOwnerLink | null {
     owner_username: asText(item.owner_username) || null,
     owner_display_name: asText(item.owner_display_name) || null,
     owner_phone: asText(item.owner_phone) || null,
+    ...(Object.prototype.hasOwnProperty.call(item, "owner_verification_status")
+      ? { owner_verification_status: asText(item.owner_verification_status) || null }
+      : {}),
     owner_confirmed: asBoolean(item.owner_confirmed),
     owner_blocked: asBoolean(item.owner_blocked),
     home_marina_id: asNumber(item.home_marina_id),
@@ -229,6 +233,9 @@ function applyOwnerLink<T extends JsonRecord>(boat: T, link: BoatOwnerLink): T {
     owner_username: (link.owner_username ?? asText(boat.owner_username)) || null,
     owner_display_name: (link.owner_display_name ?? asText(boat.owner_display_name)) || null,
     owner_phone: (link.owner_phone ?? asText(boat.owner_phone)) || null,
+    ...(Object.prototype.hasOwnProperty.call(link, "owner_verification_status")
+      ? { owner_verification_status: link.owner_verification_status }
+      : {}),
     owner_confirmed:
       link.owner_confirmed ??
       (typeof boat.owner_confirmed === "boolean" ? boat.owner_confirmed : null),
@@ -442,6 +449,10 @@ export function groupLogicalBoats(boats: JsonRecord[], routes: JsonRecord[], lan
         asText(ownerSource.owner_email) ??
         asText(selectedPrimary.owner_email) ??
         null,
+      owner_verification_status:
+        asText(ownerSource.owner_verification_status) ||
+        asText(selectedPrimary.owner_verification_status) ||
+        null,
       owner_confirmed:
         typeof ownerSource.owner_confirmed === "boolean"
           ? ownerSource.owner_confirmed
@@ -468,6 +479,9 @@ export function groupLogicalBoats(boats: JsonRecord[], routes: JsonRecord[], lan
       .filter(([, routeRows]) => routeRows.some((route) => asText(route.boatDocumentId) === documentId))
       .map(([routeDocumentId, routeRows]) => buildRoute(routeDocumentId, routeRows, documentId, lang));
     const blockers: string[] = [];
+    const ownerVerificationStatusAvailable = rows.some((row) =>
+      Object.prototype.hasOwnProperty.call(row, "owner_verification_status")
+    );
 
     for (const locale of REQUIRED_ADMIN_LOCALES) {
       const label = localeLabel(locale);
@@ -482,7 +496,12 @@ export function groupLogicalBoats(boats: JsonRecord[], routes: JsonRecord[], lan
     if (!asText(primary.owner_display_name ?? primary.owner_email) && !asNumber(primary.owner_user_id ?? primary.created_by_id)) {
       blockers.push(labels.ownerMissing);
     }
-    if (primary.owner_confirmed === false || primary.owner_blocked === true) {
+    if (
+      (ownerVerificationStatusAvailable &&
+        asText(primary.owner_verification_status) !== "approved") ||
+      primary.owner_confirmed === false ||
+      primary.owner_blocked === true
+    ) {
       blockers.push(labels.ownerNotApproved);
     }
     if (primary.owner_documents_count !== undefined && (asNumber(primary.owner_documents_count) ?? 0) < 1) {

@@ -45,6 +45,7 @@ function boat(locale: string, overrides: JsonRecord = {}): JsonRecord {
     moderation_status: "approved",
     owner_display_name: "Captain Owner",
     owner_email: "owner@example.test",
+    owner_verification_status: "approved",
     owner_confirmed: true,
     owner_documents_count: 1,
     cover_count: 1,
@@ -112,6 +113,7 @@ function productionOwnerLink(documentId: string, locale: string, boatId: number)
     owner_user_id: 2,
     owner_email: "owner@example.test",
     owner_display_name: "Captain Owner",
+    owner_verification_status: "approved",
     owner_confirmed: true,
     owner_blocked: false,
   };
@@ -544,4 +546,129 @@ test("direct boat publish is fail closed and unified publication remains the onl
       'return moderateBoat(cms, input);'
     )
   );
+});
+
+test("documents_uploaded owner verification blocks logical boat readiness", () => {
+  const publicRows = [
+    boat("ru", {
+      owner_user_id: null,
+      owner_display_name: null,
+      owner_email: null,
+      owner_verification_status: null,
+    }),
+    boat("en", {
+      owner_user_id: null,
+      owner_display_name: null,
+      owner_email: null,
+      owner_verification_status: null,
+    }),
+    boat("sr-Latn-ME", {
+      owner_user_id: null,
+      owner_display_name: null,
+      owner_email: null,
+      owner_verification_status: null,
+    }),
+  ];
+
+  const mergedRows = mergeBoatOwnerLinks(publicRows, [
+    {
+      boat_id: 1,
+      boat_document_id: "oceanis-doc",
+      boat_locale: "ru",
+      owner_user_id: 42,
+      created_by_id: null,
+      owner_profile_id: 7,
+      owner_email: "pending-owner@example.test",
+      owner_username: "pending-owner",
+      owner_display_name: "Pending Owner",
+      owner_phone: null,
+      owner_verification_status: "documents_uploaded",
+      owner_confirmed: true,
+      owner_blocked: false,
+      home_marina_id: null,
+      home_marina_document_id: null,
+      home_marina_name: null,
+      home_marina_slug: null,
+      home_marina_locale: null,
+    },
+  ]);
+
+  assert.deepEqual(
+    mergedRows.map((row) => row.owner_verification_status),
+    ["documents_uploaded", "documents_uploaded", "documents_uploaded"]
+  );
+
+  const logicalBoats = groupLogicalBoats(
+    mergedRows,
+    completeRoutes,
+    "ru"
+  );
+
+  assert.equal(logicalBoats.length, 1);
+  assert.equal(
+    logicalBoats[0].primary.owner_verification_status,
+    "documents_uploaded"
+  );
+  assert.equal(logicalBoats[0].ready, false);
+  assert.ok(
+    logicalBoats[0].blockers.includes(
+      "Владелец не подтвержден."
+    )
+  );
+});
+
+
+test("legacy CMS owner link without verification status keeps legacy readiness fallback", () => {
+  const legacyRows = ["ru", "en", "sr-Latn-ME"].map((locale) => {
+    const row = boat(locale);
+    delete row.owner_verification_status;
+    return row;
+  });
+
+  const mergedRows = mergeBoatOwnerLinks(legacyRows, [
+    {
+      boat_id: 1,
+      boat_document_id: "oceanis-doc",
+      boat_locale: "ru",
+      owner_user_id: 42,
+      created_by_id: null,
+      owner_profile_id: 7,
+      owner_email: "legacy-owner@example.test",
+      owner_username: "legacy-owner",
+      owner_display_name: "Legacy Owner",
+      owner_phone: null,
+      owner_confirmed: true,
+      owner_blocked: false,
+      home_marina_id: null,
+      home_marina_document_id: null,
+      home_marina_name: null,
+      home_marina_slug: null,
+      home_marina_locale: null,
+    },
+  ]);
+
+  assert.equal(
+    mergedRows.some((row) =>
+      Object.prototype.hasOwnProperty.call(
+        row,
+        "owner_verification_status"
+      )
+    ),
+    false
+  );
+
+  const logicalBoats = groupLogicalBoats(
+    mergedRows,
+    completeRoutes,
+    "ru"
+  );
+
+  assert.equal(logicalBoats.length, 1);
+  assert.equal(
+    logicalBoats[0].blockers.includes(
+      "Владелец не подтвержден."
+    ),
+    false
+  );
+  assert.equal(logicalBoats[0].ready, true);
 });
