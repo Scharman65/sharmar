@@ -487,3 +487,61 @@ test("linked logical route hides stale technical boat blocker", () => {
     )
   );
 });
+
+test("direct boat publish is fail closed and unified publication remains the only boat publish path", () => {
+  assert.ok(
+    cmsModeration.includes(
+      'if (input.action === "publish_logical_boat")'
+    )
+  );
+
+  assert.ok(
+    cmsModeration.includes(
+      'code: "unified_publication_required"'
+    )
+  );
+
+  const boatDispatchStart =
+    cmsModeration.indexOf(
+      'if (input.entityType === "boat")'
+    );
+
+  const experienceDispatchStart =
+    cmsModeration.indexOf(
+      'if (input.entityType === "experience")',
+      boatDispatchStart
+    );
+
+  assert.notEqual(boatDispatchStart, -1);
+  assert.notEqual(experienceDispatchStart, -1);
+
+  const boatDispatch =
+    cmsModeration.slice(
+      boatDispatchStart,
+      experienceDispatchStart
+    );
+
+  assert.ok(
+    boatDispatch.includes(
+      'if (input.action === "publish")'
+    )
+  );
+
+  assert.ok(
+    boatDispatch.includes(
+      'status: 409'
+    )
+  );
+
+  assert.ok(
+    boatDispatch.includes(
+      'return publishUnifiedBoat(cms, input);'
+    )
+  );
+
+  assert.ok(
+    boatDispatch.includes(
+      'return moderateBoat(cms, input);'
+    )
+  );
+});

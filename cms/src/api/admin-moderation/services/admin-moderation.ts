@@ -1685,6 +1685,18 @@ export function createAdminModerationService(cms: StrapiLike) {
         if (input.action === "publish_logical_boat") {
           return publishUnifiedBoat(cms, input);
         }
+
+        if (input.action === "publish") {
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              ok: false,
+              code: "unified_publication_required",
+            },
+          };
+        }
+
         return moderateBoat(cms, input);
       }
 
