@@ -436,12 +436,26 @@ function healthDot(label: string, health: AdminMarketplaceSystemHealth | AdminMa
   );
 }
 
+const moderationStatusLabels: Record<Lang, Record<string, string>> = {
+  ru: { draft: "Черновик", submitted: "Ожидает проверки", under_review: "На проверке", needs_changes: "Требует доработки", documents_uploaded: "Документы ожидают проверки", approved: "Готов к публикации", published: "Опубликовано", rejected: "Отклонено", archived: "В архиве" },
+  en: { draft: "Draft", submitted: "Awaiting review", under_review: "Under review", needs_changes: "Needs changes", documents_uploaded: "Documents awaiting review", approved: "Ready to publish", published: "Published", rejected: "Rejected", archived: "Archived" },
+  me: { draft: "Nacrt", submitted: "Čeka provjeru", under_review: "U provjeri", needs_changes: "Potrebna dorada", documents_uploaded: "Dokumenti čekaju provjeru", approved: "Spremno za objavu", published: "Objavljeno", rejected: "Odbijeno", archived: "Arhivirano" },
+};
+
+const noBlockers = { ru: "Нет блокеров", en: "No blockers", me: "Nema blokera" } satisfies Record<Lang, string>;
+
+function moderationStatusLabel(value: unknown, lang: Lang): string {
+  const status = asText(value);
+  const label = moderationStatusLabels[lang][status] ?? status;
+  return label || missing[lang];
+}
+
 function localeStatus(row: JsonRecord | null, lang: Lang): string {
   if (!row) return missing[lang];
   const status = asText(row.moderation_status ?? row.state) || (asText(row.publishedAt) ? "published" : "");
   const titleReady = Boolean(asText(row.title));
   const slugReady = Boolean(asText(row.slug));
-  return `${status || missing[lang]} · ${titleReady && slugReady ? "OK" : missing[lang]}`;
+  return `${moderationStatusLabel(status, lang)} · ${titleReady && slugReady ? "OK" : missing[lang]}`;
 }
 
 function ownerKey(row: JsonRecord): string | null {
@@ -871,13 +885,13 @@ export default function AdminBoatControlCenter({
                     <summary aria-label={`${summaryTitle}. ${systemLabels[lang][row.systemHealth]}. ${bookingHealthLabel}`}>
                       <span className="boat-title">{summaryTitle}</span>
                       <span>{display(row.marinaName, lang)}</span>
-                      <span>{display(primary.moderation_status ?? primary.state, lang)}</span>
+                      <span className="status-badge">{moderationStatusLabel(primary.moderation_status ?? primary.state, lang)}</span>
                       <span>{REQUIRED_ADMIN_LOCALES.map((locale) => `${localeLabel(locale)} ${boat.locales[locale] ? "OK" : missing[lang]}`).join(" · ")}</span>
                       <span>{boat.routes.length}</span>
                       {healthDot(systemLabels[lang][row.systemHealth], row.systemHealth)}
                       {healthDot(bookingHealthLabel, row.bookingHealth)}
                       <span>{rowBookingPreviewComplete ? counters.requests : ui.previewUnavailable}</span>
-                      <span>{rowFinancialPreviewComplete ? paymentAmountLines(row.financialByCurrency) || amountLines(row.financialByCurrency, "bookingPaid") || missing[lang] : ui.financialPreviewUnavailable}</span>
+                      <span>{rowFinancialPreviewComplete ? paymentAmountLines(row.financialByCurrency) || amountLines(row.financialByCurrency, "bookingPaid") || missing[lang] : ui.previewUnavailable}</span>
                     </summary>
                     <div className="boat-detail">
                       {rowPreviewNotice ? <p className="admin-warning" role="status">{rowPreviewNotice}</p> : null}
@@ -901,7 +915,9 @@ export default function AdminBoatControlCenter({
                         <h4>{ui.blockers}</h4>
                         {row.dataQualityIssues.length ? (
                           <ul>{row.dataQualityIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
-                        ) : <p className="admin-muted">{missing[lang]}</p>}
+                        ) : (
+                          <p className="admin-success">{noBlockers[lang]}</p>
+                        )}
                       </section>
 
                       <section className="locale-grid" aria-label={ui.locales}>
@@ -1026,7 +1042,7 @@ export default function AdminBoatControlCenter({
                           <div><dt>{ui.phone}</dt><dd>{display(contact.phone, lang)}</dd></div>
                           <div><dt>{ui.whatsapp}</dt><dd>{display(contact.whatsapp, lang)}</dd></div>
                           <div><dt>{ui.viber}</dt><dd>{display(contact.viber, lang)}</dd></div>
-                          <div><dt>{ui.ownerStatus}</dt><dd>{display(contact.status, lang)}</dd></div>
+                          <div><dt>{ui.ownerStatus}</dt><dd><span className="status-badge">{moderationStatusLabel(contact.status, lang)}</span></dd></div>
                         </dl>
                       </section>
 
@@ -1160,6 +1176,11 @@ export default function AdminBoatControlCenter({
           font-size: 11px;
           margin-top: 4px;
         }
+        .metric-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); align-items: stretch; }
+        .metric-strip span { min-width: 0; line-height: 1.25; }
+        .financial-strip { align-items: stretch; }
+        .financial-strip span { white-space: normal; }
+        .status-badge { display: inline-flex; width: fit-content; max-width: 100%; align-items: center; border: 1px solid rgba(159, 216, 255, 0.28); border-radius: 999px; background: rgba(159, 216, 255, 0.1); padding: 4px 8px; font-size: 12px; font-weight: 750; line-height: 1.2; white-space: normal; }
         .external-required {
           border-color: rgba(255, 123, 114, 0.75) !important;
           color: #ffb4ae;
@@ -1210,13 +1231,17 @@ export default function AdminBoatControlCenter({
         .boat-table {
           display: grid;
           gap: 6px;
+          overflow-x: auto;
+          padding-bottom: 4px;
+          scrollbar-width: thin;
         }
         .boat-table-head,
         .boat-line summary {
           display: grid;
-          grid-template-columns: minmax(180px, 1.5fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(160px, 1.1fr) 72px minmax(130px, 1fr) minmax(150px, 1fr) 72px minmax(120px, 1fr);
-          gap: 8px;
+          grid-template-columns: minmax(190px, 1.45fr) minmax(110px, 0.8fr) minmax(140px, 0.95fr) minmax(220px, 1.35fr) 72px minmax(150px, 1fr) minmax(170px, 1.05fr) 78px minmax(125px, 0.9fr);
+          gap: 10px;
           align-items: center;
+          min-width: 1280px;
         }
         .boat-table-head {
           color: rgba(246, 243, 237, 0.62);
@@ -1247,17 +1272,26 @@ export default function AdminBoatControlCenter({
         }
         .media-strip {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+          grid-template-columns: repeat(auto-fill, 132px);
           gap: 8px;
+          justify-content: start;
+          align-items: start;
         }
         .media-strip.small {
-          grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+          grid-template-columns: repeat(auto-fill, 80px);
+          gap: 6px;
         }
         .media-strip img {
-          width: 100%;
-          aspect-ratio: 4 / 3;
+          width: 132px;
+          height: 96px;
           object-fit: cover;
           border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .media-strip.small img {
+          width: 80px;
+          height: 60px;
+          border-radius: 6px;
         }
         .locale-grid,
         .route-stack,
@@ -1307,6 +1341,10 @@ export default function AdminBoatControlCenter({
           border-radius: 8px;
           padding: 9px;
         }
+        .locale-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; }
+        .locale-row strong { min-width: 0; overflow-wrap: anywhere; }
+        .route-review { display: grid; gap: 8px; }
+        .route-review p { margin-bottom: 0; color: rgba(246, 243, 237, 0.72); font-size: 13px; }
         .boat-action-row {
           grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
           align-items: center;
@@ -1322,6 +1360,7 @@ export default function AdminBoatControlCenter({
           }
           .boat-line summary {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            min-width: 0;
           }
           .boat-title {
             grid-column: 1 / -1;
