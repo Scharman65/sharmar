@@ -1044,6 +1044,52 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
         .admin-crud-panel {
           display: grid;
           gap: 12px;
+          padding-top: 4px;
+        }
+        .admin-list {
+          display: grid;
+          gap: 8px;
+        }
+        .admin-list > article {
+          padding: 12px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.025);
+        }
+        .admin-list > article h2 {
+          margin: 0;
+          font-size: 18px;
+        }
+        .admin-list > article p {
+          margin: 4px 0 0;
+        }
+        .admin-list > article .admin-fields {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+          margin: 10px 0;
+        }
+        .admin-list > article .admin-fields > div {
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 8px;
+          padding: 8px;
+        }
+        .admin-list > article .admin-fields dt {
+          color: rgba(246, 243, 237, 0.55);
+          font-size: 11px;
+        }
+        .admin-list > article .admin-fields dd {
+          margin: 3px 0 0;
+          overflow-wrap: anywhere;
+        }
+        .admin-list > article details {
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          margin-top: 8px;
+          padding-top: 8px;
+        }
+        .admin-list > article details summary {
+          cursor: pointer;
+          font-weight: 700;
         }
         .crud-toolbar,
         .crud-actions-row,
@@ -1053,6 +1099,40 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
           flex-wrap: wrap;
           gap: 8px;
           align-items: end;
+        }
+        .crud-toolbar,
+        .crud-actions-row {
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.02);
+          padding: 10px;
+        }
+        .crud-row-actions {
+          margin-top: 10px;
+        }
+        .crud-row-actions button,
+        .crud-toolbar button,
+        .crud-actions-row button,
+        .pagination button {
+          min-height: 36px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.08);
+          color: white;
+          font: inherit;
+          font-weight: 700;
+          padding: 8px 11px;
+        }
+        .crud-row-actions button:hover:not(:disabled),
+        .crud-toolbar button:hover:not(:disabled),
+        .crud-actions-row button:hover:not(:disabled),
+        .pagination button:hover:not(:disabled) {
+          background: rgba(159, 216, 255, 0.14);
+          border-color: rgba(159, 216, 255, 0.42);
+        }
+        button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
         }
         .crud-toolbar label,
         .crud-dialog label {
@@ -1068,18 +1148,30 @@ export default function AdminCrudManager({ lang, entity, dashboardRows, onRefres
           padding: 10px 12px;
         }
         .danger {
-          background: #ffd3d3;
+          border-color: rgba(255, 123, 114, 0.55) !important;
+          background: rgba(255, 123, 114, 0.12) !important;
+          color: #ffb4ae !important;
         }
         .crud-dialog {
           position: fixed;
           inset: auto 24px 24px auto;
           width: min(420px, calc(100vw - 48px));
           border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 8px;
+          border-radius: 12px;
           background: #10141b;
           padding: 18px;
           box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
-          z-index: 10;
+          z-index: 40;
+        }
+        @media (max-width: 900px) {
+          .admin-list > article .admin-fields {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 560px) {
+          .admin-list > article .admin-fields {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </section>

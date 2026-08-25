@@ -641,7 +641,8 @@ export default function AdminBoatControlCenter({
     className?: string,
   ) => (
     <span className={className}>
-      <b>{serverValue ?? (previewAvailable ? previewValue : "—")}</b>{label}
+      <b>{serverValue ?? (previewAvailable ? previewValue : "—")}</b>
+      <span className="metric-label">{label}</span>
       {serverValue === undefined && !previewAvailable ? <small>{ui.previewUnavailable}</small> : null}
     </span>
   );
@@ -773,7 +774,7 @@ export default function AdminBoatControlCenter({
           </label>
         </div>
         <div className="metric-strip">
-          <span><b>{view.boatRows.length}</b>{ui.logicalBoats}</span>
+          <span><b>{view.boatRows.length}</b><span className="metric-label">{ui.logicalBoats}</span></span>
           {metric(canonicalSummary?.bookingRequests, view.counters.requests, bookingPreviewComplete, ui.requests)}
           {metric(canonicalSummary?.confirmedBookings, view.counters.confirmed, bookingPreviewComplete, ui.confirmed)}
           {metric(canonicalSummary?.paidBookings, view.counters.paid, financialPreviewComplete, ui.paid)}
@@ -844,8 +845,6 @@ export default function AdminBoatControlCenter({
                 <span>{ui.routes}</span>
                 <span>{ui.systemLegend}</span>
                 <span>{ui.bookingLegend}</span>
-                <span>{ui.bookings}</span>
-                <span>{ui.paidAmount}</span>
               </div>
               {group.boats.map((row) => {
                 const boat = row.boat;
@@ -890,8 +889,6 @@ export default function AdminBoatControlCenter({
                       <span>{boat.routes.length}</span>
                       {healthDot(systemLabels[lang][row.systemHealth], row.systemHealth)}
                       {healthDot(bookingHealthLabel, row.bookingHealth)}
-                      <span>{rowBookingPreviewComplete ? counters.requests : ui.previewUnavailable}</span>
-                      <span>{rowFinancialPreviewComplete ? paymentAmountLines(row.financialByCurrency) || amountLines(row.financialByCurrency, "bookingPaid") || missing[lang] : ui.previewUnavailable}</span>
                     </summary>
                     <div className="boat-detail">
                       {rowPreviewNotice ? <p className="admin-warning" role="status">{rowPreviewNotice}</p> : null}
@@ -905,10 +902,10 @@ export default function AdminBoatControlCenter({
                       <dl className="admin-fields compact">
                         <div><dt>{ui.characteristics}</dt><dd>{display(primary.boat_type, lang)} · {display(primary.capacity, lang)} · {display(primary.year, lang)}</dd></div>
                         <div><dt>{ui.marina}</dt><dd>{display(row.marinaName, lang)}</dd></div>
-                        <div><dt>{ui.bookings}</dt><dd>{rowBookingPreviewComplete ? counters.requests : ui.bookingPreviewUnavailable}</dd></div>
-                        <div><dt>{ui.paidAmount}</dt><dd>{rowFinancialPreviewComplete ? amountLines(row.financialByCurrency, "bookingPaid") || missing[lang] : ui.financialPreviewUnavailable}</dd></div>
-                        <div><dt>{ui.fee}</dt><dd>{rowFinancialPreviewComplete ? amountLines(row.financialByCurrency, "marketplaceFee") || missing[lang] : ui.financialPreviewUnavailable}</dd></div>
-                        <div><dt>{ui.payout}</dt><dd>{rowFinancialPreviewComplete ? amountLines(row.financialByCurrency, "ownerPayout") || missing[lang] : ui.financialPreviewUnavailable}</dd></div>
+                        <div><dt>{ui.bookings}</dt><dd>{rowBookingPreviewComplete ? counters.requests : "—"}</dd></div>
+                        <div><dt>{ui.paidAmount}</dt><dd>{rowFinancialPreviewComplete ? amountLines(row.financialByCurrency, "bookingPaid") || missing[lang] : "—"}</dd></div>
+                        <div><dt>{ui.fee}</dt><dd>{rowFinancialPreviewComplete ? amountLines(row.financialByCurrency, "marketplaceFee") || missing[lang] : "—"}</dd></div>
+                        <div><dt>{ui.payout}</dt><dd>{rowFinancialPreviewComplete ? amountLines(row.financialByCurrency, "ownerPayout") || missing[lang] : "—"}</dd></div>
                       </dl>
 
                       <section>
@@ -960,15 +957,15 @@ export default function AdminBoatControlCenter({
                       <section>
                         <h4>{ui.payments}</h4>
                         <dl className="admin-fields compact">
-                          <div><dt>{ui.requests}</dt><dd>{rowBookingPreviewComplete ? counters.requests : ui.bookingPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.confirmed}</dt><dd>{rowBookingPreviewComplete ? counters.confirmed : ui.bookingPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.paid}</dt><dd>{rowFinancialPreviewComplete ? counters.paid : ui.financialPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.pendingPayment}</dt><dd>{rowFinancialPreviewComplete ? counters.pendingPayment : ui.financialPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.cancelledRefunded}</dt><dd>{rowBookingPreviewComplete ? counters.cancelled : ui.bookingPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.paymentErrors}</dt><dd>{rowPaymentPreviewComplete ? counters.paymentErrors : ui.paymentPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.reviewPayments}</dt><dd>{rowPaymentPreviewComplete ? counters.paymentsNeedingReview : ui.paymentPreviewUnavailable}</dd></div>
-                          <div className={rowBookingPreviewComplete && counters.externalRefundRequired > 0 ? "external-required" : ""}><dt>{ui.externalRefundRequired}</dt><dd>{rowBookingPreviewComplete ? counters.externalRefundRequired : ui.bookingPreviewUnavailable}</dd></div>
-                          <div><dt>{ui.externalRefundCompleted}</dt><dd>{rowBookingPreviewComplete ? counters.externalRefundCompleted : ui.bookingPreviewUnavailable}</dd></div>
+                          <div><dt>{ui.requests}</dt><dd>{rowBookingPreviewComplete ? counters.requests : "—"}</dd></div>
+                          <div><dt>{ui.confirmed}</dt><dd>{rowBookingPreviewComplete ? counters.confirmed : "—"}</dd></div>
+                          <div><dt>{ui.paid}</dt><dd>{rowFinancialPreviewComplete ? counters.paid : "—"}</dd></div>
+                          <div><dt>{ui.pendingPayment}</dt><dd>{rowFinancialPreviewComplete ? counters.pendingPayment : "—"}</dd></div>
+                          <div><dt>{ui.cancelledRefunded}</dt><dd>{rowBookingPreviewComplete ? counters.cancelled : "—"}</dd></div>
+                          <div><dt>{ui.paymentErrors}</dt><dd>{rowPaymentPreviewComplete ? counters.paymentErrors : "—"}</dd></div>
+                          <div><dt>{ui.reviewPayments}</dt><dd>{rowPaymentPreviewComplete ? counters.paymentsNeedingReview : "—"}</dd></div>
+                          <div className={rowBookingPreviewComplete && counters.externalRefundRequired > 0 ? "external-required" : ""}><dt>{ui.externalRefundRequired}</dt><dd>{rowBookingPreviewComplete ? counters.externalRefundRequired : "—"}</dd></div>
+                          <div><dt>{ui.externalRefundCompleted}</dt><dd>{rowBookingPreviewComplete ? counters.externalRefundCompleted : "—"}</dd></div>
                         </dl>
                         {!rowPaymentPreviewComplete ? (
                           <p className="admin-warning" role="status">{ui.paymentPreviewUnavailable}</p>
@@ -1176,11 +1173,56 @@ export default function AdminBoatControlCenter({
           font-size: 11px;
           margin-top: 4px;
         }
-        .metric-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); align-items: stretch; }
-        .metric-strip span { min-width: 0; line-height: 1.25; }
-        .financial-strip { align-items: stretch; }
-        .financial-strip span { white-space: normal; }
-        .status-badge { display: inline-flex; width: fit-content; max-width: 100%; align-items: center; border: 1px solid rgba(159, 216, 255, 0.28); border-radius: 999px; background: rgba(159, 216, 255, 0.1); padding: 4px 8px; font-size: 12px; font-weight: 750; line-height: 1.2; white-space: normal; }
+        .metric-strip {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+          align-items: stretch;
+        }
+        .metric-strip > span {
+          display: grid;
+          align-content: start;
+          gap: 5px;
+          min-width: 0;
+          min-height: 82px;
+          line-height: 1.2;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 12px;
+        }
+        .metric-strip > span b {
+          font-size: 24px;
+        }
+        .metric-label {
+          color: rgba(246, 243, 237, 0.86);
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .financial-strip {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+          align-items: stretch;
+        }
+        .financial-strip span {
+          white-space: normal;
+          min-width: 0;
+        }
+        .status-badge {
+          display: inline-flex;
+          width: fit-content;
+          max-width: 100%;
+          align-items: center;
+          border: 1px solid rgba(159, 216, 255, 0.28);
+          border-radius: 999px;
+          background: rgba(159, 216, 255, 0.1);
+          padding: 4px 8px;
+          font-size: 12px;
+          font-weight: 750;
+          line-height: 1.2;
+          white-space: normal;
+        }
         .external-required {
           border-color: rgba(255, 123, 114, 0.75) !important;
           color: #ffb4ae;
@@ -1238,10 +1280,17 @@ export default function AdminBoatControlCenter({
         .boat-table-head,
         .boat-line summary {
           display: grid;
-          grid-template-columns: minmax(190px, 1.45fr) minmax(110px, 0.8fr) minmax(140px, 0.95fr) minmax(220px, 1.35fr) 72px minmax(150px, 1fr) minmax(170px, 1.05fr) 78px minmax(125px, 0.9fr);
+          grid-template-columns:
+            minmax(190px, 1.5fr)
+            minmax(110px, 0.8fr)
+            minmax(145px, 0.95fr)
+            minmax(210px, 1.3fr)
+            72px
+            minmax(145px, 1fr)
+            minmax(180px, 1.1fr);
           gap: 10px;
           align-items: center;
-          min-width: 1280px;
+          min-width: 1080px;
         }
         .boat-table-head {
           color: rgba(246, 243, 237, 0.62);
@@ -1266,9 +1315,40 @@ export default function AdminBoatControlCenter({
         }
         .boat-detail {
           display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 14px;
+        }
+        .boat-detail > .admin-warning,
+        .boat-detail > .media-strip,
+        .boat-detail > .boat-action-row {
+          grid-column: 1 / -1;
+        }
+        .boat-detail > section,
+        .boat-detail > .admin-fields.compact {
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.025);
           padding: 12px;
+        }
+        .boat-detail .admin-fields.compact {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+          margin: 0;
+        }
+        .boat-detail .admin-fields.compact > div {
+          min-width: 0;
+        }
+        .boat-detail .admin-fields.compact dt {
+          color: rgba(246, 243, 237, 0.58);
+          font-size: 11px;
+        }
+        .boat-detail .admin-fields.compact dd {
+          margin: 3px 0 0;
+          overflow-wrap: anywhere;
         }
         .media-strip {
           display: grid;
@@ -1346,8 +1426,48 @@ export default function AdminBoatControlCenter({
         .route-review { display: grid; gap: 8px; }
         .route-review p { margin-bottom: 0; color: rgba(246, 243, 237, 0.72); font-size: 13px; }
         .boat-action-row {
-          grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
           align-items: center;
+          padding-top: 4px;
+        }
+        .boat-action-row button,
+        .boat-action-row a {
+          min-height: 38px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.08);
+          color: white;
+          font: inherit;
+          font-weight: 750;
+          line-height: 1.2;
+          padding: 9px 13px;
+          text-decoration: none;
+        }
+        .boat-action-row button:hover:not(:disabled),
+        .boat-action-row a:hover {
+          background: rgba(159, 216, 255, 0.14);
+          border-color: rgba(159, 216, 255, 0.42);
+        }
+        .boat-action-row button:disabled {
+          cursor: not-allowed;
+          opacity: 0.42;
+        }
+        .advanced-area {
+          margin-top: 6px;
+          border: 1px solid rgba(255, 209, 102, 0.22);
+          border-radius: 12px;
+          background: rgba(255, 209, 102, 0.035);
+          padding: 10px 12px;
+        }
+        .advanced-area > summary {
+          cursor: pointer;
+          font-weight: 800;
+          color: #ffd166;
+        }
+        .advanced-area[open] > summary {
+          margin-bottom: 10px;
         }
         h4,
         p,
@@ -1364,6 +1484,17 @@ export default function AdminBoatControlCenter({
           }
           .boat-title {
             grid-column: 1 / -1;
+          }
+          .boat-detail {
+            grid-template-columns: 1fr;
+          }
+          .boat-detail > .admin-warning,
+          .boat-detail > .media-strip,
+          .boat-detail > .boat-action-row {
+            grid-column: auto;
+          }
+          .financial-strip {
+            grid-template-columns: 1fr;
           }
         }
         @media (max-width: 640px) {

@@ -50,7 +50,15 @@ test("frontend fails closed when dashboard preview collections are incomplete", 
   assert.match(controlCenter, /bookingRequests: collectionComplete\(collectionCompleteness, "bookingRequests"\)/);
   assert.match(controlCenter, /payments: collectionComplete\(collectionCompleteness, "payments"\)/);
   assert.match(controlCenter, /previewCompleteness,/);
-  assert.match(controlCenter, /rowBookingPreviewComplete \? counters\.requests : ui\.previewUnavailable/);
+  assert.match(
+    controlCenter,
+    /const rowPreviewNotice = !rowBookingPreviewComplete && !rowPaymentPreviewComplete[\s\S]*?\? ui\.previewUnavailable[\s\S]*?: !rowBookingPreviewComplete[\s\S]*?\? ui\.bookingPreviewUnavailable[\s\S]*?: !rowPaymentPreviewComplete[\s\S]*?\? ui\.paymentPreviewUnavailable/,
+  );
+  assert.match(
+    controlCenter,
+    /\{rowPreviewNotice \? <p className="admin-warning" role="status">\{rowPreviewNotice\}<\/p> : null\}/,
+  );
+  assert.match(controlCenter, /rowBookingPreviewComplete \? counters\.requests : "—"/);
   assert.match(controlCenter, /rowFinancialPreviewComplete \? amountLines\(row\.financialByCurrency, "bookingPaid"\)/);
   assert.match(controlCenter, /ui\.financialPreviewUnavailable/);
   assert.match(controlCenter, /!rowBookingPreviewComplete \? \(/);
