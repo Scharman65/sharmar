@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { setOwnerSessionCookie } from "../owner-session/cookies";
 import { getOwnerInternalToken } from "@/lib/auth/ownerInternalAuth";
+import { parseOwnerLoginCredentials } from "@/lib/auth/ownerLoginCredentials";
 import { asNumber, getClientIp, getStrapiBase, isRecord, jsonError, readJson, strapiFetchJson } from "@/lib/auth/ownerApi";
 import { checkPersistentRateLimit } from "@/lib/security/ownerRateLimit";
-import { normalizeOwnerEmail } from "@/lib/security/ownerPassword";
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
@@ -19,13 +19,15 @@ export async function POST(req: NextRequest) {
     return jsonError("invalid_request", 400);
   }
 
-  const identifier = normalizeOwnerEmail(body.identifier);
-  const password = typeof body.password === "string" ? body.password : "";
+  const credentials = parseOwnerLoginCredentials(body);
+  const identifier = credentials.identifier;
 
   const emailLimit = await checkPersistentRateLimit("owner-login-email", identifier, 8, 15 * 60 * 1000);
   if (!emailLimit.allowed) return jsonError(emailLimit.unavailable ? "rate_limit_unavailable" : "too_many_attempts", emailLimit.unavailable ? 503 : 429, { retryAfter: emailLimit.retryAfter });
 
-  if (!identifier || !password) return jsonError("invalid_credentials", 400);
+  if (!credentials.ok) return jsonError(credentials.code, credentials.status);
+
+  const password = credentials.password;
 
   const loginRes = await fetch(`${getStrapiBase()}/api/auth/local`, {
     method: "POST",
