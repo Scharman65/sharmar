@@ -174,7 +174,14 @@ async function runWithMockedStrapi(
 
     if (url.pathname === "/api/owner/profile-by-user") {
       assert.equal(url.searchParams.get("user_id"), String(ownerId));
-      return response({ profile: { documentId: "owner-profile-doc", session_version: 2 } });
+      return response({
+        profile: {
+          documentId: "owner-profile-doc",
+          session_version: 2,
+          email_verified: true,
+          whatsapp_verified: true,
+        },
+      });
     }
 
     if (url.pathname === "/api/owner/boats-by-user") {

@@ -133,7 +133,9 @@ test("calendar is available for draft boats without admin approval gate", () => 
 
 test("submit-review checklist uses the existing handler and API", () => {
   assert.ok(dashboard.includes('boatSetupAnchor(selectedBoat, "submit-review")'));
-  assert.ok(dashboard.includes("submitBoatForReview"));
+  assert.ok(dashboard.includes('<form\n                          method="POST"\n                          action="/api/owner/boats/submit-review"'));
+  assert.ok(dashboard.includes('name="documentId"'));
+  assert.ok(dashboard.includes('name="returnTo"'));
   assert.ok(dashboard.includes("/api/owner/boats/submit-review"));
 });
 
