@@ -12,6 +12,9 @@ function read(relativePath: string): string {
 }
 
 const cmsAnalytics = read("cms/src/api/admin-dashboard/services/marketplace-analytics.ts");
+const cmsDashboardController = read("cms/src/api/admin-dashboard/controllers/admin-dashboard.ts");
+const cmsDashboardRoutes = read("cms/src/api/admin-dashboard/routes/admin-dashboard.ts");
+const dashboardRoute = read("frontend/app/api/admin/dashboard/route.ts");
 const nextAnalytics = read("frontend/app/api/admin/marketplace-analytics/route.ts");
 const externalRefundRoute = read("frontend/app/api/admin/booking-requests/[id]/external-refund/route.ts");
 const ownerProxy = read("frontend/app/api/owner-actions/[token]/[action]/route.ts");
@@ -90,6 +93,31 @@ test("frontend control center keeps external refunds operational and separate fr
   assert.match(clientAggregator, /externalRefundStatus/);
   assert.equal(clientAggregator.includes("booking" + "Refunded"), false);
   assert.equal(clientAggregator.includes("payment" + "RefundedCents"), false);
+});
+
+test("dashboard proxy tolerates mismatched legacy and owner action CMS admin tokens", () => {
+  assert.match(dashboardRoute, /function getCmsAdminSummaryTokens\(\): string\[\]/);
+  assert.ok(
+    dashboardRoute.indexOf("process.env.SHARMAR_OWNER_ACTION_TOKEN") <
+      dashboardRoute.indexOf("process.env.PAYMENTS_ADMIN_TOKEN")
+  );
+  assert.match(dashboardRoute, /function uniqueTokens\(tokens: string\[\]\): string\[\]/);
+  assert.match(dashboardRoute, /res\.status !== 401 && res\.status !== 403/);
+  assert.match(dashboardRoute, /cmsAdminSummaryGet\(cmsAdminTokens\)/);
+  assert.match(dashboardRoute, /cmsModerationEventsGet\(cmsAdminTokens\)/);
+});
+
+test("CMS admin dashboard routes use the same multi-token guard", () => {
+  assert.match(cmsDashboardRoutes, /path: "\/admin-dashboard\/summary"/);
+  assert.match(cmsDashboardRoutes, /path: "\/admin-dashboard\/moderation-events"/);
+  assert.match(cmsDashboardRoutes, /handler: "admin-dashboard\.moderationEvents"/);
+
+  const moderationEventsBlock = cmsDashboardController.slice(
+    cmsDashboardController.indexOf("async moderationEvents"),
+    cmsDashboardController.indexOf("async marketplaceAnalytics")
+  );
+  assert.match(moderationEventsBlock, /if \(invalidAdminToken\(ctx\)\) return;/);
+  assert.doesNotMatch(moderationEventsBlock, /PAYMENTS_ADMIN_TOKEN\s*\|\|[\s\S]*SHARMAR_OWNER_ACTION_TOKEN/);
 });
 
 test("CMS analytics contract covers period boundaries, dedupe, repeated failures, currencies, and review status", () => {

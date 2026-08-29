@@ -17,6 +17,14 @@ export default {
       },
     },
     {
+      method: "GET",
+      path: "/admin-dashboard/moderation-events",
+      handler: "admin-dashboard.moderationEvents",
+      config: {
+        auth: false,
+      },
+    },
+    {
       method: "PATCH",
       path: "/admin-dashboard/booking-requests/:id/external-refund",
       handler: "admin-dashboard.updateExternalRefund",

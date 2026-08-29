@@ -547,33 +547,7 @@ export default {
   },
 
   async moderationEvents(ctx) {
-    const configuredToken = String(
-      process.env.PAYMENTS_ADMIN_TOKEN ||
-        process.env.SHARMAR_OWNER_ACTION_TOKEN ||
-        ""
-    ).trim();
-
-    const requestToken = String(
-      ctx.request.headers["x-admin-token"] || ""
-    ).trim();
-
-    if (!configuredToken) {
-      ctx.status = 503;
-      ctx.body = {
-        ok: false,
-        code: "admin_token_missing",
-      };
-      return;
-    }
-
-    if (!tokenMatches(requestToken, configuredToken)) {
-      ctx.status = 401;
-      ctx.body = {
-        ok: false,
-        code: "unauthorized",
-      };
-      return;
-    }
+    if (invalidAdminToken(ctx)) return;
 
     const rows = await strapi.db
       .query("api::moderation-event.moderation-event")

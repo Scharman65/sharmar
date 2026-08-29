@@ -47,8 +47,15 @@ function getServerToken(): string {
   return (process.env.STRAPI_WRITE_TOKEN || process.env.STRAPI_TOKEN || "").trim();
 }
 
-function getCmsAdminSummaryToken(): string {
-  return (process.env.PAYMENTS_ADMIN_TOKEN || process.env.SHARMAR_OWNER_ACTION_TOKEN || "").trim();
+function uniqueTokens(tokens: string[]): string[] {
+  return Array.from(new Set(tokens.map((token) => token.trim()).filter(Boolean)));
+}
+
+function getCmsAdminSummaryTokens(): string[] {
+  return uniqueTokens([
+    process.env.SHARMAR_OWNER_ACTION_TOKEN || "",
+    process.env.PAYMENTS_ADMIN_TOKEN || "",
+  ]);
 }
 
 function isRecord(value: unknown): value is JsonObject {
@@ -146,42 +153,39 @@ async function strapiGet(path: string, serverToken: string): Promise<{ ok: boole
   return { ok: res.ok, status: res.status, json };
 }
 
-async function cmsAdminSummaryGet(adminToken: string): Promise<{ ok: boolean; status: number; json: unknown }> {
-  const res = await fetch(`${getStrapiBase()}/api/admin-dashboard/summary`, {
-    method: "GET",
-    headers: { "x-admin-token": adminToken },
-    cache: "no-store",
-  });
+async function cmsAdminGet(path: string, adminTokens: string[]): Promise<{ ok: boolean; status: number; json: unknown }> {
+  let authFailure: { ok: boolean; status: number; json: unknown } | null = null;
 
-  const text = await res.text();
-  let json: unknown = null;
+  for (const adminToken of adminTokens) {
+    const res = await fetch(`${getStrapiBase()}${path}`, {
+      method: "GET",
+      headers: { "x-admin-token": adminToken },
+      cache: "no-store",
+    });
 
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
+    const text = await res.text();
+    let json: unknown = null;
+
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+
+    const result = { ok: res.ok, status: res.status, json };
+    if (res.ok || (res.status !== 401 && res.status !== 403)) return result;
+    authFailure = authFailure || result;
   }
 
-  return { ok: res.ok, status: res.status, json };
+  return authFailure || { ok: false, status: 401, json: null };
 }
 
-async function cmsModerationEventsGet(adminToken: string): Promise<{ ok: boolean; status: number; json: unknown }> {
-  const res = await fetch(`${getStrapiBase()}/api/admin-dashboard/moderation-events`, {
-    method: "GET",
-    headers: { "x-admin-token": adminToken },
-    cache: "no-store",
-  });
+async function cmsAdminSummaryGet(adminTokens: string[]): Promise<{ ok: boolean; status: number; json: unknown }> {
+  return cmsAdminGet("/api/admin-dashboard/summary", adminTokens);
+}
 
-  const text = await res.text();
-  let json: unknown = null;
-
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-
-  return { ok: res.ok, status: res.status, json };
+async function cmsModerationEventsGet(adminTokens: string[]): Promise<{ ok: boolean; status: number; json: unknown }> {
+  return cmsAdminGet("/api/admin-dashboard/moderation-events", adminTokens);
 }
 
 function boatQuery(locale: StrapiLocale, status: RowStatus, page = 1): string {
@@ -672,8 +676,8 @@ export async function GET() {
   }
 
   const warnings: string[] = [];
-  const cmsAdminToken = getCmsAdminSummaryToken();
-  if (!cmsAdminToken) {
+  const cmsAdminTokens = getCmsAdminSummaryTokens();
+  if (!cmsAdminTokens.length) {
     return NextResponse.json(
       {
         ok: false,
@@ -687,8 +691,8 @@ export async function GET() {
   const [boatResult, experienceResult, eventResult, cmsSummaryResult] = await Promise.all([
     fetchRowsByStatus(boatQuery, serverToken, warnings),
     fetchRowsByStatus(experienceQuery, serverToken, warnings),
-    cmsModerationEventsGet(cmsAdminToken),
-    cmsAdminSummaryGet(cmsAdminToken),
+    cmsModerationEventsGet(cmsAdminTokens),
+    cmsAdminSummaryGet(cmsAdminTokens),
   ]);
 
   if (!eventResult.ok) {

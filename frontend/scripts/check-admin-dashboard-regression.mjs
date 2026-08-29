@@ -53,7 +53,7 @@ assert(
 
 assert(
   frontendRoute.includes("/api/admin-dashboard/moderation-events") &&
-    frontendRoute.includes("cmsModerationEventsGet(cmsAdminToken)") &&
+    frontendRoute.includes("cmsModerationEventsGet(cmsAdminTokens)") &&
     !frontendRoute.includes('withQuery("/api/moderation-events"'),
   "moderation journal uses protected CMS admin endpoint"
 );
