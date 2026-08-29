@@ -3,7 +3,11 @@ import type { NextResponse } from "next/server";
 export const OWNER_SESSION_COOKIE_NAME = "sharmar_owner_session";
 
 function cookieDomain(): string | undefined {
-  return process.env.NODE_ENV === "production" ? ".sharmar.me" : undefined;
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") return undefined;
+
+  return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production"
+    ? ".sharmar.me"
+    : undefined;
 }
 
 export type ParsedOwnerSessionCookie = {
