@@ -3,6 +3,28 @@
 module.exports = {
   async up(knex) {
     await knex.raw(`
+      CREATE OR REPLACE FUNCTION public.expire_holds()
+      RETURNS integer
+      LANGUAGE plpgsql
+      AS $function$
+      DECLARE
+        v_updated integer := 0;
+      BEGIN
+        IF to_regclass('public.bookings') IS NULL THEN
+          RETURN 0;
+        END IF;
+
+        UPDATE public.bookings
+        SET status = 'expired'
+        WHERE status = 'hold'
+          AND expires_at IS NOT NULL
+          AND expires_at <= now();
+
+        GET DIAGNOSTICS v_updated = ROW_COUNT;
+        RETURN v_updated;
+      END;
+      $function$;
+
       CREATE OR REPLACE FUNCTION public.hold_booking(
         p_boat_id integer,
         p_slot_start_utc timestamp without time zone,
@@ -30,6 +52,15 @@ module.exports = {
         v_id integer;
         v_pub uuid;
       BEGIN
+        IF to_regclass('public.boats') IS NULL
+          OR to_regclass('public.bookings') IS NULL
+          OR to_regclass('public.boat_availability_rules') IS NULL
+          OR to_regclass('public.boat_blackouts') IS NULL
+        THEN
+          RETURN QUERY SELECT false, 'SCHEMA_NOT_READY', NULL::int, NULL::uuid, NULL::timestamp;
+          RETURN;
+        END IF;
+
         IF p_slot_start_utc IS NULL
           OR p_slot_end_utc IS NULL
           OR NOT (p_slot_start_utc < p_slot_end_utc)

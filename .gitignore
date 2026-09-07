@@ -38,6 +38,7 @@ backups/
 .env
 .env.*
 !.env.example
+!.env.staging.example
 
 # Production runtime secrets — never commit
 /shared/*.env

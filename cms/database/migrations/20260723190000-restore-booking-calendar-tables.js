@@ -71,7 +71,8 @@ module.exports = {
     await knex.raw(`
       DO $$
       BEGIN
-        IF NOT EXISTS (
+        IF to_regclass('public.boats') IS NOT NULL
+          AND NOT EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'bookings_boat_id_fkey'
@@ -81,7 +82,8 @@ module.exports = {
             ADD CONSTRAINT bookings_boat_id_fkey
             FOREIGN KEY (boat_id)
             REFERENCES public.boats(id)
-            ON DELETE CASCADE;
+            ON DELETE CASCADE
+            NOT VALID;
         END IF;
       END
       $$;
@@ -317,7 +319,8 @@ module.exports = {
     await knex.raw(`
       DO $$
       BEGIN
-        IF NOT EXISTS (
+        IF to_regclass('public.boats') IS NOT NULL
+          AND NOT EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname =
@@ -330,7 +333,8 @@ module.exports = {
               boat_availability_rules_boat_id_fkey
             FOREIGN KEY (boat_id)
             REFERENCES public.boats(id)
-            ON DELETE CASCADE;
+            ON DELETE CASCADE
+            NOT VALID;
         END IF;
       END
       $$;
@@ -408,7 +412,8 @@ module.exports = {
     await knex.raw(`
       DO $$
       BEGIN
-        IF NOT EXISTS (
+        IF to_regclass('public.boats') IS NOT NULL
+          AND NOT EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname =
@@ -421,7 +426,8 @@ module.exports = {
               boat_blackouts_boat_id_fkey
             FOREIGN KEY (boat_id)
             REFERENCES public.boats(id)
-            ON DELETE CASCADE;
+            ON DELETE CASCADE
+            NOT VALID;
         END IF;
       END
       $$;

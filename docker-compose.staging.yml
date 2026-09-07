@@ -1,0 +1,55 @@
+# Отдельная тестовая (staging) CMS.
+# Не связана с рабочей CMS/БД и не использует cms_green.
+# Ключевое исправление: один и тот же volume для node_modules
+# используется на install, build и запуске — это устраняет
+# ошибку "strapi: not found" (см. docker-compose.yml, где
+# отсутствовал шаг install перед build/start).
+
+services:
+  db_staging:
+    image: postgres:16-alpine
+    container_name: sharmar_pg_staging
+    environment:
+      POSTGRES_DB: sharmar_staging
+      POSTGRES_USER: ${STAGING_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD}
+    volumes:
+      - sharmar_pg_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STAGING_POSTGRES_USER} -d sharmar_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  strapi_staging:
+    image: node:20-bookworm-slim
+    container_name: sharmar_strapi_staging
+    working_dir: /app
+    depends_on:
+      db_staging:
+        condition: service_healthy
+    env_file:
+      - .env.staging
+    ports:
+      - "127.0.0.1:1339:1337"
+    environment:
+      NODE_ENV: production
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: db_staging
+      DATABASE_PORT: 5432
+      DATABASE_NAME: sharmar_staging
+      DATABASE_USERNAME: ${STAGING_POSTGRES_USER}
+      DATABASE_PASSWORD: ${STAGING_POSTGRES_PASSWORD}
+    volumes:
+      - ./cms:/app
+      - sharmar_cms_node_modules_staging:/app/node_modules
+      - sharmar_uploads_staging:/app/public/uploads
+    # Один и тот же volume (sharmar_cms_node_modules_staging) используется
+    # на всех трёх этапах: install -> build -> start. Это и есть исправление.
+    command: sh -lc "npm ci && npm run build && npm run start"
+    restart: unless-stopped
+
+volumes:
+  sharmar_pg_staging_data: {}
+  sharmar_cms_node_modules_staging: {}
+  sharmar_uploads_staging: {}

@@ -13,16 +13,26 @@ module.exports = {
         slot_start_utc timestamp without time zone,
         slot_end_utc timestamp without time zone
       )
-      LANGUAGE sql
+      LANGUAGE plpgsql
       STABLE
       AS $function$
+      BEGIN
+      IF to_regclass('public.boats') IS NULL
+        OR to_regclass('public.bookings') IS NULL
+        OR to_regclass('public.boat_availability_rules') IS NULL
+        OR to_regclass('public.boat_blackouts') IS NULL
+      THEN
+        RETURN;
+      END IF;
+
+      RETURN QUERY EXECUTE $sql$
       WITH
       params AS (
         SELECT
-          p_boat_id AS requested_boat_id,
-          p_date_from AS date_from,
-          p_date_to AS date_to,
-          GREATEST(p_slot_minutes, 1) AS slot_minutes
+          $1::integer AS requested_boat_id,
+          $2::date AS date_from,
+          $3::date AS date_to,
+          GREATEST($4::integer, 1) AS slot_minutes
       ),
       requested_boat AS (
         SELECT
@@ -117,6 +127,9 @@ module.exports = {
           AND s.slot_end_utc > x.start_utc
       )
       ORDER BY s.slot_start_utc;
+      $sql$
+      USING p_boat_id, p_date_from, p_date_to, p_slot_minutes;
+      END;
       $function$;
     `);
   },

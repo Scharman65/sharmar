@@ -18,6 +18,12 @@ const OBJECTS = {
 
 module.exports = {
   async up(knex) {
+    const hasBookingRequests = await knex.schema.hasTable("booking_requests");
+
+    if (!hasBookingRequests) {
+      return;
+    }
+
     await knex.raw(`
       alter table public.booking_requests
         add column if not exists external_refund_status text not null default 'none',
