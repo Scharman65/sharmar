@@ -53,6 +53,10 @@ frontend/public/*/version.txt
 .vercel
 .env*.local
 
+# Browser test output (may contain page data)
+test-results/
+playwright-report/
+
 # Sharmar local safety snapshots / diagnostics
 SAFE_SNAPSHOTS/
 diagnostics/
