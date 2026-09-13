@@ -85,7 +85,7 @@ test("admin client verifies cookie after login before loading dashboard", () => 
   assert.ok(signInBlock.includes("const nextSession = await refreshSession()"));
   assert.ok(signInBlock.includes("!nextSession.authenticated"));
   assert.ok(signInBlock.includes("admin_cookie_missing"));
-  assert.ok(signInBlock.includes("await loadDashboard()"));
+  assert.doesNotMatch(signInBlock, /await loadDashboard\(\)/);
 });
 
 test("dashboard load errors are not mapped to invalid password", () => {
@@ -122,7 +122,7 @@ test("logout clears cookie and client session state without exposing raw cookie 
   assert.ok(signOutBlock.includes('fetch("/api/admin/session"'));
   assert.ok(signOutBlock.includes('method: "DELETE"'));
   assert.ok(signOutBlock.includes('credentials: "same-origin"'));
-  assert.ok(signOutBlock.includes("setSession({ authenticated: false, permissions: [], expiresAt: null })"));
+  assert.ok(signOutBlock.includes("updateSession({ authenticated: false, permissions: [], expiresAt: null })"));
   assert.doesNotMatch(signOutBlock, /document\.cookie|localStorage|sessionStorage/);
 });
 

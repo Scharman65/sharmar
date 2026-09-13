@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Lang } from "@/i18n";
 import {
   REQUIRED_ADMIN_LOCALES,
@@ -575,7 +575,12 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   const [active, setActive] = useState<Section>("overview");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authPending, setAuthPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const authenticated = useRef(false);
+  const dashboardRequest = useRef<AbortController | null>(null);
+  const sessionRequest = useRef<AbortController | null>(null);
+  const authRequest = useRef<AbortController | null>(null);
   const [boatMessages, setBoatMessages] = useState<Record<string, string>>({});
   const [pendingBoatAction, setPendingBoatAction] = useState<string | null>(null);
 
@@ -669,7 +674,21 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
     }
   }, []);
 
+  const updateSession = useCallback((nextSession: SessionState) => {
+    authenticated.current = nextSession.authenticated;
+    setSession(nextSession);
+    if (!nextSession.authenticated) {
+      dashboardRequest.current?.abort();
+      dashboardRequest.current = null;
+      setLoading(false);
+      setData(null);
+    }
+  }, []);
+
   const refreshSession = useCallback(async () => {
+    sessionRequest.current?.abort();
+    const request = new AbortController();
+    sessionRequest.current = request;
     const fallback: SessionState = {
       authenticated: false,
       permissions: [],
@@ -681,10 +700,12 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
       const response = await fetch("/api/admin/session", {
         cache: "no-store",
         credentials: "same-origin",
+        signal: request.signal,
       });
       const json = await response.json().catch(() => null);
+      if (request.signal.aborted) return fallback;
       if (!response.ok || !json || typeof json !== "object") {
-        setSession(fallback);
+        updateSession(fallback);
         return fallback;
       }
 
@@ -694,28 +715,37 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
         expiresAt: asNumber((json as SessionState).expiresAt),
         code: asText((json as SessionState).code),
       };
-      setSession(nextSession);
+      updateSession(nextSession);
       return nextSession;
     } catch {
-      setSession(fallback);
+      if (!request.signal.aborted) updateSession(fallback);
       return fallback;
+    } finally {
+      if (sessionRequest.current === request) sessionRequest.current = null;
     }
-  }, []);
+  }, [updateSession]);
 
   const loadDashboard = useCallback(async () => {
+    if (!authenticated.current) return;
+    // An explicit refresh supersedes an older read, including one started
+    // before a moderation action. Only the newest response may update the UI.
+    dashboardRequest.current?.abort();
+    const request = new AbortController();
+    dashboardRequest.current = request;
     setLoading(true);
     setError(null);
     try {
       const response = await fetch("/api/admin/dashboard", {
         cache: "no-store",
         credentials: "same-origin",
+        signal: request.signal,
       });
       const json = await response.json().catch(() => null);
+      if (request.signal.aborted) return;
       if (!response.ok || !json || typeof json !== "object" || (json as DashboardData).ok !== true) {
         const code = json && typeof json === "object" ? asText((json as { code?: unknown }).code) : "";
         if (response.status === 401) {
-          setSession({ authenticated: false, permissions: [], expiresAt: null, code });
-          setData(null);
+          updateSession({ authenticated: false, permissions: [], expiresAt: null, code });
           setError(adminErrorMessage(ui, code || "invalid_admin_session"));
           return;
         }
@@ -724,15 +754,21 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
       }
       setData(json as DashboardData);
     } catch {
-      setError(adminErrorMessage(ui, "dashboard_api_unavailable"));
+      if (!request.signal.aborted) setError(adminErrorMessage(ui, "dashboard_api_unavailable"));
     } finally {
-      setLoading(false);
+      if (dashboardRequest.current === request) {
+        dashboardRequest.current = null;
+        setLoading(false);
+      }
     }
-  }, [ui]);
+  }, [ui, updateSession]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
+    if (authRequest.current) return;
+    const request = new AbortController();
+    authRequest.current = request;
+    setAuthPending(true);
     setError(null);
     try {
       const response = await fetch("/api/admin/session", {
@@ -741,8 +777,10 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
         cache: "no-store",
         credentials: "same-origin",
         body: JSON.stringify({ password }),
+        signal: request.signal,
       });
       const json = await response.json().catch(() => null);
+      if (request.signal.aborted) return;
       if (!response.ok || !json || typeof json !== "object" || (json as { ok?: boolean }).ok !== true) {
         const code = json && typeof json === "object" ? asText((json as { code?: unknown }).code) : "";
         setError(adminErrorMessage(ui, code || "invalid_admin_password"));
@@ -750,28 +788,57 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
       }
       setPassword("");
       const nextSession = await refreshSession();
+      if (request.signal.aborted) return;
       if (!nextSession.authenticated) {
         setError(adminErrorMessage(ui, nextSession.code || "admin_cookie_missing"));
         return;
       }
-      await loadDashboard();
+      // The authenticated-session effect owns the initial dashboard load.
     } catch {
-      setError(adminErrorMessage(ui, "admin_session_unavailable"));
+      if (!request.signal.aborted) setError(adminErrorMessage(ui, "admin_session_unavailable"));
     } finally {
-      setLoading(false);
+      if (authRequest.current === request) {
+        authRequest.current = null;
+        setAuthPending(false);
+      }
     }
   }
 
   async function signOut() {
-    await fetch("/api/admin/session", {
-      method: "DELETE",
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    setSession({ authenticated: false, permissions: [], expiresAt: null });
-    setData(null);
-    setPassword("");
-    setActive("overview");
+    if (authRequest.current) return;
+    const request = new AbortController();
+    authRequest.current = request;
+    setAuthPending(true);
+    setError(null);
+    authenticated.current = false;
+    sessionRequest.current?.abort();
+    dashboardRequest.current?.abort();
+    dashboardRequest.current = null;
+    setLoading(false);
+    try {
+      const response = await fetch("/api/admin/session", {
+        method: "DELETE",
+        cache: "no-store",
+        credentials: "same-origin",
+        signal: request.signal,
+      });
+      if (request.signal.aborted) return;
+      if (!response.ok) throw new Error("sign_out_failed");
+      updateSession({ authenticated: false, permissions: [], expiresAt: null });
+      setPassword("");
+      setBoatMessages({});
+      setActive("overview");
+    } catch {
+      if (!request.signal.aborted) {
+        authenticated.current = session.authenticated;
+        setError(adminErrorMessage(ui, "admin_session_unavailable"));
+      }
+    } finally {
+      if (authRequest.current === request) {
+        authRequest.current = null;
+        setAuthPending(false);
+      }
+    }
   }
 
   async function translateAndReview(boat: LogicalBoat) {
@@ -887,6 +954,15 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
 
   useEffect(() => {
     void refreshSession();
+    return () => {
+      authenticated.current = false;
+      sessionRequest.current?.abort();
+      dashboardRequest.current?.abort();
+      authRequest.current?.abort();
+      sessionRequest.current = null;
+      dashboardRequest.current = null;
+      authRequest.current = null;
+    };
   }, [refreshSession]);
 
   useEffect(() => {
@@ -898,8 +974,8 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
   }, [ui.sections]);
 
   useEffect(() => {
-    if (session.authenticated && !data && !loading) void loadDashboard();
-  }, [data, loadDashboard, loading, session.authenticated]);
+    if (session.authenticated) void loadDashboard();
+  }, [loadDashboard, session.authenticated]);
 
   return (
     <main className="admin-cockpit">
@@ -910,7 +986,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
           <p className="admin-muted">{ui.sessionOnly}</p>
         </div>
         {session.authenticated ? (
-          <button type="button" className="admin-secondary" onClick={() => void signOut()}>
+          <button type="button" className="admin-secondary" disabled={authPending} onClick={() => void signOut()}>
             {ui.signOut}
           </button>
         ) : null}
@@ -928,7 +1004,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
               required
             />
           </label>
-          <button type="submit" disabled={loading}>{loading ? ui.loading : ui.signIn}</button>
+          <button type="submit" disabled={authPending}>{authPending ? ui.loading : ui.signIn}</button>
           {error ? <p className="admin-error" role="alert">{error}</p> : null}
         </form>
       ) : (
@@ -944,7 +1020,7 @@ export default function AdminCockpitClient({ lang }: { lang: Lang }) {
                 {item.label}
               </button>
             ))}
-            <button type="button" onClick={() => void loadDashboard()}>{ui.retry}</button>
+            <button type="button" disabled={loading || authPending} onClick={() => void loadDashboard()}>{ui.retry}</button>
           </nav>
 
           {error ? <p className="admin-error" role="alert">{error}</p> : null}
