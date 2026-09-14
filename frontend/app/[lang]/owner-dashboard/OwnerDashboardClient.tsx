@@ -2282,7 +2282,7 @@ useEffect(() => {
           </section>
         ) : null}
 
-        {!isLoading && !error ? (
+        {!isLoading && (!error || error === "owner_password_change_required") ? (
           <section id="owner-security" className="card" style={{ marginTop: 18, padding: 18 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>{pageCopy(lang).security}</h2>
             <p className="kicker" style={{ margin: "6px 0 0" }}>{pageCopy(lang).passwordRequirements}</p>
